@@ -24,7 +24,7 @@ class Magics {
     // Get all squares attacked by a piece.
     // May include own pieces.
     board::bitboard_t get_attack_set(board::Piece p, board::square_t sq,
-                                     board::bitboard_t occ);
+                                     board::bitboard_t occ) const;
 
   private:
     //
@@ -98,8 +98,8 @@ class Magics {
 
     // Helper: Get the attack map for a given piece at a given position.
     // May return null.
-    constexpr board::bitboard_t *get_attack_map(board::Piece p,
-                                                board::square_t sq);
+    board::bitboard_t *get_attack_map(board::Piece p,
+                                                board::square_t sq) const;
 
     //
     // Magic numbers
@@ -115,11 +115,11 @@ class Magics {
     magic_t bishop_magics[board::n_squares];
 
     // Get the magic number for a piece at a given position
-    magic_t get_magic(board::Piece p, board::square_t sq);
+    magic_t get_magic(board::Piece p, board::square_t sq) const;
 
     // Helper: Get the magic number map for a given piece.
     // May return null.
-    magic_t *get_magic_map(board::Piece p);
+    magic_t *get_magic_map(board::Piece p) const;
 
     //
     // Keys
@@ -140,7 +140,7 @@ class Magics {
     // Get the attack map key, given piece, position, blockers (relevant or
     // total)
     magic_key_t get_magic_key(board::Piece p, board::square_t sq,
-                              board::bitboard_t occ);
+                              board::bitboard_t occ) const;
 
     // Get the attack map key, given piece, position, blockers (relevant or
     // total), and a magic number

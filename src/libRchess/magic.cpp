@@ -31,7 +31,7 @@ Magics::~Magics() {
     // delete[] bishop_magics;
 }
 
-bitboard_t Magics::get_attack_set(Piece p, square_t sq, bitboard_t occ) {
+bitboard_t Magics::get_attack_set(Piece p, square_t sq, bitboard_t occ) const {
     bitboard_t *attack_map = get_attack_map(p, sq);
     if (!attack_map) {
         throw std::invalid_argument("get_attack_set()");
@@ -324,14 +324,14 @@ board::bitboard_t Magics::get_bishop_attacks(board::square_t sq,
     return ret;
 };
 
-constexpr bitboard_t *Magics::get_attack_map(Piece p, square_t sq) {
+bitboard_t *Magics::get_attack_map(Piece p, square_t sq) const {
     if (sq >= n_squares)
         return nullptr;
     switch (p) {
     case Piece::ROOK:
-        return rook_attacks[sq];
+        return (bitboard_t *)rook_attacks[sq];
     case Piece::BISHOP:
-        return bishop_attacks[sq];
+        return (bitboard_t *)bishop_attacks[sq];
     default:
         return nullptr;
     }
@@ -374,7 +374,7 @@ void Magics::init_magics() {
     }
 }
 
-magic_t Magics::get_magic(Piece p, square_t sq) {
+magic_t Magics::get_magic(Piece p, square_t sq) const {
     const magic_t *magic_map = get_magic_map(p);
     if (magic_map) {
         return magic_map[sq];
@@ -382,12 +382,12 @@ magic_t Magics::get_magic(Piece p, square_t sq) {
     throw std::invalid_argument("get_magic()");
 }
 
-magic_t *Magics::get_magic_map(Piece p) {
+magic_t *Magics::get_magic_map(Piece p) const {
     switch (p) {
     case Piece::ROOK:
-        return rook_magics;
+        return (magic_t *)rook_magics;
     case Piece::BISHOP:
-        return bishop_magics;
+        return (magic_t *)bishop_magics;
     default:
         return nullptr;
     }
@@ -416,7 +416,7 @@ int Magics::get_shift_width(Piece p, square_t sq) const {
     }
 }
 
-magic_key_t Magics::get_magic_key(Piece p, square_t sq, bitboard_t occ) {
+magic_key_t Magics::get_magic_key(Piece p, square_t sq, bitboard_t occ) const {
     return get_magic_key(p, sq, occ, get_magic(p, sq));
 }
 
