@@ -9,7 +9,7 @@ namespace state {
 // Constructors
 //
 
-State::State() {}
+State::State() : m_castling_rights{}, m_pieces{} {}
 
 State::State(const fen_t &fen_string) : State() {
 

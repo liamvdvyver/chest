@@ -19,7 +19,6 @@ class Magics {
 
   public:
     Magics();
-    ~Magics();
 
     // Get all squares attacked by a piece.
     // May include own pieces.

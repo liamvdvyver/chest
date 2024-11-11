@@ -26,14 +26,6 @@ Magics::Magics()
     init_magics();
 };
 
-Magics::~Magics() {
-    // TODO: check automatically freed
-    // delete[] rook_masks;
-    // delete[] bishop_masks;
-    // delete[] rook_magics;
-    // delete[] bishop_magics;
-}
-
 bitboard_t Magics::get_attack_set(Piece p, square_t sq, bitboard_t occ) const {
     bitboard_t *attack_map = get_attack_map(p, sq);
     if (!attack_map) {
@@ -193,7 +185,6 @@ bool Magics::init_attacks(Piece p, magic_t magic, square_t sq,
     do {
         bitboard_t attacked = get_attacks(p, sq, blocker_subset);
         key = get_magic_key(p, sq, blocker_subset, magic);
-        visited.push_back(key);
 
         bitboard_t &cur_elm = coord_attack_map[key];
 
@@ -207,6 +198,7 @@ bool Magics::init_attacks(Piece p, magic_t magic, square_t sq,
             return false;
         }
 
+        visited.push_back(key);
         cur_elm = attacked;
         blocker_subset = next_subset_of(blocker_subset, all_blockers);
 
