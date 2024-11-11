@@ -5,6 +5,9 @@
 
 using namespace board;
 
+namespace move {
+namespace magic {
+
 //
 // Public
 //
@@ -430,3 +433,5 @@ magic_key_t Magics::get_magic_key(Piece p, square_t sq, bitboard_t occ,
     bitboard_t mask = get_mask(p, sq);
     return ((occ & mask) * magic) >> get_shift_width(p, sq);
 }
+} // namespace magic
+} // namespace move

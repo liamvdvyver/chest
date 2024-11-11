@@ -6,6 +6,7 @@
 using namespace board;
 using namespace std;
 using namespace state;
+using namespace move::magic;
 
 int main(int argc, char **argv) {
     State s = State(new_game_fen);

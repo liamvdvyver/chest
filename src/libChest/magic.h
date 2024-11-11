@@ -3,6 +3,9 @@
 
 #include "board.h"
 
+namespace move {
+namespace magic {
+
 // Magic numbers
 typedef board::bitboard_t magic_t;
 
@@ -78,7 +81,8 @@ class Magics {
 
     // Populate attack maps for a position, given a candidate magic number.
     // Returns whether successful.
-    bool init_attacks(board::Piece p, magic_t magic, board::square_t sq, std::vector<magic_key_t> &visited);
+    bool init_attacks(board::Piece p, magic_t magic, board::square_t sq,
+                      std::vector<magic_key_t> &visited);
 
     // Get the attack set for a piece at a position, given occupancy (relevant
     // blockers or total occupancy)
@@ -95,8 +99,7 @@ class Magics {
 
     // Helper: Get the attack map for a given piece at a given position.
     // May return null.
-    board::bitboard_t *get_attack_map(board::Piece p,
-                                                board::square_t sq) const;
+    board::bitboard_t *get_attack_map(board::Piece p, board::square_t sq) const;
 
     //
     // Magic numbers
@@ -144,5 +147,7 @@ class Magics {
     magic_key_t get_magic_key(board::Piece p, board::square_t sq,
                               board::bitboard_t occ, magic_t magic) const;
 };
+} // namespace magic
+} // namespace move
 
 #endif
