@@ -81,7 +81,7 @@ class Magics {
 
     // Populate attack maps for a position, given a candidate magic number.
     // Returns whether successful.
-    bool init_attacks(board::Piece p, magic_t magic, board::square_t sq);
+    bool init_attacks(board::Piece p, magic_t magic, board::square_t sq, std::vector<magic_key_t> &visited);
 
     // Get the attack set for a piece at a position, given occupancy (relevant
     // blockers or total occupancy)

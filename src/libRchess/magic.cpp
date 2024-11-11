@@ -18,7 +18,9 @@ using namespace board;
 // Public
 //
 
-Magics::Magics() {
+Magics::Magics()
+    : rook_attacks{}, bishop_attacks{}, rook_magics{}, bishop_magics{},
+      m_rook_masks{}, m_bishop_masks{}, m_rook_shifts{}, m_bishop_shifts{} {
     init_masks();
     init_shifts();
     init_magics();
@@ -170,9 +172,10 @@ const bitboard_t &Magics::get_mask(Piece p, square_t sq) const {
 // Attack maps
 //
 
-bool Magics::init_attacks(Piece p, magic_t magic, square_t sq) {
+bool Magics::init_attacks(Piece p, magic_t magic, square_t sq,
+                          std::vector<magic_key_t> &visited) {
 
-    std::vector<magic_key_t> visited;
+    visited.clear();
 
     bitboard_t *coord_attack_map = get_attack_map(p, sq);
 
@@ -361,21 +364,27 @@ void Magics::init_magics() {
 
     std::uniform_int_distribution<magic_t> rand;
 
+    std::vector<magic_key_t> visited;
+
     for (int sq = 0; sq < n_squares; sq++) {
 
         rook_done = false;
-        bishop_done = false;
 
         do {
             rook_magic_num = rand(eng) & rand(eng) & rand(eng);
-            rook_done = init_attacks(Piece::ROOK, rook_magic_num, square_t(sq));
+            rook_done = init_attacks(Piece::ROOK, rook_magic_num, square_t(sq),
+                                     visited);
         } while (!rook_done);
         rook_magics[sq] = rook_magic_num;
+    }
+
+    for (int sq = 0; sq < n_squares; sq++) {
+        bishop_done = false;
 
         do {
             bishop_magic_num = rand(eng) & rand(eng) & rand(eng);
-            bishop_done =
-                init_attacks(Piece::BISHOP, bishop_magic_num, square_t(sq));
+            bishop_done = init_attacks(Piece::BISHOP, bishop_magic_num,
+                                       square_t(sq), visited);
         } while (!bishop_done);
         bishop_magics[sq] = bishop_magic_num;
     }
