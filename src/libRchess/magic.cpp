@@ -7,6 +7,7 @@
 #include <random>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 #include "board.h"
 #include "magic.h"
@@ -171,6 +172,8 @@ const bitboard_t &Magics::get_mask(Piece p, square_t sq) const {
 
 bool Magics::init_attacks(Piece p, magic_t magic, square_t sq) {
 
+    std::vector<magic_key_t> visited;
+
     bitboard_t *coord_attack_map = get_attack_map(p, sq);
 
     bitboard_t all_blockers = get_mask(p, sq);
@@ -181,13 +184,17 @@ bool Magics::init_attacks(Piece p, magic_t magic, square_t sq) {
     do {
         bitboard_t attacked = get_attacks(p, sq, blocker_subset);
         key = get_magic_key(p, sq, blocker_subset, magic);
+        visited.push_back(key);
 
         bitboard_t &cur_elm = coord_attack_map[key];
 
         // Collision with different val
         if (cur_elm && cur_elm != attacked) {
 
-            memset(coord_attack_map, 0, sizeof(bitboard_t) * n_keys(p));
+            for (const magic_key_t visited_key : visited) {
+                coord_attack_map[visited_key] = 0;
+            }
+
             return false;
         }
 
