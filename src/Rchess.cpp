@@ -6,18 +6,11 @@
 #include <string>
 
 using namespace board;
+using namespace std;
+using namespace state;
 
 int main(int argc, char **argv) {
-    std::cout << std::to_string(sizeof(Magics)) << std::endl;
+    State s = State(new_game_fen);
     Magics m = Magics();
-    State s = State("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-
-    std::cout << s.get_en_passant_squares().value_or(Coord(7, 7)).algerbraic()
-              << std::endl;
-    std::cout << Bitboard(s.get_en_passant_squares().value_or(Coord(7, 7)))
-              << std::endl;
-    Bitboard occ = s.total_occupancy();
-    std::cout << occ;
-    std::cout << m.get_attack_set(Piece::ROOK, Coord(4, 4), occ);
-    std::cout << m.get_attack_set(Piece::BISHOP, Coord(3, 5), occ);
+    cout << pretty(m.get_attack_set(board::Piece::BISHOP, to_square(4, 4), s.total_occupancy()));
 }

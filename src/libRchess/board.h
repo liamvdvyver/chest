@@ -17,128 +17,196 @@
 #include <variant>
 #include <vector>
 
-// using namespace std;
+//
+// Defines basic datatypes for board state
+//
 
 namespace board {
 
+// Size of the board (number of ranks or files)
 constexpr int board_size = 8;
-constexpr int n_pieces = 6;
-constexpr int n_colours = 2;
-constexpr int n_castling_sides = 2;
+
+// Size of the board (total number of squares)
 constexpr int n_squares = board_size * board_size;
 
-typedef uint64_t bitboard_t;
-typedef uint8_t square_t;
-typedef uint16_t move_t;
-typedef std::string fen_t;
-typedef std::string alg_t;
+//
+// Colour
+//
 
 enum class Colour : bool { BLACK, WHITE };
 
-class Coord {
-    square_t value;
+// Number of colours, for sizing arrays
+static constexpr int n_colours = 2;
 
-  public:
-    Coord(const square_t board_no) : value{board_no} {
-        if (value >= n_squares)
-            throw std::invalid_argument("Too large!");
-    };
+//
+// Coordinates
+//
 
-    Coord(const int x, const int y) : Coord(y * board_size + x) {
-        if (x >= board_size || y >= board_size)
-            throw std::invalid_argument("Too large!");
-        if (x < 0 || y < 0)
-            throw std::invalid_argument("Too small!");
-    };
+// LERF enumeration
+typedef uint8_t square_t;
 
-    Coord(const alg_t &square_name) {
-        if (square_name.length() != 2) {
-            std::invalid_argument("Coord(const alg_t &)");
-        }
+// Extract file (x-coord) from LERF enumerated squre
+constexpr int file(const square_t sq) { return sq % board_size; }
 
-        int x = (tolower(square_name.at(0)) - 'a');
-        int y = (square_name.at(1) - '1');
+// Extract rank (y-coord) from LERF enumerated squre
+constexpr int rank(const square_t sq) { return sq / board_size; }
 
-        if (x >= board_size || y >= board_size)
-            throw std::invalid_argument("Too large!");
-        if (x < 0 || y < 0)
-            throw std::invalid_argument("Too small!");
+// Bounds check file and rank
+constexpr bool is_legal_square(const int f, const int r) {
+    return (r < board_size && f < board_size && r >= 0 && f >= 0);
+}
 
-        value = y * board_size + x;
-    }
+// Bounds check square number
+constexpr bool is_legal_square(const square_t sq) {
+    return (sq >= 0 && sq < n_squares);
+}
 
-    int get_x() const { return value % board_size; }
+// Enumerate LERF from cartesian coordinates
+constexpr square_t to_square(int f, int r) {
+    assert(is_legal_square(f, r));
+    return r * board_size + f;
+}
 
-    int get_y() const { return value / board_size; }
+// Type of algebraic square names
+typedef std::string alg_t;
 
-    square_t get_square() const { return value; }
+// Parse (case-insensitive) algebraic notation
+square_t to_square(const alg_t &sq);
 
-    alg_t algerbraic() {
-        alg_t ret = "";
+// Give algebraic square name
+alg_t algebraic(const square_t sq);
 
-        ret += get_x() + 'A';
-        ret += get_y() + '1';
-
-        return ret;
-    }
+// LERF enumeration: explicit names
+enum algebraic : square_t {
+    A1,
+    B1,
+    C1,
+    D1,
+    E1,
+    F1,
+    G1,
+    H1,
+    A2,
+    B2,
+    C2,
+    D2,
+    E2,
+    F2,
+    G2,
+    H2,
+    A3,
+    B3,
+    C3,
+    D3,
+    E3,
+    F3,
+    G3,
+    H3,
+    A4,
+    B4,
+    C4,
+    D4,
+    E4,
+    F4,
+    G4,
+    H4,
+    A5,
+    B5,
+    C5,
+    D5,
+    E5,
+    F5,
+    G5,
+    H5,
+    A6,
+    B6,
+    C6,
+    D6,
+    E6,
+    F6,
+    G6,
+    H6,
+    A7,
+    B7,
+    C7,
+    D7,
+    E7,
+    F7,
+    G7,
+    H7,
+    A8,
+    B8,
+    C8,
+    D8,
+    E8,
+    F8,
+    G8,
+    H8
 };
 
-class Bitboard {
+//
+// Bitboards
+//
 
-    bitboard_t board = 0;
+// LERF bitset
+typedef uint64_t bitboard_t;
 
-    // static utils
-    static bitboard_t ls1b(const bitboard_t b) { return b & -b; };
-    static bitboard_t reset_ls1b(const bitboard_t b) { return b & (b - 1); };
-    static bool is_empty(const bitboard_t b) { return b == 0; };
+// Convert square number to singeton bitboard
+constexpr bitboard_t to_bitboard(const square_t sq) {
+    assert(is_legal_square(sq));
+    return (bitboard_t)1 << (sq);
+}
 
-    static bitboard_t of(const Coord coord) {
-        if (coord.get_square() >= n_squares) {
-            throw std::invalid_argument("coordinate must be less than " +
-                                        std::to_string(n_squares));
-        }
-        return (bitboard_t)1 << coord.get_square();
-    };
+constexpr bitboard_t shift_up(bitboard_t b, int d = 1) {
+    return b << (board_size * d);
+}
 
-  public:
-    Bitboard(bitboard_t board) : board{board} {};
-    Bitboard(){};
-    Bitboard(const Coord c) : Bitboard(of(c)){};
+constexpr bitboard_t shift_down(bitboard_t b, int d = 1) {
+    return b >> (board_size * d);
+}
 
-    void add(const Coord c) { add_all(of(c)); };
+constexpr bitboard_t shift_left(bitboard_t b, int d = 1) { return b >> d; }
 
-    void rem(const Coord c) { rem_all(of(c)); };
+constexpr bitboard_t shift_right(bitboard_t b, int d = 1) { return b << d; }
 
-    void add_all(const Bitboard &b) { board |= b.get_board(); }
-    void rem_all(const Bitboard &b) {
-        board |= b.get_board();
-        board ^= b.get_board();
+// Get the least significant one
+constexpr bitboard_t ls1b(const bitboard_t b) { return b & -b; };
+
+// Removes the least significant one to zero
+constexpr bitboard_t reset_ls1b(const bitboard_t b) { return b & (b - 1); };
+
+// Logical bitset difference
+constexpr bitboard_t setdiff(bitboard_t b1, const bitboard_t b2) {
+    b1 |= b2;
+    b1 ^= b2;
+    return b1;
+}
+
+// Iterate through subsets with the carry-ripler trick
+constexpr bitboard_t next_subset_of(const bitboard_t subset,
+                                    const bitboard_t set) {
+    return (subset - set) & set;
+}
+
+// Compute cardinality with Kerighan's method
+constexpr uint8_t size(bitboard_t b) {
+    uint8_t ret = 0;
+    while (b) {
+        ret++;
+        b = reset_ls1b(b);
     }
+    return ret;
+}
 
-    // Kernighan's method
-    uint8_t size() const {
-        uint8_t ret = 0;
-        bitboard_t board_cpy = board;
-        while (!is_empty(board_cpy)) {
-            ret++;
-            board_cpy = reset_ls1b(board_cpy);
-        }
-        return ret;
-    }
-
-    bitboard_t get_board() const { return board; };
-
-    // Iterate over subsets using Carry-Ripler trick
-    // TODO: implement as iterator
-    // this->board becomes the next subset of b
-    // will wrap back around to 0
-    void next_subset_of(const Bitboard b) {
-        board = (board - b.get_board()) & b.get_board();
-    }
-};
+//
+// Piece
+//
 
 enum class Piece : uint8_t { KING, QUEEN, BISHOP, KNIGHT, ROOK, PAWN };
 
+static constexpr int n_pieces = 6; // For array sizing
+
+// Get algebraic piece name
 constexpr const char to_char(const Piece p) {
     switch (p) {
     case Piece::KING:
@@ -162,8 +230,9 @@ constexpr const char to_char(const Piece p) {
     }
 }
 
-constexpr const Piece from_char(const char ch) {
-    switch (tolower(ch)) {
+// Parse algebraic piece name (case insensitive)
+constexpr const Piece from_char(const char c) {
+    switch (tolower(c)) {
     case 'k':
         return Piece::KING;
         break;
@@ -183,12 +252,13 @@ constexpr const Piece from_char(const char ch) {
         return Piece::PAWN;
         break;
     default:
-        throw std::invalid_argument(std::to_string(ch) +
+        throw std::invalid_argument(std::to_string(c) +
                                     " is not a valid piece name");
     }
 }
 
-std::ostream &operator<<(std::ostream &os, const Bitboard &b);
+// Pretty print bitbord
+std::string pretty(const bitboard_t b);
 
 } // namespace board
 

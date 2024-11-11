@@ -1,8 +1,8 @@
-# Rchess
+# chest
 
 C++ chess engine written by a guy who doesn't know C++.
 
-After a failed attempt in R (all I want is to stack allocate a uint64_t, is that too much to ask?), hence the name.
+After a failed attempt in R (all I want is to stack allocate a uint64_t, is that too much to ask?), hence the old name.
 
 # Features
 

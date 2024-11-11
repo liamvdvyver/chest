@@ -3,73 +3,13 @@
 
 using namespace board;
 
-Bitboard &State::get_bitboard(Piece piece, Colour colour) {
-    return pieces[(int)colour][(int)piece];
-}
+namespace state {
 
-void State::set_bitboard(Piece piece, Colour colour, Bitboard board) {
-    pieces[(int)colour][(int)piece] = board;
-}
+//
+// Constructors
+//
 
-Bitboard State::total_occupancy() {
-    Bitboard ret = side_occupancy(Colour::WHITE);
-    ret.add_all(side_occupancy(Colour::BLACK));
-    return ret;
-}
-
-Bitboard State::side_occupancy(Colour colour) {
-    Bitboard ret = 0;
-
-    // TODO: optimise if needed
-    for (int i = 0; i < n_pieces; i++) {
-        ret.add_all(pieces[(int)colour][i]);
-    }
-
-    return ret;
-}
-
-// Assumes no double up
-std::optional<std::pair<Piece, Colour>> const
-State::piece_at(bitboard_t bit) const {
-    for (int colourIdx = 0; colourIdx <= 1; colourIdx++) {
-        for (int pieceIdx = 0; pieceIdx < n_pieces; pieceIdx++) {
-
-            if ((pieces[colourIdx][pieceIdx].get_board() & bit) != 0) {
-                return std::pair((Piece)pieceIdx, (Colour)colourIdx);
-            }
-        }
-    }
-    return std::optional<std::pair<Piece, Colour>>();
-}
-
-bool State::can_castle(Piece side, Colour colour) const {
-    if (side != Piece::QUEEN && side != Piece::KING)
-        throw std::invalid_argument("Side must be KING or QUEEN");
-
-    return castling_rights[(int)colour][(int)side];
-}
-
-void State::remove_castling_rights(Piece side, Colour colour) {
-    if (side != Piece::QUEEN && side != Piece::KING)
-        throw std::invalid_argument("Side must be KING or QUEEN");
-
-    castling_rights[(int)colour][(int)side] = false;
-}
-
-State::State() {
-
-    // no castling rights
-    for (int i = 0; i < n_colours; i++) {
-        for (int j = 0; j < n_castling_sides; j++) {
-            std::cout << std::to_string(i) << std::to_string(j) << std::endl;
-            std::cout << std::addressof(castling_rights[i][j]) << std::endl;
-            castling_rights[i][j] = false;
-        }
-    };
-
-    // init to empty board
-    memset(pieces, 0, sizeof(pieces));
-}
+State::State() {}
 
 State::State(const fen_t &fen_string) : State() {
 
@@ -77,10 +17,10 @@ State::State(const fen_t &fen_string) : State() {
     std::vector<std::string> parts;
 
     int len = fen_string.length();
-    std::cout << len << std::endl;
     int curIdx = 0;
     int offset;
     char delim = ' ';
+
     do {
         offset = fen_string.substr(curIdx, len).find(' ');
         if (offset == std::string::npos) {
@@ -119,14 +59,10 @@ State::State(const fen_t &fen_string) : State() {
             Colour colour =
                 isupper(placements[charIdx]) ? Colour::WHITE : Colour::BLACK;
             Piece piece = from_char(placements[charIdx]);
-            get_bitboard(piece, colour).add(Coord(colIdx, rowIdx));
+            get_bitboard(piece, colour) |=
+                to_bitboard(to_square(colIdx, rowIdx));
             colIdx++;
         };
-    }
-
-    for (const auto &part : parts) {
-        // std::cout << "printing" << std::endl;
-        std::cout << part << std::endl;
     }
 
     // Parse the rest
@@ -174,41 +110,92 @@ State::State(const fen_t &fen_string) : State() {
                 throw std::invalid_argument(
                     "Castling rights may not be redundant");
 
-            castling_rights[(int)colour][(int)side] = true;
+            can_castle(side, colour) = true;
         }
     }
 
     // EP square
     std::string ep_str = parts.at(3);
     if (ep_str.length() == 1 && ep_str == "-") {
-        // No en-passant
+        m_ep = {.active = false};
     } else {
-        // TODO: implement
-        en_passant_squares = Coord(ep_str);
+        m_ep = {.square = to_square(ep_str), .active = true};
     }
 
     // HM clock
     std::string hm_clock_str = parts.at(4);
-    halfmove_clock = std::stoi(hm_clock_str);
+    m_halfmove_clock = std::stoi(hm_clock_str);
 
     // FM clock
     std::string fm_clock_str = parts.at(4);
-    fullmove_number = std::stoi(fm_clock_str);
+    m_fullmove_number = std::stoi(fm_clock_str);
 }
 
-std::ostream &operator<<(std::ostream &os, State s) {
+State State::new_game() { return State(new_game_fen); }
+
+//
+// Accessors
+//
+
+bitboard_t &State::get_bitboard(Piece piece, Colour colour) {
+    return m_pieces[(int)colour][(int)piece];
+}
+
+bool &State::can_castle(Piece side, Colour colour) {
+    assert(side == Piece::QUEEN || side == Piece::KING);
+
+    return m_castling_rights[(int)colour][(int)side];
+}
+
+//
+// Others
+//
+
+bitboard_t State::side_occupancy(Colour colour) const {
+    bitboard_t ret = 0;
+
+    for (int i = 0; i < n_pieces; i++) {
+        ret |= m_pieces[(int)colour][i];
+    }
+
+    return ret;
+}
+
+bitboard_t State::total_occupancy() const {
+    return side_occupancy(Colour::BLACK) | side_occupancy(Colour::WHITE);
+}
+
+opt_coloured_piece_t const State::piece_at(bitboard_t bit) const {
+    for (int colourIdx = 0; colourIdx <= 1; colourIdx++) {
+        for (int pieceIdx = 0; pieceIdx < n_pieces; pieceIdx++) {
+
+            if (m_pieces[colourIdx][pieceIdx] & bit) {
+                return {.piece = {.piece = (Piece)pieceIdx,
+                                  .colour = (Colour)colourIdx},
+                        .found = true};
+            }
+        }
+    }
+    return {.found = false};
+}
+
+//
+// Pretty printing
+//
+
+std::string State::pretty() const {
     std::string ret = "";
     for (int r = board_size - 1; r >= 0; r--) {
         for (int c = 0; c < board_size; c++) {
 
-            bitboard_t b1 = Bitboard(Coord(c, r)).get_board();
-            Bitboard b = Bitboard(Coord(c, r)).get_board();
+            bitboard_t b1 = to_bitboard(to_square(c, r));
+            bitboard_t b = to_bitboard(to_square(c, r));
 
-            std::optional<std::pair<Piece, Colour>> atLoc =
-                s.piece_at(Bitboard(Coord(c, r)).get_board());
-            if (atLoc.has_value()) {
-                char retChar = to_char(atLoc->first);
-                if (atLoc->second == Colour::WHITE) {
+            opt_coloured_piece_t atLoc = piece_at(to_bitboard(to_square(c, r)));
+
+            if (atLoc.found) {
+                char retChar = to_char(atLoc.piece.piece);
+                if (atLoc.piece.colour == Colour::WHITE) {
                     retChar = toupper(retChar);
                 }
                 ret += retChar;
@@ -217,9 +204,10 @@ std::ostream &operator<<(std::ostream &os, State s) {
         }
         ret += "\n";
     }
-    return (os << ret);
+    return ret;
 };
 
-const std::optional<board::Coord> State::get_en_passant_squares() const {
-    return en_passant_squares;
+std::ostream &operator<<(std::ostream &os, State s) {
+    return (os << s.pretty());
 };
+} // namespace state
