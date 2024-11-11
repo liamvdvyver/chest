@@ -1,8 +1,3 @@
-#include <cassert>
-#include <cctype>
-#include <cstring>
-#include <string>
-
 #include "board.h"
 
 namespace board {

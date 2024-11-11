@@ -1,15 +1,6 @@
 #include <bitset>
-#include <cassert>
-#include <cmath>
-#include <cstdlib>
-#include <iostream>
-#include <ostream>
 #include <random>
-#include <stdexcept>
-#include <string>
-#include <vector>
 
-#include "board.h"
 #include "magic.h"
 
 using namespace board;

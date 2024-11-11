@@ -2,19 +2,8 @@
 #define BOARD_H
 
 #include <cassert>
-#include <cctype>
 #include <cstdint>
-#include <cstring>
-#include <functional>
 #include <iostream>
-#include <iterator>
-#include <memory>
-#include <optional>
-#include <ostream>
-#include <stdexcept>
-#include <string>
-#include <utility>
-#include <variant>
 #include <vector>
 
 //

@@ -2,9 +2,6 @@
 #define MOVE_H
 
 #include "board.h"
-#include "magic.h"
-#include <functional>
-#include <optional>
 
 namespace move {
 

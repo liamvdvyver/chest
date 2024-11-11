@@ -1,5 +1,4 @@
 #include "state.h"
-#include "board.h"
 
 using namespace board;
 

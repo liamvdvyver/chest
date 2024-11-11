@@ -2,8 +2,6 @@
 #define MAGIC_H
 
 #include "board.h"
-#include <algorithm>
-#include <cmath>
 
 // Magic numbers
 typedef board::bitboard_t magic_t;

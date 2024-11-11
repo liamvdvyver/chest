@@ -2,7 +2,6 @@
 #define STATE_H
 
 #include "board.h"
-#include <string>
 
 namespace state {
 
