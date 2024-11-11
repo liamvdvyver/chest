@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 project(Rchess)
 
-add_compile_options(-pg)
+add_compile_options(-O3 -flto)
 
 add_library(libRchess
     src/libRchess/board.cpp
