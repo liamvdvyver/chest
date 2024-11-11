@@ -1,9 +1,7 @@
-#include "libRchess/board.h"
-#include "libRchess/magic.h"
-#include "libRchess/state.h"
+#include "libChest/board.h"
+#include "libChest/magic.h"
+#include "libChest/state.h"
 #include <iostream>
-#include <ostream>
-#include <string>
 
 using namespace board;
 using namespace std;

@@ -1,14 +1,14 @@
 cmake_minimum_required(VERSION 3.10)
-project(Rchess)
+project(chest)
 
 add_compile_options(-O3 -flto)
 
-add_library(libRchess
-    src/libRchess/board.cpp
-    src/libRchess/move.cpp
-    src/libRchess/state.cpp
-    src/libRchess/magic.cpp
+add_library(libChest
+    src/libChest/board.cpp
+    src/libChest/move.cpp
+    src/libChest/state.cpp
+    src/libChest/magic.cpp
 )
 
-add_executable(Rchess src/Rchess.cpp)
-target_link_libraries(Rchess libRchess)
+add_executable(chest src/chest.cpp)
+target_link_libraries(chest libChest)
