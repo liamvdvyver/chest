@@ -61,7 +61,6 @@ constexpr int Magics::n_keys(Piece p) {
 // Blocker masks
 //
 
-// TODO: optimise (low-priority)
 void Magics::init_masks() {
     init_rook_masks();
     init_bishop_masks();
@@ -106,12 +105,6 @@ void Magics::init_rook_masks() {
     assert(max_shift_found == max_rook_shift);
 };
 
-// Helper: provide boundary conditions for iteration in generation of bishop
-// blocker masks.
-constexpr bool in_bounds_for_bishop_mask(int f, int r) {
-    return (f > 0 && r > 0 && f < board_size - 1 && r < board_size - 1);
-}
-
 void Magics::init_bishop_masks() {
 
     int max_shift_found = 0;
@@ -123,24 +116,37 @@ void Magics::init_bishop_masks() {
         int f = file(sq);
         int r = rank(sq);
 
+        int n_to_bot_left = std::min(f - 1, r - 1);
+        int n_to_bot_right = std::min(board_size - f - 2, r - 1);
+        int n_to_top_left = std::min(f - 1, board_size - r - 2);
+        int n_to_top_right = std::min(board_size - f - 2, board_size - r - 2);
+
         // Assign down, left
-        for (int d = 1; in_bounds_for_bishop_mask(f - d, r - d); d++) {
-            mask |= to_bitboard(to_square(f - d, r - d));
+        bitboard_t b = to_bitboard(sq);
+        for (int i = 0; i < n_to_bot_left; i++) {
+            b = shift(b, -1, -1);
+            mask |= b;
         }
 
         // Assign down, right
-        for (int d = 1; in_bounds_for_bishop_mask(f + d, r - d); d++) {
-            mask |= to_bitboard(to_square(f + d, r - d));
+        b = to_bitboard(sq);
+        for (int i = 0; i < n_to_bot_right; i++) {
+            b = shift(b, 1, -1);
+            mask |= b;
         }
 
         // Assign up, left
-        for (int d = 1; in_bounds_for_bishop_mask(f - d, r + d); d++) {
-            mask |= to_bitboard(to_square(f - d, r + d));
+        b = to_bitboard(sq);
+        for (int i = 0; i < n_to_top_left; i++) {
+            b = shift(b, -1, 1);
+            mask |= b;
         }
 
-        // Assign up, left
-        for (int d = 1; in_bounds_for_bishop_mask(f + d, r + d); d++) {
-            mask |= to_bitboard(to_square(f + d, r + d));
+        // Assign up, right
+        b = to_bitboard(sq);
+        for (int i = 0; i < n_to_top_right; i++) {
+            b = shift(b, 1, 1);
+            mask |= b;
         }
         if (size(mask) > max_shift_found)
             max_shift_found = size(mask);
@@ -242,7 +248,7 @@ board::bitboard_t Magics::get_rook_attacks(board::square_t sq,
     // Attacks to left
     next = cur;
     for (int d = 1; d <= d_to_left; d++) {
-        next = shift_left(next);
+        next = shift(next, Direction::W);
         ret |= next;
         if (blk & next) {
             break;
@@ -252,7 +258,7 @@ board::bitboard_t Magics::get_rook_attacks(board::square_t sq,
     // Attacks to right
     next = cur;
     for (int d = 1; d <= d_to_right; d++) {
-        next = shift_right(next);
+        next = shift(next, Direction::E);
         ret |= next;
         if (blk & next) {
             break;
@@ -262,7 +268,7 @@ board::bitboard_t Magics::get_rook_attacks(board::square_t sq,
     // Attacks down
     next = cur;
     for (int d = 1; d <= d_to_bottom; d++) {
-        next = shift_down(next);
+        next = shift(next, Direction::S);
         ret |= next;
         if (blk & next) {
             break;
@@ -272,7 +278,7 @@ board::bitboard_t Magics::get_rook_attacks(board::square_t sq,
     // Attacks up
     next = cur;
     for (int d = 1; d <= d_to_top; d++) {
-        next = shift_up(next);
+        next = shift(next, Direction::N);
         ret |= next;
         if (blk & next) {
             break;
@@ -294,7 +300,7 @@ board::bitboard_t Magics::get_bishop_attacks(board::square_t sq,
     // Assign down, left
     next = cur;
     for (int d = 1; is_legal_square(f - d, r - d); d++) {
-        next = shift_down(shift_left(next));
+        next = shift(next, Direction::SW);
         ret |= next;
         if (blk & next) {
             break;
@@ -304,7 +310,7 @@ board::bitboard_t Magics::get_bishop_attacks(board::square_t sq,
     // Assign down, right
     next = cur;
     for (int d = 1; is_legal_square(f + d, r - d); d++) {
-        next = shift_down(shift_right(next));
+        next = shift(next, Direction::SE);
         ret |= next;
         if (blk & next) {
             break;
@@ -314,7 +320,7 @@ board::bitboard_t Magics::get_bishop_attacks(board::square_t sq,
     // Assign up, left
     next = cur;
     for (int d = 1; is_legal_square(f - d, r + d); d++) {
-        next = shift_up(shift_left(next));
+        next = shift(next, Direction::NW);
         ret |= next;
         if (blk & next) {
             break;
@@ -324,7 +330,7 @@ board::bitboard_t Magics::get_bishop_attacks(board::square_t sq,
     // Assign up, right
     next = cur;
     for (int d = 1; is_legal_square(f + d, r + d); d++) {
-        next = shift_up(shift_right(next));
+        next = shift(next, Direction::NE);
         ret |= next;
         if (blk & next) {
             break;

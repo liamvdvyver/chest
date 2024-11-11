@@ -144,6 +144,23 @@ enum algebraic : square_t {
     H8
 };
 
+
+//
+// Directions
+//
+//
+
+enum class Direction {
+    N,
+    S,
+    E,
+    W,
+    NE,
+    NW,
+    SE,
+    SW
+};
+
 //
 // Bitboards
 //
@@ -157,17 +174,32 @@ constexpr bitboard_t to_bitboard(const square_t sq) {
     return (bitboard_t)1 << (sq);
 }
 
-constexpr bitboard_t shift_up(bitboard_t b, int d = 1) {
-    return b << (board_size * d);
+constexpr bitboard_t shift(bitboard_t b, int d_file = 0, int d_rank = 0) {
+    b = d_file > 0 ? b << d_file : b >> (-d_file);
+    b = d_rank > 0 ? b << (board_size * d_rank) : b >> (- board_size * d_rank);
+    return b;
 }
 
-constexpr bitboard_t shift_down(bitboard_t b, int d = 1) {
-    return b >> (board_size * d);
+constexpr inline bitboard_t shift(bitboard_t b, Direction d) {
+    switch (d) {
+        case Direction::N:
+            return b << board_size;
+        case Direction::S:
+            return b >> board_size;
+        case Direction::E:
+            return b << 1;
+        case Direction::W:
+            return b >> 1;
+        case Direction::NE:
+            return b << (board_size + 1);
+        case Direction::NW:
+            return b << (board_size - 1);
+        case Direction::SE:
+            return b >> (board_size - 1);
+        case Direction::SW:
+            return b >> (board_size + 1);
+    }
 }
-
-constexpr bitboard_t shift_left(bitboard_t b, int d = 1) { return b >> d; }
-
-constexpr bitboard_t shift_right(bitboard_t b, int d = 1) { return b << d; }
 
 // Get the least significant one
 constexpr bitboard_t ls1b(const bitboard_t b) { return b & -b; };
