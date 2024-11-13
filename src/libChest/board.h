@@ -133,22 +133,12 @@ enum algebraic : square_t {
     H8
 };
 
-
 //
 // Directions
 //
 //
 
-enum class Direction {
-    N,
-    S,
-    E,
-    W,
-    NE,
-    NW,
-    SE,
-    SW
-};
+enum class Direction { N, S, E, W, NE, NW, SE, SW };
 
 //
 // Bitboards
@@ -163,31 +153,24 @@ constexpr bitboard_t to_bitboard(const square_t sq) {
     return (bitboard_t)1 << (sq);
 }
 
-constexpr bitboard_t shift(bitboard_t b, int d_file = 0, int d_rank = 0) {
-    b = d_file > 0 ? b << d_file : b >> (-d_file);
-    b = d_rank > 0 ? b << (board_size * d_rank) : b >> (- board_size * d_rank);
-    return b;
+// Generate a full rank mask
+constexpr bitboard_t rank_mask(int r) {
+    assert(r >= 0 && r <= board_size);
+    bitboard_t ret = 0;
+    for (int f = 0; f < board_size; f++) {
+        ret |= to_bitboard(to_square(f, r));
+    }
+    return ret;
 }
 
-constexpr inline bitboard_t shift(bitboard_t b, Direction d) {
-    switch (d) {
-        case Direction::N:
-            return b << board_size;
-        case Direction::S:
-            return b >> board_size;
-        case Direction::E:
-            return b << 1;
-        case Direction::W:
-            return b >> 1;
-        case Direction::NE:
-            return b << (board_size + 1);
-        case Direction::NW:
-            return b << (board_size - 1);
-        case Direction::SE:
-            return b >> (board_size - 1);
-        case Direction::SW:
-            return b >> (board_size + 1);
+// Generate a full file mask
+constexpr bitboard_t file_mask(int f) {
+    assert(f >= 0 && f <= board_size);
+    bitboard_t ret = 0;
+    for (int r = 0; r < board_size; r++) {
+        ret |= to_bitboard(to_square(f, r));
     }
+    return ret;
 }
 
 // Get the least significant one
@@ -217,6 +200,59 @@ constexpr uint8_t size(bitboard_t b) {
         b = reset_ls1b(b);
     }
     return ret;
+}
+
+constexpr bitboard_t shift(bitboard_t b, int d_file = 0, int d_rank = 0) {
+    b = d_file > 0 ? b << d_file : b >> (-d_file);
+    b = d_rank > 0 ? b << (board_size * d_rank) : b >> (-board_size * d_rank);
+    return b;
+}
+
+constexpr inline bitboard_t shift(bitboard_t b, Direction d) {
+    switch (d) {
+    case Direction::N:
+        return b << board_size;
+    case Direction::S:
+        return b >> board_size;
+    case Direction::E:
+        return b << 1;
+    case Direction::W:
+        return b >> 1;
+    case Direction::NE:
+        return b << (board_size + 1);
+    case Direction::NW:
+        return b << (board_size - 1);
+    case Direction::SE:
+        return b >> (board_size - 1);
+    case Direction::SW:
+        return b >> (board_size + 1);
+    }
+}
+
+// As above, but prevent any wrap around.
+// More expensive.
+constexpr bitboard_t shift_no_wrap(bitboard_t b, Direction d) {
+    bitboard_t mask = 0;
+    switch (d) {
+    case Direction::N:
+        mask = rank_mask(board_size - 1);
+    case Direction::S:
+        mask = rank_mask(0);
+    case Direction::E:
+        mask = file_mask(board_size - 1);
+    case Direction::W:
+        mask = file_mask(0);
+    case Direction::NE:
+        mask = rank_mask(board_size - 1) | file_mask(board_size - 1);
+    case Direction::NW:
+        mask = rank_mask(board_size - 1) | file_mask(0);
+    case Direction::SE:
+        mask = rank_mask(0) | file_mask(board_size - 1);
+    case Direction::SW:
+        mask = rank_mask(0) | file_mask(0);
+    }
+
+    return shift(setdiff(b, mask), d);
 }
 
 //
