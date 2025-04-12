@@ -42,6 +42,9 @@ struct Square {
 
     constexpr Square(square_t sq) : square(sq) {};
 
+    // Convert (unwrap) type
+    constexpr operator square_t() const { return square; };
+
     // Enumerate LERF from cartesian coordinates
     constexpr Square(int f, int r) : square(r * board_size + f) {
         assert(is_legal(f, r));
@@ -64,6 +67,30 @@ struct Square {
     }
 
     square_t square;
+    struct AllSquareIterator;
+
+}; // namespace board
+
+struct Square::AllSquareIterator {
+    constexpr Square::AllSquareIterator begin() { return *this; }
+    constexpr Square::AllSquareIterator end() const {
+        return AllSquareIterator(Square(n_squares));
+    }
+    constexpr operator Square() const { return sq; }
+    constexpr operator Square &() { return sq; }
+    constexpr Square operator*() const { return sq; }
+    constexpr bool operator!=(const AllSquareIterator &other) {
+        return sq.square != other.sq.square;
+    }
+    constexpr Square::AllSquareIterator operator++() {
+        sq.square++;
+        return *this;
+    }
+    constexpr AllSquareIterator() {};
+
+  private:
+    constexpr AllSquareIterator(Square sq) : sq{sq} {};
+    Square sq{0};
 };
 
 // LERF enumeration: explicit names
@@ -105,6 +132,7 @@ struct Bitboard {
     // Construction
     //
     constexpr Bitboard(const bitboard_t b) : board(b) {};
+    constexpr Bitboard() : board() {};
 
     // Convert square number to singeton bitboard
     constexpr Bitboard(const Square sq) : board((bitboard_t)1 << sq.square) {
@@ -114,6 +142,17 @@ struct Bitboard {
     //
     // Bitwise overloads
     //
+
+    // Equality
+    constexpr bool operator==(const Bitboard other) const {
+        return board == other.board;
+    }
+    // Bitwise or
+    constexpr bool operator!=(const Bitboard other) const {
+        return board != other.board;
+    }
+    // Bitwise or
+    constexpr operator bool() const { return board; }
 
     // Bitwise or
     constexpr Bitboard operator|(const Bitboard other) const {
@@ -152,6 +191,9 @@ struct Bitboard {
     constexpr Bitboard setdiff(const Bitboard other) const {
         return ((board | other.board) ^ (other.board));
     }
+
+    // Check membership
+    constexpr bool empty() const { return !board; };
 
     // Generate a full rank mask
     static constexpr Bitboard rank_mask(int r) {
@@ -289,8 +331,8 @@ struct Bitboard {
 
     std::string pretty() const;
 
-    struct Subsets;
-    constexpr Subsets subsets() const;
+    struct SubsetIterator;
+    constexpr SubsetIterator subsets() const;
 
   private:
     bitboard_t board;
@@ -311,14 +353,16 @@ struct Bitboard {
 //
 // Subset iteration
 //
-struct Bitboard::Subsets {
-    constexpr Subsets(Bitboard b) : val(0), b(b), done(false) {};
+struct Bitboard::SubsetIterator {
+    constexpr SubsetIterator(Bitboard b) : val(0), b(b), done(false) {};
 
     // Not semantically correct, only used for ranges
     // No need to perform comparison to determine if == end()
-    constexpr bool operator!=(Subsets const &other) { return !done || val.board; }
-    constexpr const Subsets begin() { return *this; }
-    constexpr const Subsets end() { return Subsets(0, 0, true); }
+    constexpr bool operator!=(SubsetIterator const &other) {
+        return !done || val.board;
+    }
+    constexpr const SubsetIterator begin() { return *this; }
+    constexpr const SubsetIterator end() { return SubsetIterator(0, 0, true); }
     constexpr operator Bitboard() const { return val; }
     constexpr operator Bitboard &() { return val; }
     constexpr Bitboard operator*() const { return val; }
@@ -329,14 +373,14 @@ struct Bitboard::Subsets {
     }
 
   private:
-    constexpr Subsets(Bitboard val, Bitboard b, bool done)
+    constexpr SubsetIterator(Bitboard val, Bitboard b, bool done)
         : val(val), b(b), done(done) {};
     Bitboard val;
     Bitboard b;
     bool done; // When we see the empty set, is it for the first time?
 };
 
-constexpr Bitboard::Subsets Bitboard::subsets() const {
+constexpr Bitboard::SubsetIterator Bitboard::subsets() const {
     return Bitboard(*this);
 }
 

@@ -7,7 +7,7 @@ namespace move {
 namespace magic {
 
 // Magic numbers
-typedef board::bitboard_t magic_t;
+typedef board::Bitboard magic_t;
 
 // Attack table keys
 typedef uint16_t magic_key_t;
@@ -23,8 +23,8 @@ class Magics {
 
     // Get all squares attacked by a piece.
     // May include own pieces.
-    board::bitboard_t get_attack_set(board::Piece p, board::square_t sq,
-                                     board::bitboard_t occ) const;
+    board::Bitboard get_attack_set(board::Piece p, board::Square sq,
+                                   board::Bitboard occ) const;
 
   private:
     //
@@ -52,10 +52,10 @@ class Magics {
     //
 
     // Relevant rook-blocking mask (per-position)
-    board::bitboard_t m_rook_masks[board::n_squares];
+    board::Bitboard m_rook_masks[board::n_squares];
 
     // Relevant bishop-blocking mask (per-position)
-    board::bitboard_t m_bishop_masks[board::n_squares];
+    board::Bitboard m_bishop_masks[board::n_squares];
 
     // Populate blocker masks
     void init_masks();
@@ -67,39 +67,39 @@ class Magics {
     void init_bishop_masks();
 
     // Get the blocker mask for piece at a position
-    const board::bitboard_t &get_mask(board::Piece p, board::square_t sq) const;
+    const board::Bitboard &get_mask(board::Piece p, board::Square sq) const;
 
     //
     // Attack maps
     //
 
     // Rook attack maps (per-position, per key)
-    board::bitboard_t rook_attacks[board::n_squares][n_rook_attacks_keys];
+    board::Bitboard rook_attacks[board::n_squares][n_rook_attacks_keys];
 
     // Bishop attack maps (per-position, per key)
-    board::bitboard_t bishop_attacks[board::n_squares][n_bishop_attack_keys];
+    board::Bitboard bishop_attacks[board::n_squares][n_bishop_attack_keys];
 
     // Populate attack maps for a position, given a candidate magic number.
     // Returns whether successful.
-    bool init_attacks(board::Piece p, magic_t magic, board::square_t sq,
+    bool init_attacks(board::Piece p, magic_t magic, board::Square sq,
                       std::vector<magic_key_t> &visited);
 
     // Get the attack set for a piece at a position, given occupancy (relevant
     // blockers or total occupancy)
-    static board::bitboard_t get_attacks(board::Piece p, board::square_t sq,
-                                         board::bitboard_t blk);
+    static board::Bitboard get_attacks(board::Piece p, board::Square sq,
+                                       board::Bitboard blk);
 
     // Get the attack set for a rook at a position, given occupancy (relevant
-    static board::bitboard_t get_rook_attacks(board::square_t sq,
-                                              board::bitboard_t blk);
+    static board::Bitboard get_rook_attacks(board::Square sq,
+                                            board::Bitboard blk);
 
     // Get the attack set for a bishop at a position, given occupancy (relevant
-    static board::bitboard_t get_bishop_attacks(board::square_t sq,
-                                                board::bitboard_t blk);
+    static board::Bitboard get_bishop_attacks(board::Square sq,
+                                              board::Bitboard blk);
 
     // Helper: Get the attack map for a given piece at a given position.
     // May return null.
-    board::bitboard_t *get_attack_map(board::Piece p, board::square_t sq) const;
+    board::Bitboard *get_attack_map(board::Piece p, board::Square sq) const;
 
     //
     // Magic numbers
@@ -115,7 +115,7 @@ class Magics {
     magic_t bishop_magics[board::n_squares];
 
     // Get the magic number for a piece at a given position
-    magic_t get_magic(board::Piece p, board::square_t sq) const;
+    magic_t get_magic(board::Piece p, board::Square sq) const;
 
     // Helper: Get the magic number map for a given piece.
     // May return null.
@@ -135,17 +135,17 @@ class Magics {
     void init_shifts();
 
     // Get the shift width for a piece at a given position
-    int get_shift_width(board::Piece p, board::square_t sq) const;
+    int get_shift_width(board::Piece p, board::Square sq) const;
 
     // Get the attack map key, given piece, position, blockers (relevant or
     // total)
-    magic_key_t get_magic_key(board::Piece p, board::square_t sq,
-                              board::bitboard_t occ) const;
+    magic_key_t get_magic_key(board::Piece p, board::Square sq,
+                              board::Bitboard occ) const;
 
     // Get the attack map key, given piece, position, blockers (relevant or
     // total), and a magic number
-    magic_key_t get_magic_key(board::Piece p, board::square_t sq,
-                              board::bitboard_t occ, magic_t magic) const;
+    magic_key_t get_magic_key(board::Piece p, board::Square sq,
+                              board::Bitboard occ, magic_t magic) const;
 };
 } // namespace magic
 } // namespace move

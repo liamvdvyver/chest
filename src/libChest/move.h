@@ -19,6 +19,7 @@ enum class MoveType {
     CAPTURE,
     CASTLE_QUEENSIDE,
     CASTLE_KINGSIDE,
+    SINGLE_PUSH,
     DOUBLE_PUSH,
     CAPTURE_EP,
     PROMOTE_KNIGHT,
@@ -144,17 +145,23 @@ class Move {
     static_assert((int)MoveType::MAX < (1 << (extra_width)));
 
   public:
-    Move(board::square_t from, board::square_t to,
+    Move(board::Square from, board::Square to,
          MoveType type = MoveType::NORMAL);
 
     // Gets the origin square
-    constexpr board::square_t from() const;
+    constexpr board::Square from() const {
+        return (sixbit_mask & (m_move >> from_offset));
+    }
 
     // Gets the destination square
-    constexpr board::square_t to() const;
+    constexpr board::Square to() const {
+        return (sixbit_mask & (m_move >> to_offset));
+    }
 
     // Gets the move type
-    constexpr MoveType type() const;
+    constexpr MoveType type() const {
+        return (MoveType)(m_move & fourbit_mask);
+    };
 };
 
 } // namespace move

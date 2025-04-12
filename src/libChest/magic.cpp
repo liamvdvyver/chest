@@ -1,4 +1,3 @@
-#include <bitset>
 #include <random>
 
 #include "magic.h"
@@ -20,8 +19,8 @@ Magics::Magics()
     init_magics();
 };
 
-bitboard_t Magics::get_attack_set(Piece p, square_t sq, bitboard_t occ) const {
-    bitboard_t *attack_map = get_attack_map(p, sq);
+Bitboard Magics::get_attack_set(Piece p, Square sq, Bitboard occ) const {
+    Bitboard *attack_map = get_attack_map(p, sq);
     if (!attack_map) {
         throw std::invalid_argument("get_attack_set()");
     }
@@ -56,13 +55,13 @@ void Magics::init_rook_masks() {
 
     int max_shift_found = 0;
 
-    for (int sq = 0; sq < n_squares; sq++) {
+    for (Square sq : Square::AllSquareIterator()) {
 
-        bitboard_t &mask = m_rook_masks[sq];
+        Bitboard &mask = m_rook_masks[sq];
         mask = 0;
 
-        int f = file(sq);
-        int r = rank(sq);
+        int f = sq.file();
+        int r = sq.rank();
 
         // Assign along rank
         for (int f_cur = 1; f_cur < board_size - 1; f_cur++) {
@@ -71,7 +70,7 @@ void Magics::init_rook_masks() {
             if (f_cur == f)
                 continue;
 
-            mask |= to_bitboard(to_square(f_cur, r));
+            mask |= Bitboard(Square(f_cur, r));
         }
 
         // Assign along file
@@ -81,11 +80,11 @@ void Magics::init_rook_masks() {
             if (r_cur == r)
                 continue;
 
-            mask |= to_bitboard(to_square(f, r_cur));
+            mask |= Bitboard(Square(f, r_cur));
         }
 
-        if (size(mask) > max_shift_found)
-            max_shift_found = size(mask);
+        if (mask.size() > max_shift_found)
+            max_shift_found = mask.size();
     }
 
     assert(max_shift_found == max_rook_shift);
@@ -94,13 +93,13 @@ void Magics::init_rook_masks() {
 void Magics::init_bishop_masks() {
 
     int max_shift_found = 0;
-    for (int sq = 0; sq < n_squares; sq++) {
+    for (Square sq : Square::AllSquareIterator()) {
 
-        bitboard_t &mask = m_bishop_masks[sq];
+        Bitboard &mask = m_bishop_masks[sq];
         mask = 0;
 
-        int f = file(sq);
-        int r = rank(sq);
+        int f = sq.file();
+        int r = sq.rank();
 
         int n_to_bot_left = std::min(f - 1, r - 1);
         int n_to_bot_right = std::min(board_size - f - 2, r - 1);
@@ -108,43 +107,43 @@ void Magics::init_bishop_masks() {
         int n_to_top_right = std::min(board_size - f - 2, board_size - r - 2);
 
         // Assign down, left
-        bitboard_t b = to_bitboard(sq);
+        Bitboard b = Bitboard(sq);
         for (int i = 0; i < n_to_bot_left; i++) {
-            b = shift(b, -1, -1);
+            b = b.shift(-1, -1);
             mask |= b;
         }
 
         // Assign down, right
-        b = to_bitboard(sq);
+        b = Bitboard(sq);
         for (int i = 0; i < n_to_bot_right; i++) {
-            b = shift(b, 1, -1);
+            b = b.shift(1, -1);
             mask |= b;
         }
 
         // Assign up, left
-        b = to_bitboard(sq);
+        b = Bitboard(sq);
         for (int i = 0; i < n_to_top_left; i++) {
-            b = shift(b, -1, 1);
+            b = b.shift(-1, 1);
             mask |= b;
         }
 
         // Assign up, right
-        b = to_bitboard(sq);
+        b = Bitboard(sq);
         for (int i = 0; i < n_to_top_right; i++) {
-            b = shift(b, 1, 1);
+            b = b.shift(1, 1);
             mask |= b;
         }
-        if (size(mask) > max_shift_found)
-            max_shift_found = size(mask);
+        if (mask.size() > max_shift_found)
+            max_shift_found = mask.size();
     }
 
     assert(max_shift_found == max_bishop_shift);
 };
 
-const bitboard_t &Magics::get_mask(Piece p, square_t sq) const {
+const Bitboard &Magics::get_mask(Piece p, Square sq) const {
 
     // Get masks for piece
-    const bitboard_t *masks;
+    const Bitboard *masks;
     switch (p) {
     case Piece::ROOK:
         masks = m_rook_masks;
@@ -164,26 +163,27 @@ const bitboard_t &Magics::get_mask(Piece p, square_t sq) const {
 // Attack maps
 //
 
-bool Magics::init_attacks(Piece p, magic_t magic, square_t sq,
+bool Magics::init_attacks(Piece p, magic_t magic, Square sq,
                           std::vector<magic_key_t> &visited) {
 
     visited.clear();
 
-    bitboard_t *coord_attack_map = get_attack_map(p, sq);
+    Bitboard *coord_attack_map = get_attack_map(p, sq);
 
-    bitboard_t all_blockers = get_mask(p, sq);
+    Bitboard all_blockers = get_mask(p, sq);
 
-    bitboard_t blocker_subset = 0;
+    // Bitboard blocker_subset = 0;
     magic_key_t key = 0;
 
-    do {
-        bitboard_t attacked = get_attacks(p, sq, blocker_subset);
+    for (Bitboard blocker_subset : all_blockers.subsets()) {
+
+        Bitboard attacked = get_attacks(p, sq, blocker_subset);
         key = get_magic_key(p, sq, blocker_subset, magic);
 
-        bitboard_t &cur_elm = coord_attack_map[key];
+        Bitboard &cur_elm = coord_attack_map[key];
 
         // Collision with different val
-        if (cur_elm && cur_elm != attacked) {
+        if (!cur_elm.empty() && cur_elm != attacked) {
 
             for (const magic_key_t visited_key : visited) {
                 coord_attack_map[visited_key] = 0;
@@ -194,19 +194,18 @@ bool Magics::init_attacks(Piece p, magic_t magic, square_t sq,
 
         visited.push_back(key);
         cur_elm = attacked;
-        blocker_subset = next_subset_of(blocker_subset, all_blockers);
-
-    } while (blocker_subset);
+        // blocker_subset = next_subset_of(blocker_subset, all_blockers);
+    }
 
     // Success
-    std::cout << "Found magic: " << std::bitset<8 * sizeof(magic_t)>(magic)
-              << " for piece: " << to_char(p)
-              << " at square: " << std::to_string(sq) << std::endl;
+    // std::cout << "Found magic: " << std::bitset<8 * sizeof(magic_t)>(magic)
+    //           << " for piece: " << to_char(p)
+    //           << " at square: " << std::to_string(sq) << std::endl;
 
     return true;
 };
 
-bitboard_t Magics::get_attacks(Piece p, square_t sq, bitboard_t blk) {
+Bitboard Magics::get_attacks(Piece p, Square sq, Bitboard blk) {
     switch (p) {
     case Piece::ROOK:
         return get_rook_attacks(sq, blk);
@@ -217,14 +216,14 @@ bitboard_t Magics::get_attacks(Piece p, square_t sq, bitboard_t blk) {
     }
 }
 
-board::bitboard_t Magics::get_rook_attacks(board::square_t sq,
-                                           board::bitboard_t blk) {
+board::Bitboard Magics::get_rook_attacks(board::Square sq,
+                                         board::Bitboard blk) {
 
-    bitboard_t ret = 0;
-    int f = file(sq);
-    int r = rank(sq);
-    bitboard_t cur = to_bitboard(sq);
-    bitboard_t next;
+    Bitboard ret = 0;
+    int f = sq.file();
+    int r = sq.rank();
+    Bitboard cur = Bitboard(sq);
+    Bitboard next;
 
     int d_to_left = f;
     int d_to_right = board_size - f - 1;
@@ -234,7 +233,7 @@ board::bitboard_t Magics::get_rook_attacks(board::square_t sq,
     // Attacks to left
     next = cur;
     for (int d = 1; d <= d_to_left; d++) {
-        next = shift(next, Direction::W);
+        next = next.shift(Direction::W);
         ret |= next;
         if (blk & next) {
             break;
@@ -244,7 +243,7 @@ board::bitboard_t Magics::get_rook_attacks(board::square_t sq,
     // Attacks to right
     next = cur;
     for (int d = 1; d <= d_to_right; d++) {
-        next = shift(next, Direction::E);
+        next = next.shift(Direction::E);
         ret |= next;
         if (blk & next) {
             break;
@@ -254,7 +253,7 @@ board::bitboard_t Magics::get_rook_attacks(board::square_t sq,
     // Attacks down
     next = cur;
     for (int d = 1; d <= d_to_bottom; d++) {
-        next = shift(next, Direction::S);
+        next = next.shift(Direction::S);
         ret |= next;
         if (blk & next) {
             break;
@@ -264,7 +263,7 @@ board::bitboard_t Magics::get_rook_attacks(board::square_t sq,
     // Attacks up
     next = cur;
     for (int d = 1; d <= d_to_top; d++) {
-        next = shift(next, Direction::N);
+        next = next.shift(Direction::N);
         ret |= next;
         if (blk & next) {
             break;
@@ -274,19 +273,19 @@ board::bitboard_t Magics::get_rook_attacks(board::square_t sq,
     return ret;
 };
 
-board::bitboard_t Magics::get_bishop_attacks(board::square_t sq,
-                                             board::bitboard_t blk) {
+board::Bitboard Magics::get_bishop_attacks(board::Square sq,
+                                           board::Bitboard blk) {
 
-    bitboard_t ret = 0;
-    int f = file(sq);
-    int r = rank(sq);
-    bitboard_t cur = to_bitboard(sq);
-    bitboard_t next;
+    Bitboard ret = 0;
+    int f = sq.file();
+    int r = sq.rank();
+    Bitboard cur = Bitboard(sq);
+    Bitboard next;
 
     // Assign down, left
     next = cur;
-    for (int d = 1; is_legal_square(f - d, r - d); d++) {
-        next = shift(next, Direction::SW);
+    for (int d = 1; Square::is_legal(f - d, r - d); d++) {
+        next = next.shift(Direction::SW);
         ret |= next;
         if (blk & next) {
             break;
@@ -295,8 +294,8 @@ board::bitboard_t Magics::get_bishop_attacks(board::square_t sq,
 
     // Assign down, right
     next = cur;
-    for (int d = 1; is_legal_square(f + d, r - d); d++) {
-        next = shift(next, Direction::SE);
+    for (int d = 1; Square::is_legal(f + d, r - d); d++) {
+        next = next.shift(Direction::SE);
         ret |= next;
         if (blk & next) {
             break;
@@ -305,8 +304,8 @@ board::bitboard_t Magics::get_bishop_attacks(board::square_t sq,
 
     // Assign up, left
     next = cur;
-    for (int d = 1; is_legal_square(f - d, r + d); d++) {
-        next = shift(next, Direction::NW);
+    for (int d = 1; Square::is_legal(f - d, r + d); d++) {
+        next = next.shift(Direction::NW);
         ret |= next;
         if (blk & next) {
             break;
@@ -315,8 +314,8 @@ board::bitboard_t Magics::get_bishop_attacks(board::square_t sq,
 
     // Assign up, right
     next = cur;
-    for (int d = 1; is_legal_square(f + d, r + d); d++) {
-        next = shift(next, Direction::NE);
+    for (int d = 1; Square::is_legal(f + d, r + d); d++) {
+        next = next.shift(Direction::NE);
         ret |= next;
         if (blk & next) {
             break;
@@ -326,14 +325,14 @@ board::bitboard_t Magics::get_bishop_attacks(board::square_t sq,
     return ret;
 };
 
-bitboard_t *Magics::get_attack_map(Piece p, square_t sq) const {
+Bitboard *Magics::get_attack_map(Piece p, Square sq) const {
     if (sq >= n_squares)
         return nullptr;
     switch (p) {
     case Piece::ROOK:
-        return (bitboard_t *)rook_attacks[sq];
+        return (Bitboard *)rook_attacks[sq];
     case Piece::BISHOP:
-        return (bitboard_t *)bishop_attacks[sq];
+        return (Bitboard *)bishop_attacks[sq];
     default:
         return nullptr;
     }
@@ -354,7 +353,7 @@ void Magics::init_magics() {
     std::random_device rd;
     std::mt19937_64 eng(rd());
 
-    std::uniform_int_distribution<magic_t> rand;
+    std::uniform_int_distribution<bitboard_t> rand;
 
     std::vector<magic_key_t> visited;
 
@@ -364,8 +363,8 @@ void Magics::init_magics() {
 
         do {
             rook_magic_num = rand(eng) & rand(eng) & rand(eng);
-            rook_done = init_attacks(Piece::ROOK, rook_magic_num, square_t(sq),
-                                     visited);
+            rook_done =
+                init_attacks(Piece::ROOK, rook_magic_num, Square(sq), visited);
         } while (!rook_done);
         rook_magics[sq] = rook_magic_num;
     }
@@ -376,13 +375,13 @@ void Magics::init_magics() {
         do {
             bishop_magic_num = rand(eng) & rand(eng) & rand(eng);
             bishop_done = init_attacks(Piece::BISHOP, bishop_magic_num,
-                                       square_t(sq), visited);
+                                       Square(sq), visited);
         } while (!bishop_done);
         bishop_magics[sq] = bishop_magic_num;
     }
 }
 
-magic_t Magics::get_magic(Piece p, square_t sq) const {
+magic_t Magics::get_magic(Piece p, Square sq) const {
     const magic_t *magic_map = get_magic_map(p);
     if (magic_map) {
         return magic_map[sq];
@@ -406,13 +405,13 @@ magic_t *Magics::get_magic_map(Piece p) const {
 //
 
 void Magics::init_shifts() {
-    for (square_t sq = 0; sq < n_squares; sq++) {
-        m_rook_shifts[sq] = size(get_mask(Piece::ROOK, sq));
-        m_bishop_shifts[sq] = size(get_mask(Piece::BISHOP, sq));
+    for (Square sq : Square::AllSquareIterator()) {
+        m_rook_shifts[sq] = get_mask(Piece::ROOK, sq).size();
+        m_bishop_shifts[sq] = get_mask(Piece::BISHOP, sq).size();
     }
 }
 
-int Magics::get_shift_width(Piece p, square_t sq) const {
+int Magics::get_shift_width(Piece p, Square sq) const {
     switch (p) {
     case Piece::ROOK:
         return n_squares - m_rook_shifts[sq];
@@ -424,13 +423,13 @@ int Magics::get_shift_width(Piece p, square_t sq) const {
     }
 }
 
-magic_key_t Magics::get_magic_key(Piece p, square_t sq, bitboard_t occ) const {
+magic_key_t Magics::get_magic_key(Piece p, Square sq, Bitboard occ) const {
     return get_magic_key(p, sq, occ, get_magic(p, sq));
 }
 
-magic_key_t Magics::get_magic_key(Piece p, square_t sq, bitboard_t occ,
+magic_key_t Magics::get_magic_key(Piece p, Square sq, Bitboard occ,
                                   magic_t magic) const {
-    bitboard_t mask = get_mask(p, sq);
+    Bitboard mask = get_mask(p, sq);
     return ((occ & mask) * magic) >> get_shift_width(p, sq);
 }
 } // namespace magic

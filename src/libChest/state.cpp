@@ -1,4 +1,7 @@
 #include "state.h"
+#include "jumping.h"
+#include "move.h"
+#include <optional>
 
 using namespace board;
 
@@ -57,9 +60,8 @@ State::State(const fen_t &fen_string) : State() {
             assert(isalpha(placements[charIdx]));
             Colour colour =
                 isupper(placements[charIdx]) ? Colour::WHITE : Colour::BLACK;
-            Piece piece = from_char(placements[charIdx]);
-            get_bitboard(piece, colour) |=
-                to_bitboard(to_square(colIdx, rowIdx));
+            Piece piece = board::io::from_char(placements[charIdx]);
+            get_bitboard(piece, colour) |= Bitboard(Square(colIdx, rowIdx));
             colIdx++;
         };
     }
@@ -99,7 +101,7 @@ State::State(const fen_t &fen_string) : State() {
         for (int i = 0; i < castling_rights_str.length(); i++) {
             colour = isupper(castling_rights_str.at(i)) ? Colour::WHITE
                                                         : Colour::BLACK;
-            side = from_char(castling_rights_str.at(i));
+            side = board::io::from_char(castling_rights_str.at(i));
 
             if (side != Piece::QUEEN && side != Piece::KING)
                 throw std::invalid_argument(
@@ -116,9 +118,9 @@ State::State(const fen_t &fen_string) : State() {
     // EP square
     std::string ep_str = parts.at(3);
     if (ep_str.length() == 1 && ep_str == "-") {
-        m_ep = {.active = false};
+        m_ep = {};
     } else {
-        m_ep = {.square = to_square(ep_str), .active = true};
+        m_ep = board::io::to_square(ep_str);
     }
 
     // HM clock
@@ -136,7 +138,11 @@ State State::new_game() { return State(new_game_fen); }
 // Accessors
 //
 
-bitboard_t &State::get_bitboard(Piece piece, Colour colour) {
+Bitboard &State::get_bitboard(Piece piece, Colour colour) {
+    return m_pieces[(int)colour][(int)piece];
+}
+
+Bitboard State::copy_bitboard(Piece piece, Colour colour) const {
     return m_pieces[(int)colour][(int)piece];
 }
 
@@ -150,8 +156,8 @@ bool &State::can_castle(Piece side, Colour colour) {
 // Others
 //
 
-bitboard_t State::side_occupancy(Colour colour) const {
-    bitboard_t ret = 0;
+Bitboard State::side_occupancy(Colour colour) const {
+    Bitboard ret = 0;
 
     for (int i = 0; i < n_pieces; i++) {
         ret |= m_pieces[(int)colour][i];
@@ -160,23 +166,59 @@ bitboard_t State::side_occupancy(Colour colour) const {
     return ret;
 }
 
-bitboard_t State::total_occupancy() const {
+Bitboard State::total_occupancy() const {
     return side_occupancy(Colour::BLACK) | side_occupancy(Colour::WHITE);
 }
 
-opt_coloured_piece_t const State::piece_at(bitboard_t bit) const {
+std::optional<ColouredPiece> const State::piece_at(Bitboard bit) const {
     for (int colourIdx = 0; colourIdx <= 1; colourIdx++) {
         for (int pieceIdx = 0; pieceIdx < n_pieces; pieceIdx++) {
 
-            if (m_pieces[colourIdx][pieceIdx] & bit) {
-                return {.piece = {.piece = (Piece)pieceIdx,
-                                  .colour = (Colour)colourIdx},
-                        .found = true};
+            if (!(m_pieces[colourIdx][pieceIdx] & bit).empty()) {
+                return {
+                    {.piece = (Piece)pieceIdx, .colour = (Colour)colourIdx}};
             }
         }
     }
-    return {.found = false};
+    return {};
 }
+
+//
+// Move generation
+//
+void State::get_pseudolegal_moves(std::vector<move::Move> &moves) {
+
+    Bitboard total_occ = total_occupancy();
+
+    // Just pawn pushes for now
+    // TODO: get all moves
+
+    Bitboard pawns = get_bitboard(Piece::PAWN, to_move);
+    Bitboard cur_pawn = 0;
+    Square cur_square_from = 0;
+    Square cur_square_to = 0;
+    Bitboard cur_pawn_pushes = 0;
+
+    while (!pawns.empty()) {
+
+        cur_pawn = pawns.pop_ls1b();
+
+        cur_square_from = cur_pawn.single_bitscan_forward();
+        cur_pawn_pushes =
+            move::jumping::PawnMoveGenerator::get_push_map(cur_pawn, to_move);
+
+        cur_pawn_pushes = cur_pawn_pushes.setdiff(total_occupancy());
+
+        while (!cur_pawn_pushes.empty()) {
+
+            cur_square_to = cur_pawn_pushes.pop_ls1b().single_bitscan_forward();
+
+            move::Move cur_move = move::Move(cur_square_from, cur_square_to);
+
+            moves.push_back(move::Move(cur_square_from, cur_square_to));
+        }
+    }
+};
 
 //
 // Pretty printing
@@ -187,14 +229,15 @@ std::string State::pretty() const {
     for (int r = board_size - 1; r >= 0; r--) {
         for (int c = 0; c < board_size; c++) {
 
-            bitboard_t b1 = to_bitboard(to_square(c, r));
-            bitboard_t b = to_bitboard(to_square(c, r));
+            Bitboard b1 = Bitboard(Square(c, r));
+            Bitboard b = Bitboard(Square(c, r));
 
-            opt_coloured_piece_t atLoc = piece_at(to_bitboard(to_square(c, r)));
+            std::optional<ColouredPiece> atLoc =
+                piece_at(Bitboard(Square(c, r)));
 
-            if (atLoc.found) {
-                char retChar = to_char(atLoc.piece.piece);
-                if (atLoc.piece.colour == Colour::WHITE) {
+            if (atLoc.has_value()) {
+                char retChar = board::io::to_char(atLoc.value().piece);
+                if (atLoc.value().colour == Colour::WHITE) {
                     retChar = toupper(retChar);
                 }
                 ret += retChar;
@@ -209,4 +252,7 @@ std::string State::pretty() const {
 std::ostream &operator<<(std::ostream &os, State s) {
     return (os << s.pretty());
 };
+bool State::en_passant_active() const { return m_ep.has_value(); };
+
+board::Square State::en_passant_square() const { return m_ep.value(); };
 } // namespace state
