@@ -179,6 +179,13 @@ struct Bitboard {
     // Removes the least significant one to zero
     constexpr Bitboard reset_ls1b() const { return board & (board - 1); };
 
+    // Return the least significant one, and set it to zero
+    constexpr Bitboard pop_ls1b() {
+        Bitboard ret = ls1b();
+        board = reset_ls1b().board;
+        return ret;
+    };
+
     // Compute cardinality with Kerighan's method
     constexpr uint8_t size() const {
         uint8_t ret = 0;
