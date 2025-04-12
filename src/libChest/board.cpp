@@ -1,8 +1,11 @@
 #include "board.h"
 
-namespace board {
+//
+// Defines IO for board state
+// all other code is contexpr in the main module.
+//
 
-square_t to_square(const alg_t &sq) {
+board::Square board::io::to_square(const alg_t &sq) {
     if (sq.length() != 2) {
         std::invalid_argument("Coord(const alg_t &)");
     }
@@ -10,27 +13,27 @@ square_t to_square(const alg_t &sq) {
     int rank = (tolower(sq.at(0)) - 'a');
     int file = (sq.at(1) - '1');
 
-    if (!is_legal_square(rank, file)) {
+    if (!board::Square::is_legal(rank, file)) {
         throw std::invalid_argument("to_square(const alg_t &)");
     };
 
-    return to_square(rank, file);
+    return Square(rank, file);
 }
 
-alg_t algebraic(const square_t sq) {
-    alg_t ret = "";
+board::io::alg_t algebraic(const board::Square sq) {
+    board::io::alg_t ret = "";
 
-    ret += file(sq) + 'A';
-    ret += rank(sq) + '1';
+    ret += sq.file() + 'A';
+    ret += sq.rank() + '1';
 
     return ret;
 }
 
-std::string pretty(const bitboard_t b) {
+std::string board::Bitboard::pretty() const {
     std::string ret = "";
     for (int r = board::board_size - 1; r >= 0; r--) {
         for (int c = 0; c < board::board_size; c++) {
-            switch (1 & b >> (board::board_size * r + c)) {
+            switch (1 & board >> (board::board_size * r + c)) {
             case 1:
                 ret += "1";
                 break;
@@ -43,4 +46,3 @@ std::string pretty(const bitboard_t b) {
     }
     return ret;
 }
-} // namespace board

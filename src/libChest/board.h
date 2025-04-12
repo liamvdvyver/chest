@@ -2,14 +2,18 @@
 #define BOARD_H
 
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <iostream>
+#include <iterator>
+#include <map>
 #include <vector>
 
 //
 // Defines basic datatypes for board state
 //
 
+namespace board::io {};
 namespace board {
 
 // Size of the board (number of ranks or files)
@@ -34,36 +38,33 @@ static constexpr int n_colours = 2;
 // LERF enumeration
 typedef uint8_t square_t;
 
-// Extract file (x-coord) from LERF enumerated squre
-constexpr int file(const square_t sq) { return sq % board_size; }
+struct Square {
 
-// Extract rank (y-coord) from LERF enumerated squre
-constexpr int rank(const square_t sq) { return sq / board_size; }
+    constexpr Square(square_t sq) : square(sq) {};
 
-// Bounds check file and rank
-constexpr bool is_legal_square(const int f, const int r) {
-    return (r < board_size && f < board_size && r >= 0 && f >= 0);
-}
+    // Enumerate LERF from cartesian coordinates
+    constexpr Square(int f, int r) : square(r * board_size + f) {
+        assert(is_legal(f, r));
+    }
 
-// Bounds check square number
-constexpr bool is_legal_square(const square_t sq) {
-    return (sq >= 0 && sq < n_squares);
-}
+    // Extract file (x-coord) from LERF enumerated squre
+    constexpr int file() const { return square % board_size; }
 
-// Enumerate LERF from cartesian coordinates
-constexpr square_t to_square(int f, int r) {
-    assert(is_legal_square(f, r));
-    return r * board_size + f;
-}
+    // Extract rank (y-coord) from LERF enumerated squre
+    constexpr int rank() const { return square / board_size; }
 
-// Type of algebraic square names
-typedef std::string alg_t;
+    // Bounds check file and rank
+    static constexpr bool is_legal(const int f, const int r) {
+        return (r < board_size && f < board_size && r >= 0 && f >= 0);
+    }
 
-// Parse (case-insensitive) algebraic notation
-square_t to_square(const alg_t &sq);
+    // Bounds check square number
+    constexpr bool is_legal() const {
+        return (square >= 0 && square < n_squares);
+    }
 
-// Give algebraic square name
-alg_t algebraic(const square_t sq);
+    square_t square;
+};
 
 // LERF enumeration: explicit names
 enum algebraic : square_t {
@@ -76,7 +77,7 @@ enum algebraic : square_t {
     A6, B6, C6, D6, E6, F6, G6, H6,
     A7, B7, C7, D7, E7, F7, G7, H7,
     A8, B8, C8, D8, E8, F8, G8, H8
-    // clang-format off
+    // clang-format on
 };
 
 //
@@ -93,112 +94,243 @@ enum class Direction { N, S, E, W, NE, NW, SE, SW };
 // LERF bitset
 typedef uint64_t bitboard_t;
 
-// Convert square number to singeton bitboard
-constexpr bitboard_t to_bitboard(const square_t sq) {
-    assert(is_legal_square(sq));
-    return (bitboard_t)1 << (sq);
-}
+// Thin wrapper around a bitboard_t (uint64_t)
+//
+// All methods are contexpr,
+// everything is immutable
+struct Bitboard {
 
-// Generate a full rank mask
-constexpr bitboard_t rank_mask(int r) {
-    assert(r >= 0 && r <= board_size);
-    bitboard_t ret = 0;
-    for (int f = 0; f < board_size; f++) {
-        ret |= to_bitboard(to_square(f, r));
-    }
-    return ret;
-}
+  public:
+    //
+    // Construction
+    //
+    constexpr Bitboard(const bitboard_t b) : board(b) {};
 
-// Generate a full file mask
-constexpr bitboard_t file_mask(int f) {
-    assert(f >= 0 && f <= board_size);
-    bitboard_t ret = 0;
-    for (int r = 0; r < board_size; r++) {
-        ret |= to_bitboard(to_square(f, r));
-    }
-    return ret;
-}
-
-// Get the least significant one
-constexpr bitboard_t ls1b(const bitboard_t b) { return b & -b; };
-
-// Removes the least significant one to zero
-constexpr bitboard_t reset_ls1b(const bitboard_t b) { return b & (b - 1); };
-
-// Logical bitset difference
-constexpr bitboard_t setdiff(bitboard_t b1, const bitboard_t b2) {
-    b1 |= b2;
-    b1 ^= b2;
-    return b1;
-}
-
-// Iterate through subsets with the carry-ripler trick
-constexpr bitboard_t next_subset_of(const bitboard_t subset,
-                                    const bitboard_t set) {
-    return (subset - set) & set;
-}
-
-// Compute cardinality with Kerighan's method
-constexpr uint8_t size(bitboard_t b) {
-    uint8_t ret = 0;
-    while (b) {
-        ret++;
-        b = reset_ls1b(b);
-    }
-    return ret;
-}
-
-constexpr bitboard_t shift(bitboard_t b, int d_file = 0, int d_rank = 0) {
-    b = d_file > 0 ? b << d_file : b >> (-d_file);
-    b = d_rank > 0 ? b << (board_size * d_rank) : b >> (-board_size * d_rank);
-    return b;
-}
-
-constexpr inline bitboard_t shift(bitboard_t b, Direction d) {
-    switch (d) {
-    case Direction::N:
-        return b << board_size;
-    case Direction::S:
-        return b >> board_size;
-    case Direction::E:
-        return b << 1;
-    case Direction::W:
-        return b >> 1;
-    case Direction::NE:
-        return b << (board_size + 1);
-    case Direction::NW:
-        return b << (board_size - 1);
-    case Direction::SE:
-        return b >> (board_size - 1);
-    case Direction::SW:
-        return b >> (board_size + 1);
-    }
-}
-
-// As above, but prevent any wrap around.
-// More expensive.
-constexpr bitboard_t shift_no_wrap(bitboard_t b, Direction d) {
-    bitboard_t mask = 0;
-    switch (d) {
-    case Direction::N:
-        mask = rank_mask(board_size - 1);
-    case Direction::S:
-        mask = rank_mask(0);
-    case Direction::E:
-        mask = file_mask(board_size - 1);
-    case Direction::W:
-        mask = file_mask(0);
-    case Direction::NE:
-        mask = rank_mask(board_size - 1) | file_mask(board_size - 1);
-    case Direction::NW:
-        mask = rank_mask(board_size - 1) | file_mask(0);
-    case Direction::SE:
-        mask = rank_mask(0) | file_mask(board_size - 1);
-    case Direction::SW:
-        mask = rank_mask(0) | file_mask(0);
+    // Convert square number to singeton bitboard
+    constexpr Bitboard(const Square sq) : board((bitboard_t)1 << sq.square) {
+        assert(sq.is_legal());
     }
 
-    return shift(setdiff(b, mask), d);
+    //
+    // Bitwise overloads
+    //
+
+    // Bitwise or
+    constexpr Bitboard operator|(const Bitboard other) const {
+        return Bitboard(board | other.board);
+    }
+
+    // Bitwise xor
+    constexpr Bitboard operator^(const Bitboard other) const {
+        return Bitboard(board ^ other.board);
+    }
+
+    // Bitwise and
+    constexpr Bitboard operator&(const Bitboard other) const {
+        return Bitboard(board & other.board);
+    }
+
+    // Mutating bitwise or
+    constexpr void operator|=(const Bitboard other) { board |= other.board; }
+
+    // Mutating bitwise xor
+    constexpr void const operator^=(const Bitboard other) {
+        board ^= other.board;
+    }
+
+    // Mutating bitwise and
+    constexpr void const operator&=(const Bitboard other) {
+        board &= other.board;
+    }
+
+    // Logical bitset difference
+    constexpr Bitboard operator-(const Bitboard other) const {
+        return setdiff(other);
+    }
+
+    // Logical bitset difference
+    constexpr Bitboard setdiff(const Bitboard other) const {
+        return ((board | other.board) ^ (other.board));
+    }
+
+    // Generate a full rank mask
+    static constexpr Bitboard rank_mask(int r) {
+        assert(r >= 0 && r <= board_size);
+        Bitboard ret{(bitboard_t)0};
+        for (int f = 0; f < board_size; f++) {
+            ret |= Bitboard(Square(f, r)).board;
+        }
+        return ret;
+    }
+
+    // Generate a full file mask
+    static constexpr Bitboard file_mask(int f) {
+        assert(f >= 0 && f <= board_size);
+        Bitboard ret{0};
+        for (int r = 0; r < board_size; r++) {
+            ret |= Bitboard(Square(f, r));
+        }
+        return ret;
+    }
+
+    // Get the least significant one
+    constexpr Bitboard ls1b() const { return board & -board; };
+
+    // Removes the least significant one to zero
+    constexpr Bitboard reset_ls1b() const { return board & (board - 1); };
+
+    // Compute cardinality with Kerighan's method
+    constexpr uint8_t size() const {
+        uint8_t ret = 0;
+        Bitboard b = *this;
+        while (b.board) {
+            ret++;
+            b = b.reset_ls1b();
+        }
+        return ret;
+    }
+
+    constexpr Bitboard shift(int d_file = 0, int d_rank = 0) const {
+        Bitboard ret = d_file > 0 ? board << d_file : board >> (-d_file);
+        ret = d_rank > 0 ? board << (board_size * d_rank)
+                         : board >> (-board_size * d_rank);
+        return ret;
+    }
+
+    constexpr Bitboard shift(Direction d) const {
+        switch (d) {
+        case Direction::N:
+            return board << board_size;
+        case Direction::S:
+            return board >> board_size;
+        case Direction::E:
+            return board << 1;
+        case Direction::W:
+            return board >> 1;
+        case Direction::NE:
+            return board << (board_size + 1);
+        case Direction::NW:
+            return board << (board_size - 1);
+        case Direction::SE:
+            return board >> (board_size - 1);
+        case Direction::SW:
+            return board >> (board_size + 1);
+        }
+    }
+
+    // As above, but prevent any wrap around.
+    // More expensive.
+    constexpr Bitboard shift_no_wrap(Direction d) const {
+        Bitboard mask{0};
+        switch (d) {
+        case Direction::N:
+            mask = rank_mask(board_size - 1);
+        case Direction::S:
+            mask = rank_mask(0);
+        case Direction::E:
+            mask = file_mask(board_size - 1);
+        case Direction::W:
+            mask = file_mask(0);
+        case Direction::NE:
+            mask = rank_mask(board_size - 1) | file_mask(board_size - 1);
+        case Direction::NW:
+            mask = rank_mask(board_size - 1) | file_mask(0);
+        case Direction::SE:
+            mask = rank_mask(0) | file_mask(board_size - 1);
+        case Direction::SW:
+            mask = rank_mask(0) | file_mask(0);
+        }
+
+        return setdiff(mask).shift(d);
+    }
+
+    // TODO: profile
+    // Might be very slow
+    // for the moment, probably pre-generate/cache moves and look up as needed
+    constexpr Bitboard shift_no_wrap(int d_file = 0, int d_rank = 0) const {
+        Bitboard mask = 0;
+        Bitboard ret = *this;
+
+        for (; d_rank > 0; d_rank--) {
+            ret.shift_no_wrap(Direction::N);
+        }
+
+        for (; d_rank < 0; d_rank++) {
+            ret.shift_no_wrap(Direction::S);
+        }
+
+        for (; d_file > 0; d_file--) {
+            ret.shift_no_wrap(Direction::E);
+        }
+
+        for (; d_file < 0; d_file++) {
+            ret.shift_no_wrap(Direction::W);
+        }
+
+        return ret;
+    }
+
+    // TODO: platform independence?
+    constexpr Square bitscan_forward() const {
+        return __builtin_ffs(board) - 1;
+    }
+
+    // Assumes b is a power of two (i.e. a singly occupied bitboard)
+    constexpr Square single_bitscan_forward() const {
+        return de_brujin_map[((board ^ (board - 1)) * debruijn64) >> 58];
+    }
+
+    std::string pretty() const;
+
+    struct Subsets;
+    constexpr Subsets subsets() const;
+
+  private:
+    bitboard_t board;
+
+    static const bitboard_t debruijn64 = 0x03f79d71b4cb0a89;
+    static constexpr int de_brujin_map[64] = {
+        0,  47, 1,  56, 48, 27, 2,  60, 57, 49, 41, 37, 28, 16, 3,  61,
+        54, 58, 35, 52, 50, 42, 21, 44, 38, 32, 29, 23, 17, 11, 4,  62,
+        46, 55, 26, 59, 40, 36, 15, 53, 34, 51, 20, 43, 31, 22, 10, 45,
+        25, 39, 14, 33, 19, 30, 9,  24, 13, 18, 8,  12, 7,  6,  5,  63};
+
+    // Iterate through subsets with the carry-ripler trick
+    constexpr Bitboard next_subset_of(const Bitboard superset) const {
+        return board & (board - superset.board);
+    }
+};
+
+//
+// Subset iteration
+//
+struct Bitboard::Subsets {
+    constexpr Subsets(Bitboard b) : val(0), b(b), done(false) {};
+
+    // Not semantically correct, only used for ranges
+    // No need to perform comparison to determine if == end()
+    constexpr bool operator!=(Subsets const &other) { return !done || val.board; }
+    constexpr const Subsets begin() { return *this; }
+    constexpr const Subsets end() { return Subsets(0, 0, true); }
+    constexpr operator Bitboard() const { return val; }
+    constexpr operator Bitboard &() { return val; }
+    constexpr Bitboard operator*() const { return val; }
+    constexpr Bitboard &operator++() {
+        val = val.next_subset_of(b);
+        done = true;
+        return *this;
+    }
+
+  private:
+    constexpr Subsets(Bitboard val, Bitboard b, bool done)
+        : val(val), b(b), done(done) {};
+    Bitboard val;
+    Bitboard b;
+    bool done; // When we see the empty set, is it for the first time?
+};
+
+constexpr Bitboard::Subsets Bitboard::subsets() const {
+    return Bitboard(*this);
 }
 
 //
@@ -208,6 +340,21 @@ constexpr bitboard_t shift_no_wrap(bitboard_t b, Direction d) {
 enum class Piece : uint8_t { KING, QUEEN, BISHOP, KNIGHT, ROOK, PAWN };
 
 static constexpr int n_pieces = 6; // For array sizing
+
+//
+// IO: not performance citicial -> defined in implementation file
+//
+
+namespace io {
+
+// Type of algebraic square names
+typedef std::string alg_t;
+
+// Parse (case-insensitive) algebraic notation
+board::Square to_square(const alg_t &sq);
+
+// Give algebraic square name
+alg_t algebraic(const Square sq);
 
 // Get algebraic piece name
 constexpr const char to_char(const Piece p) {
@@ -231,6 +378,8 @@ constexpr const char to_char(const Piece p) {
         return 'p';
         break;
     }
+
+    return (0); // silence warnings
 }
 
 // Parse algebraic piece name (case insensitive)
@@ -260,9 +409,7 @@ constexpr const Piece from_char(const char c) {
     }
 }
 
-// Pretty print bitbord
-std::string pretty(const bitboard_t b);
-
+} // namespace io
 } // namespace board
 
 #endif
