@@ -12,6 +12,15 @@ namespace magic {
 // Public
 //
 
+// Singleton
+Magics *Magics::m_instance = nullptr; // Init instance
+Magics &Magics::get_instance() {
+    if (!m_instance) {
+        m_instance = new Magics();
+    }
+    return *m_instance;
+}
+
 Magics::Magics()
     : m_rook_masks{}, m_bishop_masks{}, rook_attacks{}, bishop_attacks{},
       rook_magics{}, bishop_magics{}, m_rook_shifts{}, m_bishop_shifts{} {

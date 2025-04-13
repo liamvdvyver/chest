@@ -21,7 +21,12 @@ typedef uint16_t magic_key_t;
 class Magics {
 
   public:
-    Magics();
+    // Singleton accessor
+    static Magics &get_instance();
+
+    // Delete copy constructor/assignment operator
+    // Magics(const Magics &) = delete;
+    // Magics &operator=(const Magics &) = delete;
 
     // Get all squares attacked by a piece.
     // May include own pieces.
@@ -29,6 +34,13 @@ class Magics {
                                    board::Bitboard occ) const;
 
   private:
+    // Singeton instance
+    static Magics *m_instance;
+
+    // No external creation/deletion
+    Magics();
+    ~Magics();
+
     //
     // Attack map sizing
     //
