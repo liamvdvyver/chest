@@ -173,20 +173,12 @@ bool Magics::init_attacks(Piece p, magic_t magic, Square sq,
 
     Bitboard all_blockers = get_mask(p, sq);
 
-    // Bitboard blocker_subset = 0;
     magic_key_t key = 0;
-
-    // std::cout << "blocker mask: \n" << all_blockers.pretty() << "\n";
-    // std::cout << "trying magic: \n" << magic.pretty() << "\n";
 
     for (Bitboard blocker_subset : all_blockers.subsets()) {
 
-        // std::cout << "subset\n" << blocker_subset.pretty() << "\n";
-
         Bitboard attacked = get_attacks(p, sq, blocker_subset);
         key = get_magic_key(p, sq, blocker_subset, magic);
-
-        // std::cout << "trying key: " << key << "\n";
 
         Bitboard &cur_elm = coord_attack_map[key];
 
@@ -202,7 +194,6 @@ bool Magics::init_attacks(Piece p, magic_t magic, Square sq,
 
         visited.push_back(key);
         cur_elm = attacked;
-        // blocker_subset = next_subset_of(blocker_subset, all_blockers);
     }
 
     // Success
@@ -434,16 +425,7 @@ magic_key_t Magics::get_magic_key(Piece p, Square sq, Bitboard occ) const {
 
 magic_key_t Magics::get_magic_key(Piece p, Square sq, Bitboard occ,
                                   magic_t magic) const {
-    // std::cout<<"getting key\n";
     Bitboard mask = get_mask(p, sq);
-    // std::cout<<"got mask: \n" << mask.pretty() << "\n";
-    // std::cout<<"using occ: \n" << occ.pretty() << "\n";
-    // std::cout<<"using relevant occupancy: \n" << (occ & mask).pretty() <<
-    // "\n"; std::cout<<"mult results: \n" << ((occ & mask) * magic).pretty() <<
-    // "\n"; std::cout << "shift width: " << get_shift_width(p, sq)<<"\n";
-    // std::cout<<"after shift: \n" <<
-    // Bitboard(((occ & mask) * magic).board >> get_shift_width(p, sq)).pretty()
-    // << "\n";
     return (bitboard_t)((occ & mask) * magic) >> get_shift_width(p, sq);
 }
 } // namespace magic
