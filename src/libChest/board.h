@@ -1,6 +1,7 @@
 #ifndef BOARD_H
 #define BOARD_H
 
+#include <bitset>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -8,6 +9,8 @@
 #include <iterator>
 #include <map>
 #include <vector>
+
+#include "wrapper.h"
 
 //
 // Defines basic datatypes for board state
@@ -38,23 +41,24 @@ static constexpr int n_colours = 2;
 // LERF enumeration
 typedef uint8_t square_t;
 
-struct Square {
+struct Square : Wrapper<square_t, Square> {
 
-    constexpr Square(square_t sq) : square(sq) {};
+    using Wrapper::Wrapper;
+    constexpr Square(const Wrapper &w) : Wrapper(w) {};
 
     // Convert (unwrap) type
-    constexpr operator square_t() const { return square; };
+    constexpr operator square_t() const { return value; };
 
     // Enumerate LERF from cartesian coordinates
-    constexpr Square(int f, int r) : square(r * board_size + f) {
+    constexpr Square(int f, int r) : Square(r * board_size + f) {
         assert(is_legal(f, r));
     }
 
     // Extract file (x-coord) from LERF enumerated squre
-    constexpr int file() const { return square % board_size; }
+    constexpr int file() const { return value % board_size; }
 
     // Extract rank (y-coord) from LERF enumerated squre
-    constexpr int rank() const { return square / board_size; }
+    constexpr int rank() const { return value / board_size; }
 
     // Bounds check file and rank
     static constexpr bool is_legal(const int f, const int r) {
@@ -63,10 +67,9 @@ struct Square {
 
     // Bounds check square number
     constexpr bool is_legal() const {
-        return (square >= 0 && square < n_squares);
+        return (value >= 0 && value < n_squares);
     }
 
-    square_t square;
     struct AllSquareIterator;
 
 }; // namespace board
@@ -80,10 +83,10 @@ struct Square::AllSquareIterator {
     constexpr operator Square &() { return sq; }
     constexpr Square operator*() const { return sq; }
     constexpr bool operator!=(const AllSquareIterator &other) {
-        return sq.square != other.sq.square;
+        return sq.value != other.sq.value;
     }
     constexpr Square::AllSquareIterator operator++() {
-        sq.square++;
+        sq.value++;
         return *this;
     }
     constexpr AllSquareIterator() {};
@@ -125,82 +128,35 @@ typedef uint64_t bitboard_t;
 //
 // All methods are contexpr,
 // everything is immutable
-struct Bitboard {
+struct Bitboard : Wrapper<bitboard_t, Bitboard> {
+
+    using Wrapper::Wrapper;
+    constexpr Bitboard(const Wrapper &v) : Wrapper(v) {};
 
   public:
-    //
     // Construction
-    //
-    constexpr Bitboard(const bitboard_t b) : board(b) {};
-    constexpr Bitboard() : board() {};
-
-    // Convert square number to singeton bitboard
-    constexpr Bitboard(const Square sq) : board((bitboard_t)1 << sq.square) {
+    constexpr Bitboard(const Square sq) : Bitboard((bitboard_t)1 << sq) {
         assert(sq.is_legal());
     }
 
-    //
-    // Bitwise overloads
-    //
-
-    // Equality
-    constexpr bool operator==(const Bitboard other) const {
-        return board == other.board;
-    }
-    // Bitwise or
-    constexpr bool operator!=(const Bitboard other) const {
-        return board != other.board;
-    }
-    // Bitwise or
-    constexpr operator bool() const { return board; }
-
-    // Bitwise or
-    constexpr Bitboard operator|(const Bitboard other) const {
-        return Bitboard(board | other.board);
-    }
-
-    // Bitwise xor
-    constexpr Bitboard operator^(const Bitboard other) const {
-        return Bitboard(board ^ other.board);
-    }
-
-    // Bitwise and
-    constexpr Bitboard operator&(const Bitboard other) const {
-        return Bitboard(board & other.board);
-    }
-
-    // Mutating bitwise or
-    constexpr void operator|=(const Bitboard other) { board |= other.board; }
-
-    // Mutating bitwise xor
-    constexpr void const operator^=(const Bitboard other) {
-        board ^= other.board;
-    }
-
-    // Mutating bitwise and
-    constexpr void const operator&=(const Bitboard other) {
-        board &= other.board;
-    }
-
-    // Logical bitset difference
-    constexpr Bitboard operator-(const Bitboard other) const {
-        return setdiff(other);
-    }
+    // constexpr bitboard_t operator () () {
+    //     return board;
+    // };
 
     // Logical bitset difference
     constexpr Bitboard setdiff(const Bitboard other) const {
-        return ((board | other.board) ^ (other.board));
+        return ((value | other.value) ^ (other.value));
     }
 
     // Check membership
-    constexpr bool empty() const { return !board; };
+    constexpr bool empty() const { return !value; };
 
     // Generate a full rank mask
     static constexpr Bitboard rank_mask(int r) {
         assert(r >= 0 && r <= board_size);
         Bitboard ret{(bitboard_t)0};
         for (int f = 0; f < board_size; f++) {
-            ret |= Bitboard(Square(f, r)).board;
+            ret |= Bitboard(Square(f, r)).value;
         }
         return ret;
     }
@@ -216,15 +172,15 @@ struct Bitboard {
     }
 
     // Get the least significant one
-    constexpr Bitboard ls1b() const { return board & -board; };
+    constexpr Bitboard ls1b() const { return value & -value; };
 
     // Removes the least significant one to zero
-    constexpr Bitboard reset_ls1b() const { return board & (board - 1); };
+    constexpr Bitboard reset_ls1b() const { return value & (value - 1); };
 
     // Return the least significant one, and set it to zero
     constexpr Bitboard pop_ls1b() {
         Bitboard ret = ls1b();
-        board = reset_ls1b().board;
+        value = reset_ls1b().value;
         return ret;
     };
 
@@ -232,7 +188,7 @@ struct Bitboard {
     constexpr uint8_t size() const {
         uint8_t ret = 0;
         Bitboard b = *this;
-        while (b.board) {
+        while (b.value) {
             ret++;
             b = b.reset_ls1b();
         }
@@ -240,30 +196,30 @@ struct Bitboard {
     }
 
     constexpr Bitboard shift(int d_file = 0, int d_rank = 0) const {
-        Bitboard ret = d_file > 0 ? board << d_file : board >> (-d_file);
-        ret = d_rank > 0 ? board << (board_size * d_rank)
-                         : board >> (-board_size * d_rank);
+        Bitboard ret = d_file > 0 ? value << d_file : value >> (-d_file);
+        ret.value = d_rank > 0 ? ret.value << (board_size * d_rank)
+                               : ret.value >> (-board_size * d_rank);
         return ret;
     }
 
     constexpr Bitboard shift(Direction d) const {
         switch (d) {
         case Direction::N:
-            return board << board_size;
+            return value << board_size;
         case Direction::S:
-            return board >> board_size;
+            return value >> board_size;
         case Direction::E:
-            return board << 1;
+            return value << 1;
         case Direction::W:
-            return board >> 1;
+            return value >> 1;
         case Direction::NE:
-            return board << (board_size + 1);
+            return value << (board_size + 1);
         case Direction::NW:
-            return board << (board_size - 1);
+            return value << (board_size - 1);
         case Direction::SE:
-            return board >> (board_size - 1);
+            return value >> (board_size - 1);
         case Direction::SW:
-            return board >> (board_size + 1);
+            return value >> (board_size + 1);
         }
     }
 
@@ -290,7 +246,7 @@ struct Bitboard {
             mask = rank_mask(0) | file_mask(0);
         }
 
-        return setdiff(mask).shift(d);
+        return shift(d).setdiff(mask);
     }
 
     // TODO: profile
@@ -321,12 +277,12 @@ struct Bitboard {
 
     // TODO: platform independence?
     constexpr Square bitscan_forward() const {
-        return __builtin_ffs(board) - 1;
+        return __builtin_ffs(value) - 1;
     }
 
     // Assumes b is a power of two (i.e. a singly occupied bitboard)
     constexpr Square single_bitscan_forward() const {
-        return de_brujin_map[((board ^ (board - 1)) * debruijn64) >> 58];
+        return de_brujin_map[((value ^ (value - 1)) * debruijn64) >> 58];
     }
 
     std::string pretty() const;
@@ -334,9 +290,9 @@ struct Bitboard {
     struct SubsetIterator;
     constexpr SubsetIterator subsets() const;
 
-  private:
-    bitboard_t board;
+    // bitboard_t board;
 
+  private:
     static const bitboard_t debruijn64 = 0x03f79d71b4cb0a89;
     static constexpr int de_brujin_map[64] = {
         0,  47, 1,  56, 48, 27, 2,  60, 57, 49, 41, 37, 28, 16, 3,  61,
@@ -346,7 +302,7 @@ struct Bitboard {
 
     // Iterate through subsets with the carry-ripler trick
     constexpr Bitboard next_subset_of(const Bitboard superset) const {
-        return board & (board - superset.board);
+        return (value - superset.value) & superset.value;
     }
 };
 
@@ -359,7 +315,7 @@ struct Bitboard::SubsetIterator {
     // Not semantically correct, only used for ranges
     // No need to perform comparison to determine if == end()
     constexpr bool operator!=(SubsetIterator const &other) {
-        return !done || val.board;
+        return !done || !val.empty();
     }
     constexpr const SubsetIterator begin() { return *this; }
     constexpr const SubsetIterator end() { return SubsetIterator(0, 0, true); }
@@ -381,7 +337,7 @@ struct Bitboard::SubsetIterator {
 };
 
 constexpr Bitboard::SubsetIterator Bitboard::subsets() const {
-    return Bitboard(*this);
+    return Bitboard::SubsetIterator(*this);
 }
 
 //

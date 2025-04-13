@@ -33,14 +33,7 @@ std::string board::Bitboard::pretty() const {
     std::string ret = "";
     for (int r = board::board_size - 1; r >= 0; r--) {
         for (int c = 0; c < board::board_size; c++) {
-            switch (1 & board >> (board::board_size * r + c)) {
-            case 1:
-                ret += "1";
-                break;
-            case 0:
-                ret += ".";
-                break;
-            }
+            ret += (1 & (value >> (board::board_size * r + c))) ? "1" : ".";
         }
         ret += "\n";
     }

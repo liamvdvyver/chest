@@ -1,3 +1,4 @@
+#include <ostream>
 #include <random>
 
 #include "magic.h"
@@ -175,10 +176,17 @@ bool Magics::init_attacks(Piece p, magic_t magic, Square sq,
     // Bitboard blocker_subset = 0;
     magic_key_t key = 0;
 
+    // std::cout << "blocker mask: \n" << all_blockers.pretty() << "\n";
+    // std::cout << "trying magic: \n" << magic.pretty() << "\n";
+
     for (Bitboard blocker_subset : all_blockers.subsets()) {
+
+        // std::cout << "subset\n" << blocker_subset.pretty() << "\n";
 
         Bitboard attacked = get_attacks(p, sq, blocker_subset);
         key = get_magic_key(p, sq, blocker_subset, magic);
+
+        // std::cout << "trying key: " << key << "\n";
 
         Bitboard &cur_elm = coord_attack_map[key];
 
@@ -198,9 +206,9 @@ bool Magics::init_attacks(Piece p, magic_t magic, Square sq,
     }
 
     // Success
-    // std::cout << "Found magic: " << std::bitset<8 * sizeof(magic_t)>(magic)
-    //           << " for piece: " << to_char(p)
-    //           << " at square: " << std::to_string(sq) << std::endl;
+    std::cout << "Found magic: " << (bitboard_t)magic
+              << " for piece: " << io::to_char(p)
+              << " at square: " << std::to_string(sq) << std::endl;
 
     return true;
 };
@@ -358,9 +366,7 @@ void Magics::init_magics() {
     std::vector<magic_key_t> visited;
 
     for (int sq = 0; sq < n_squares; sq++) {
-
         rook_done = false;
-
         do {
             rook_magic_num = rand(eng) & rand(eng) & rand(eng);
             rook_done =
@@ -371,7 +377,6 @@ void Magics::init_magics() {
 
     for (int sq = 0; sq < n_squares; sq++) {
         bishop_done = false;
-
         do {
             bishop_magic_num = rand(eng) & rand(eng) & rand(eng);
             bishop_done = init_attacks(Piece::BISHOP, bishop_magic_num,
@@ -429,8 +434,17 @@ magic_key_t Magics::get_magic_key(Piece p, Square sq, Bitboard occ) const {
 
 magic_key_t Magics::get_magic_key(Piece p, Square sq, Bitboard occ,
                                   magic_t magic) const {
+    // std::cout<<"getting key\n";
     Bitboard mask = get_mask(p, sq);
-    return ((occ & mask) * magic) >> get_shift_width(p, sq);
+    // std::cout<<"got mask: \n" << mask.pretty() << "\n";
+    // std::cout<<"using occ: \n" << occ.pretty() << "\n";
+    // std::cout<<"using relevant occupancy: \n" << (occ & mask).pretty() <<
+    // "\n"; std::cout<<"mult results: \n" << ((occ & mask) * magic).pretty() <<
+    // "\n"; std::cout << "shift width: " << get_shift_width(p, sq)<<"\n";
+    // std::cout<<"after shift: \n" <<
+    // Bitboard(((occ & mask) * magic).board >> get_shift_width(p, sq)).pretty()
+    // << "\n";
+    return (bitboard_t)((occ & mask) * magic) >> get_shift_width(p, sq);
 }
 } // namespace magic
 } // namespace move

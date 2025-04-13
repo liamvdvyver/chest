@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 project(chest)
 
-add_compile_options(-O3 -flto)
+add_compile_options(-O3 -flto -Wall)
 
 add_library(libChest
     src/libChest/board.cpp

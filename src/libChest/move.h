@@ -2,6 +2,7 @@
 #define MOVE_H
 
 #include "board.h"
+#include "wrapper.h"
 
 namespace move {
 
@@ -112,10 +113,10 @@ constexpr board::Piece promoted_piece(MoveType type) {
 // Encodes any move, legal or otherwise
 //
 
-class Move {
+class Move : Wrapper<move_t, Move> {
 
-    // Contains all neccesary information
-    move_t m_move = 0;
+    using Wrapper::Wrapper;
+    constexpr Move(const Wrapper &val) : Wrapper(val) {};
 
     //
     // Size checking
@@ -150,17 +151,17 @@ class Move {
 
     // Gets the origin square
     constexpr board::Square from() const {
-        return (sixbit_mask & (m_move >> from_offset));
+        return (sixbit_mask & (value >> from_offset));
     }
 
     // Gets the destination square
     constexpr board::Square to() const {
-        return (sixbit_mask & (m_move >> to_offset));
+        return (sixbit_mask & (value >> to_offset));
     }
 
     // Gets the move type
     constexpr MoveType type() const {
-        return (MoveType)(m_move & fourbit_mask);
+        return (MoveType)(value & fourbit_mask);
     };
 };
 
