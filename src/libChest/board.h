@@ -286,6 +286,9 @@ struct Bitboard : Wrapper<bitboard_t, Bitboard> {
     struct SubsetIterator;
     constexpr SubsetIterator subsets() const;
 
+    struct ElementIterator;
+    constexpr ElementIterator singletons() const;
+
     // bitboard_t board;
 
   private:
@@ -334,6 +337,28 @@ struct Bitboard::SubsetIterator {
 
 constexpr Bitboard::SubsetIterator Bitboard::subsets() const {
     return Bitboard::SubsetIterator(*this);
+}
+
+//
+// Element iteration
+//
+struct Bitboard::ElementIterator {
+    constexpr ElementIterator(Bitboard b) : val(b) {};
+    constexpr bool operator!=(ElementIterator const &other) {
+        return val != other.val;
+    }
+    constexpr const ElementIterator begin() { return *this; }
+    constexpr const ElementIterator end() { return ElementIterator(0); }
+    constexpr operator Bitboard() const { return val.ls1b(); }
+    constexpr Bitboard operator*() const { return val.ls1b(); }
+    constexpr Bitboard operator++() { return val.pop_ls1b(); }
+
+  private:
+    Bitboard val;
+};
+
+constexpr Bitboard::ElementIterator Bitboard::singletons() const {
+    return Bitboard::ElementIterator(*this);
 }
 
 //
