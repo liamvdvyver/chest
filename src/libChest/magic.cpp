@@ -1,4 +1,4 @@
-#include <ostream>
+#include <iostream>
 #include <random>
 
 #include "magic.h"
@@ -13,8 +13,8 @@ namespace magic {
 //
 
 Magics::Magics()
-    : rook_attacks{}, bishop_attacks{}, rook_magics{}, bishop_magics{},
-      m_rook_masks{}, m_bishop_masks{}, m_rook_shifts{}, m_bishop_shifts{} {
+    : m_rook_masks{}, m_bishop_masks{}, rook_attacks{}, bishop_attacks{},
+      rook_magics{}, bishop_magics{}, m_rook_shifts{}, m_bishop_shifts{} {
     init_masks();
     init_shifts();
     init_magics();

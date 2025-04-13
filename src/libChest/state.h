@@ -3,7 +3,9 @@
 
 #include "board.h"
 #include "move.h"
+
 #include <optional>
+#include <vector>
 
 namespace state {
 

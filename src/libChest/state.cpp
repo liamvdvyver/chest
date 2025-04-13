@@ -1,6 +1,7 @@
 #include "state.h"
 #include "jumping.h"
 #include "move.h"
+#include <cstddef>
 #include <optional>
 
 using namespace board;
@@ -11,7 +12,7 @@ namespace state {
 // Constructors
 //
 
-State::State() : m_castling_rights{}, m_pieces{} {}
+State::State() : m_pieces{}, m_castling_rights{} {}
 
 State::State(const fen_t &fen_string) : State() {
 
@@ -24,14 +25,14 @@ State::State(const fen_t &fen_string) : State() {
     char delim = ' ';
 
     do {
-        offset = fen_string.substr(curIdx, len).find(' ');
-        if (offset == std::string::npos) {
+        offset = fen_string.substr(curIdx, len).find(delim);
+        if ((size_t)offset == std::string::npos) {
             parts.push_back(fen_string.substr(curIdx));
         } else {
             parts.push_back(fen_string.substr(curIdx, offset));
         }
         curIdx += (offset + 1);
-    } while (offset != std::string::npos);
+    } while ((size_t)offset != std::string::npos);
 
     if (parts.size() != 6)
         throw std::invalid_argument("FEN string must have 6 fields.");
@@ -41,7 +42,7 @@ State::State(const fen_t &fen_string) : State() {
 
     int rowIdx = (board_size - 1), colIdx = 0;
 
-    for (int charIdx = 0; charIdx < placements.length(); charIdx++) {
+    for (int charIdx = 0; charIdx < (int)placements.length(); charIdx++) {
 
         assert(rowIdx <= board_size);
         assert(colIdx <= board_size);
@@ -98,7 +99,7 @@ State::State(const fen_t &fen_string) : State() {
         Colour colour;
         Piece side;
 
-        for (int i = 0; i < castling_rights_str.length(); i++) {
+        for (int i = 0; i < (int)castling_rights_str.length(); i++) {
             colour = isupper(castling_rights_str.at(i)) ? Colour::WHITE
                                                         : Colour::BLACK;
             side = board::io::from_char(castling_rights_str.at(i));
@@ -188,8 +189,6 @@ std::optional<ColouredPiece> const State::piece_at(Bitboard bit) const {
 //
 void State::get_pseudolegal_moves(std::vector<move::Move> &moves) {
 
-    Bitboard total_occ = total_occupancy();
-
     // Just pawn pushes for now
     // TODO: get all moves
 
@@ -214,8 +213,7 @@ void State::get_pseudolegal_moves(std::vector<move::Move> &moves) {
             cur_square_to = cur_pawn_pushes.pop_ls1b().single_bitscan_forward();
 
             move::Move cur_move = move::Move(cur_square_from, cur_square_to);
-
-            moves.push_back(move::Move(cur_square_from, cur_square_to));
+            moves.push_back(cur_move);
         }
     }
 };
@@ -228,9 +226,6 @@ std::string State::pretty() const {
     std::string ret = "";
     for (int r = board_size - 1; r >= 0; r--) {
         for (int c = 0; c < board_size; c++) {
-
-            Bitboard b1 = Bitboard(Square(c, r));
-            Bitboard b = Bitboard(Square(c, r));
 
             std::optional<ColouredPiece> atLoc =
                 piece_at(Bitboard(Square(c, r)));

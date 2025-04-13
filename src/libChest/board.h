@@ -1,14 +1,10 @@
 #ifndef BOARD_H
 #define BOARD_H
 
-#include <bitset>
 #include <cassert>
-#include <cstddef>
 #include <cstdint>
-#include <iostream>
-#include <iterator>
-#include <map>
-#include <vector>
+#include <stdexcept>
+#include <string>
 
 #include "wrapper.h"
 
@@ -221,6 +217,7 @@ struct Bitboard : Wrapper<bitboard_t, Bitboard> {
         case Direction::SW:
             return value >> (board_size + 1);
         }
+        assert(false); // handled all cases
     }
 
     // As above, but prevent any wrap around.
@@ -253,7 +250,6 @@ struct Bitboard : Wrapper<bitboard_t, Bitboard> {
     // Might be very slow
     // for the moment, probably pre-generate/cache moves and look up as needed
     constexpr Bitboard shift_no_wrap(int d_file = 0, int d_rank = 0) const {
-        Bitboard mask = 0;
         Bitboard ret = *this;
 
         for (; d_rank > 0; d_rank--) {

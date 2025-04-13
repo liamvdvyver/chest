@@ -1,6 +1,8 @@
 #ifndef MAGIC_H
 #define MAGIC_H
 
+#include <vector>
+
 #include "board.h"
 
 namespace move {
