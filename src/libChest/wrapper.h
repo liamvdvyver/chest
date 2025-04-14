@@ -100,6 +100,9 @@ template <typename T, typename WrapperType> struct Wrapper {
     }
 
     // Logical
+    constexpr friend WrapperType operator~(const WrapperType &a) {
+        return ~a.value;
+    }
     constexpr friend WrapperType operator!(const WrapperType &a) {
         return !a.value;
     }

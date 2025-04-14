@@ -6,7 +6,7 @@
 #include "board.h"
 
 namespace move {
-namespace magic {
+namespace movegen {
 
 // Magic numbers
 typedef board::Bitboard magic_t;
@@ -34,12 +34,10 @@ class Magics {
                                    board::Bitboard occ) const;
 
   private:
-    // Singeton instance
-    static Magics *m_instance;
 
     // No external creation/deletion
     Magics();
-    ~Magics();
+    ~Magics() {};
 
     //
     // Attack map sizing

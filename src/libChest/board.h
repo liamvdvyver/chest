@@ -27,6 +27,8 @@ constexpr int n_squares = board_size * board_size;
 
 enum class Colour : bool { BLACK, WHITE };
 
+constexpr Colour operator!(const Colour c) { return (Colour) !((bool)c); };
+
 // Number of colours, for sizing arrays
 static constexpr int n_colours = 2;
 

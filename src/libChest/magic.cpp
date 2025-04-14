@@ -6,19 +6,16 @@
 using namespace board;
 
 namespace move {
-namespace magic {
+namespace movegen {
 
 //
 // Public
 //
 
 // Singleton
-Magics *Magics::m_instance = nullptr; // Init instance
 Magics &Magics::get_instance() {
-    if (!m_instance) {
-        m_instance = new Magics();
-    }
-    return *m_instance;
+    static Magics instance;
+    return instance;
 }
 
 Magics::Magics()
