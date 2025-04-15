@@ -125,4 +125,69 @@ constexpr static board::Bitboard get_rook_attacks(board::Square sq,
     return ret;
 };
 
+// Jumping: returns full (correct) sets given multiple starting pieces
+constexpr static board::Bitboard get_king_moves(board::Bitboard starting) {
+    board::Bitboard ret = 0;
+    ret |= starting.shift_no_wrap(board::Direction::N);
+    ret |= starting.shift_no_wrap(board::Direction::S);
+    ret |= starting.shift_no_wrap(board::Direction::E);
+    ret |= starting.shift_no_wrap(board::Direction::W);
+    return ret;
+};
+
+constexpr static board::Bitboard get_knight_moves(board::Bitboard starting) {
+    board::Bitboard ret = 0;
+    ret |= starting.shift_no_wrap(2, 1);
+    ret |= starting.shift_no_wrap(2, -1);
+    ret |= starting.shift_no_wrap(-2, 1);
+    ret |= starting.shift_no_wrap(-2, -1);
+    ret |= starting.shift_no_wrap(1, 2);
+    ret |= starting.shift_no_wrap(1, -2);
+    ret |= starting.shift_no_wrap(-1, 2);
+    ret |= starting.shift_no_wrap(-1, -2);
+    return ret;
+};
+
+constexpr static board::Direction get_forward_direction(board::Colour to_move) {
+    return (bool)to_move ? board::Direction::N : board::Direction::S;
+}
+
+// 3 types of pawn moves
+constexpr static board::Bitboard
+get_pawn_single_pushes(board::Bitboard starting, board::Colour to_move) {
+
+    const board::Bitboard back_rank = (bool)to_move
+                                          ? board::Bitboard::rank_mask(7)
+                                          : board::Bitboard::rank_mask(0);
+
+    return (starting & back_rank).shift(get_forward_direction(to_move));
+};
+
+constexpr static board::Bitboard
+get_pawn_double_pushes(board::Bitboard starting, board::Colour to_move) {
+
+    const board::Bitboard starting_rank = (bool)to_move
+                                              ? board::Bitboard::rank_mask(1)
+                                              : board::Bitboard::rank_mask(6);
+    return (starting & starting_rank)
+        .shift(get_forward_direction(to_move))
+        .shift(get_forward_direction(to_move));
+};
+
+constexpr static board::Bitboard get_pawn_all_pushes(board::Bitboard starting,
+                                                     board::Colour to_move) {
+    return get_pawn_single_pushes(starting, to_move) |
+           get_pawn_double_pushes(starting, to_move);
+};
+
+constexpr static board::Bitboard get_pawn_attacks(board::Bitboard starting,
+                                                  board::Colour to_move) {
+
+    board::Bitboard single_push = get_pawn_single_pushes(starting, to_move);
+    return single_push.shift_no_wrap(board::Direction::E) |
+           single_push.shift_no_wrap(board::Direction::W);
+};
+
+} // namespace detail
+
 } // namespace move::movegen
