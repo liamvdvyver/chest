@@ -253,7 +253,7 @@ class KnightMoveGenerator : public PrecomputedMoveGenerator {
 template <board::Colour c>
 class PawnPushGenerator : public PrecomputedMoveGenerator {
   public:
-    PawnPushGenerator() { init_attack_sets(); std::cout << "bruh" << std::endl;}
+    PawnPushGenerator() { init_attack_sets(); }
 
   private:
     virtual board::Bitboard gen_attack_set(board::Bitboard starting) override {
@@ -275,7 +275,7 @@ class PawnAttackGenerator : public PrecomputedMoveGenerator {
 // Concrete precomputed pawn movers
 class WhitePawnPusher : public PawnPushGenerator<board::Colour::WHITE> {};
 class BlackPawnPusher : public PawnPushGenerator<board::Colour::BLACK> {
-public:
+  public:
     using PawnPushGenerator::PawnPushGenerator;
 };
 class WhitePawnAttacker : public PawnAttackGenerator<board::Colour::WHITE> {};
