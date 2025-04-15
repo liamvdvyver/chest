@@ -1,6 +1,4 @@
 #include "state.h"
-#include "jumping.h"
-#include "move.h"
 #include <cstddef>
 #include <optional>
 
@@ -184,39 +182,6 @@ std::optional<ColouredPiece> const State::piece_at(Bitboard bit) const {
     return {};
 }
 
-//
-// Move generation
-//
-void State::get_pseudolegal_moves(std::vector<move::Move> &moves) {
-
-    // Just pawn pushes for now
-    // TODO: get all moves
-
-    Bitboard pawns = get_bitboard(Piece::PAWN, to_move);
-    Bitboard cur_pawn = 0;
-    Square cur_square_from = 0;
-    Square cur_square_to = 0;
-    Bitboard cur_pawn_pushes = 0;
-
-    while (!pawns.empty()) {
-
-        cur_pawn = pawns.pop_ls1b();
-
-        cur_square_from = cur_pawn.single_bitscan_forward();
-        cur_pawn_pushes =
-            move::jumping::PawnMoveGenerator::get_push_map(cur_pawn, to_move);
-
-        cur_pawn_pushes = cur_pawn_pushes.setdiff(total_occupancy());
-
-        while (!cur_pawn_pushes.empty()) {
-
-            cur_square_to = cur_pawn_pushes.pop_ls1b().single_bitscan_forward();
-
-            move::Move cur_move = move::Move(cur_square_from, cur_square_to);
-            moves.push_back(cur_move);
-        }
-    }
-};
 
 //
 // Pretty printing

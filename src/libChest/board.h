@@ -252,22 +252,22 @@ struct Bitboard : Wrapper<bitboard_t, Bitboard> {
     // Might be very slow
     // for the moment, probably pre-generate/cache moves and look up as needed
     constexpr Bitboard shift_no_wrap(int d_file = 0, int d_rank = 0) const {
-        Bitboard ret = *this;
+        Bitboard ret = value;
 
         for (; d_rank > 0; d_rank--) {
-            ret.shift_no_wrap(Direction::N);
+            ret = ret.shift_no_wrap(Direction::N);
         }
 
         for (; d_rank < 0; d_rank++) {
-            ret.shift_no_wrap(Direction::S);
+            ret = ret.shift_no_wrap(Direction::S);
         }
 
         for (; d_file > 0; d_file--) {
-            ret.shift_no_wrap(Direction::E);
+            ret = ret.shift_no_wrap(Direction::E);
         }
 
         for (; d_file < 0; d_file++) {
-            ret.shift_no_wrap(Direction::W);
+            ret = ret.shift_no_wrap(Direction::W);
         }
 
         return ret;
