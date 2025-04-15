@@ -1,3 +1,6 @@
+#ifndef ATTACK_H
+#define ATTACK_H
+
 #include "board.h"
 
 #include <iostream>
@@ -276,6 +279,28 @@ class PawnPushGenerator : public PrecomputedAttackGenerator {
 };
 
 template <board::Colour c>
+class PawnSinglePushGenerator : public PrecomputedAttackGenerator {
+  public:
+    PawnSinglePushGenerator() { init_attack_sets(); }
+
+  private:
+    virtual board::Bitboard gen_attack_set(board::Bitboard starting) override {
+        return detail::gen_pawn_single_pushes(starting, c);
+    }
+};
+
+template <board::Colour c>
+class PawnDoublePushGenerator : public PrecomputedAttackGenerator {
+  public:
+    PawnDoublePushGenerator() { init_attack_sets(); }
+
+  private:
+    virtual board::Bitboard gen_attack_set(board::Bitboard starting) override {
+        return detail::gen_pawn_double_pushes(starting, c);
+    }
+};
+
+template <board::Colour c>
 class PawnAttackGenerator : public PrecomputedAttackGenerator {
   public:
     PawnAttackGenerator() { init_attack_sets(); }
@@ -284,24 +309,6 @@ class PawnAttackGenerator : public PrecomputedAttackGenerator {
     virtual board::Bitboard gen_attack_set(board::Bitboard starting) override {
         return detail::gen_pawn_attacks(starting, c);
     }
-};
-
-// Concrete precomputed pawn movers
-class WhitePawnPusher : public PawnPushGenerator<board::Colour::WHITE> {
-  public:
-    using PawnPushGenerator::PawnPushGenerator;
-};
-class BlackPawnPusher : public PawnPushGenerator<board::Colour::BLACK> {
-  public:
-    using PawnPushGenerator::PawnPushGenerator;
-};
-class WhitePawnAttacker : public PawnAttackGenerator<board::Colour::WHITE> {
-  public:
-    using PawnAttackGenerator::PawnAttackGenerator;
-};
-class BlackPawnAttacker : public PawnAttackGenerator<board::Colour::BLACK> {
-  public:
-    using PawnAttackGenerator::PawnAttackGenerator;
 };
 
 //
@@ -575,158 +582,6 @@ class BishopAttackGenerator : public MagicAttackGenerator<max_bishop_shift> {
         return detail::gen_bishop_attacks(sq, blk);
     };
 };
+} // namespace move::attack
 
-// Enumerate possible moves for a piece given a starting state.
-// Generally, precomputes moves and looks them up in a map.
-// If not, all methods should be constexpr.
-
-// class MoveGenerator {}
-
-// class Movegen {
-//
-//   public:
-//     Movegen(const state::State &s) : state{s} {};
-//
-//     //
-//     // Move generation
-//     //
-//     void get_pawn_moves(std::vector<move::Move> &moves) {
-//
-//         const board::Bitboard pawns =
-//             state.copy_bitboard(board::Piece::PAWN,
-//             state.to_move);
-//
-//         board::Square cur_square_from = 0;
-//         board::Square cur_square_to = 0;
-//         board::Bitboard cur_pawn_pushes = 0;
-//
-//         for (board::Bitboard cur_pawn : pawns.singletons()) {
-//
-//             // Get pushes
-//
-//             cur_square_from =
-//             cur_pawn.single_bitscan_forward();
-//             cur_pawn_pushes =
-//             move::jumping::PawnMoveGenerator::get_push_map(
-//                 cur_pawn, state.to_move);
-//
-//             cur_pawn_pushes =
-//             cur_pawn_pushes.setdiff(state.total_occupancy());
-//
-//             while (!cur_pawn_pushes.empty()) {
-//
-//                 cur_square_to =
-//                     cur_pawn_pushes.pop_ls1b().single_bitscan_forward();
-//
-//                 // move::Move cur_move =
-//                 //     move::Move(cur_square_from,
-//                 cur_square_to);
-//                 // moves.push_back(cur_move);
-//             }
-//
-//             // Get attacks
-//             // cur_pawn_attacks =
-//             move::jumping::PawnMoveGenerator::get_attack_map(board::Bitboard
-//             b, board::Colour c)
-//         }
-//     };
-//
-//     void get_sliding_moves(std::vector<move::Move> &moves) {
-//         const board::Bitboard occ = state.total_occupancy();
-//         const board::Bitboard own_occ =
-//         state.side_occupancy(state.to_move); const
-//         board::Bitboard opp_king =
-//             state.copy_bitboard(board::Piece::KING,
-//             !state.to_move);
-//
-//         // Squares which may be attacked/moved to: not own
-//         piece/opponents king const board::Bitboard
-//         movable_squares =
-//         (~own_occ).setdiff(opp_king);
-//
-//         // Find sliding pieces
-//         board::Bitboard rooks =
-//             state.copy_bitboard(board::Piece::ROOK,
-//             state.to_move);
-//         board::Bitboard bishops =
-//             state.copy_bitboard(board::Piece::BISHOP,
-//             state.to_move);
-//
-//         // Queen attacks like either piece
-//         // add to their bitboards
-//         board::Bitboard queen =
-//             state.copy_bitboard(board::Piece::QUEEN,
-//             state.to_move);
-//
-//         rooks |= queen;
-//         bishops |= queen;
-//
-//         // Add moves
-//         add_sliding_moves_onepiece(moves, board::Piece::ROOK,
-//         rooks, occ,
-//                                    movable_squares);
-//
-//         add_sliding_moves_onepiece(moves,
-//         board::Piece::BISHOP, bishops, occ,
-//                                    movable_squares);
-//     }
-//
-//     // Helper: populate moves based on attacking piece,
-//     movement type (for
-//     // queen), and precomputed state info
-//     void add_sliding_moves_onepiece(std::vector<move::Move>
-//     &moves,
-//                                     board::Piece
-//                                     movement_type,
-//                                     board::Bitboard
-//                                     slider_positions,
-//                                     board::Bitboard occ,
-//                                     board::Bitboard
-//                                     movable_squares) {
-//
-//         // Rook attacks
-//         for (board::Bitboard cur_piece :
-//         slider_positions.singletons()) {
-//
-//             // Source
-//             board::Square cur_square_from =
-//             cur_piece.single_bitscan_forward();
-//
-//             // Find attacked squares which may be moved to
-//             board::Bitboard attack_set =
-//             Magics::get_instance().get_attack_set(
-//                 movement_type,
-//                 cur_piece.single_bitscan_forward(), occ);
-//             attack_set &= movable_squares;
-//
-//             // Process every target
-//             // TODO: test if quicker to process
-//             opponent/un-occupied separately for
-//             (board::Bitboard attacked :
-//             attack_set.singletons()) {
-//
-//                 // Destination square
-//                 board::Bitboard cur_square_to =
-//                     attacked.single_bitscan_forward();
-//
-//                 // Is attack or move?
-//                 // repeating this might be expensive?
-//                 move::MoveType cur_type = (attacked &
-//                 occ).empty()
-//                                               ?
-//                                               MoveType::NORMAL
-//                                               :
-//                                               MoveType::CAPTURE;
-//                 move::Move cur_move =
-//                     move::Move(cur_square_from,
-//                     cur_square_from, cur_type);
-//                 moves.push_back(cur_move);
-//             }
-//         }
-//     }
-//
-//   private:
-//     const state::State &state;
-// };
-
-} // namespace move::attacksets
+#endif
