@@ -190,4 +190,76 @@ constexpr static board::Bitboard get_pawn_attacks(board::Bitboard starting,
 
 } // namespace detail
 
+//
+// Simple jumping moves (not colour dependent)
+// TODO: I just want to see how abstract classes work in C++.
+// Consider changing this if it seems hacky/sucky, which I predict it will.
+// Maybe get rid of the free functions and just provide them in subclasses of a
+// base Mover class.
+// I suspect vtables shouldn't cause any issues here.
+//
+class PrecomputedMoveGenerator {
+  public:
+    // Give function pointer to get_moves method, compute maps.
+    PrecomputedMoveGenerator() { init_attack_sets(); };
+
+    board::Bitboard get_attack_set(board::Square starting) const {
+        return m_attack_sets[starting];
+    };
+
+  private:
+    // Provided at runtime
+    virtual board::Bitboard gen_attack_set(board::Bitboard starting) = 0;
+    board::Bitboard m_attack_sets[board::n_squares];
+    void init_attack_sets() {
+        for (board::Square sq : board::Square::AllSquareIterator()) {
+            m_attack_sets[sq] = gen_attack_set(board::Bitboard(sq));
+        }
+    };
+};
+
+class KingMoveGenerator : PrecomputedMoveGenerator {
+    virtual board::Bitboard gen_attack_set(board::Bitboard starting) {
+        return detail::get_king_moves(starting);
+    };
+};
+
+class KnightMoveGenerator : PrecomputedMoveGenerator {
+    virtual board::Bitboard gen_attack_set(board::Bitboard starting) {
+        return detail::get_knight_moves(starting);
+    };
+};
+
+//
+// Pawns are colour dependant, and move in different ways.
+// Setup a PrecomputedMover for each colour, for each direction.
+//
+// This does mean that the pre-computed moves are not stored together for each
+// colour/movment type.
+//
+// TODO: test if the following is true:
+// Since the move tables are (8 * 64) bytes (bigger than a cache line),
+// and we can process one type of move at a time (using the same table as much
+// as possible), the hit to cache locality shouldn't be a massive problem
+
+template<board::Colour c>
+class PawnPushGenerator : PrecomputedMoveGenerator {
+    virtual board::Bitboard gen_attack_set(board::Bitboard starting) {
+        return detail::get_pawn_all_pushes(starting, c);
+    }
+};
+
+template<board::Colour c>
+class PawnAttackGenerator : PrecomputedMoveGenerator {
+    virtual board::Bitboard gen_attack_set(board::Bitboard starting) {
+        return detail::get_pawn_attacks(starting, c);
+    }
+};
+
+// Concrete precomputed pawn movers
+PawnPushGenerator<board::Colour::WHITE> WhitePawnPusher;
+PawnPushGenerator<board::Colour::BLACK> BlackPawnPusher;
+PawnAttackGenerator<board::Colour::WHITE> WhitePawnAttacker;
+PawnAttackGenerator<board::Colour::BLACK> BlackPawnAttacker;
+
 } // namespace move::movegen
