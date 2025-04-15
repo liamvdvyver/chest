@@ -273,13 +273,22 @@ class PawnAttackGenerator : public PrecomputedMoveGenerator {
 };
 
 // Concrete precomputed pawn movers
-class WhitePawnPusher : public PawnPushGenerator<board::Colour::WHITE> {};
+class WhitePawnPusher : public PawnPushGenerator<board::Colour::WHITE> {
+  public:
+    using PawnPushGenerator::PawnPushGenerator;
+};
 class BlackPawnPusher : public PawnPushGenerator<board::Colour::BLACK> {
   public:
     using PawnPushGenerator::PawnPushGenerator;
 };
-class WhitePawnAttacker : public PawnAttackGenerator<board::Colour::WHITE> {};
-class BlackPawnAttacker : public PawnAttackGenerator<board::Colour::BLACK> {};
+class WhitePawnAttacker : public PawnAttackGenerator<board::Colour::WHITE> {
+  public:
+    using PawnAttackGenerator::PawnAttackGenerator;
+};
+class BlackPawnAttacker : public PawnAttackGenerator<board::Colour::BLACK> {
+  public:
+    using PawnAttackGenerator::PawnAttackGenerator;
+};
 
 //
 // Sliding piece move generation: magic bitboards
