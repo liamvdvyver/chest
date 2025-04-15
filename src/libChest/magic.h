@@ -96,18 +96,8 @@ class Magics {
     bool init_attacks(board::Piece p, magic_t magic, board::Square sq,
                       std::vector<magic_key_t> &visited);
 
-    // Get the attack set for a piece at a position, given occupancy (relevant
-    // blockers or total occupancy)
     static board::Bitboard get_attacks(board::Piece p, board::Square sq,
                                        board::Bitboard blk);
-
-    // Get the attack set for a rook at a position, given occupancy (relevant
-    static board::Bitboard get_rook_attacks(board::Square sq,
-                                            board::Bitboard blk);
-
-    // Get the attack set for a bishop at a position, given occupancy (relevant
-    static board::Bitboard get_bishop_attacks(board::Square sq,
-                                              board::Bitboard blk);
 
     // Helper: Get the attack map for a given piece at a given position.
     // May return null.

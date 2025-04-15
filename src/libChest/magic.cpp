@@ -2,6 +2,7 @@
 #include <random>
 
 #include "magic.h"
+#include "movegen.h"
 
 using namespace board;
 
@@ -213,122 +214,13 @@ bool Magics::init_attacks(Piece p, magic_t magic, Square sq,
 Bitboard Magics::get_attacks(Piece p, Square sq, Bitboard blk) {
     switch (p) {
     case Piece::ROOK:
-        return get_rook_attacks(sq, blk);
+        return detail::get_rook_attacks(sq, blk);
     case Piece::BISHOP:
-        return get_bishop_attacks(sq, blk);
+        return detail::get_bishop_attacks(sq, blk);
     default:
         throw std::invalid_argument("get_attacks()");
     }
 }
-
-board::Bitboard Magics::get_rook_attacks(board::Square sq,
-                                         board::Bitboard blk) {
-
-    Bitboard ret = 0;
-    int f = sq.file();
-    int r = sq.rank();
-    Bitboard cur = Bitboard(sq);
-    Bitboard next;
-
-    int d_to_left = f;
-    int d_to_right = board_size - f - 1;
-    int d_to_bottom = r;
-    int d_to_top = board_size - r - 1;
-
-    // Attacks to left
-    next = cur;
-    for (int d = 1; d <= d_to_left; d++) {
-        next = next.shift(Direction::W);
-        ret |= next;
-        if (blk & next) {
-            break;
-        }
-    }
-
-    // Attacks to right
-    next = cur;
-    for (int d = 1; d <= d_to_right; d++) {
-        next = next.shift(Direction::E);
-        ret |= next;
-        if (blk & next) {
-            break;
-        }
-    }
-
-    // Attacks down
-    next = cur;
-    for (int d = 1; d <= d_to_bottom; d++) {
-        next = next.shift(Direction::S);
-        ret |= next;
-        if (blk & next) {
-            break;
-        }
-    }
-
-    // Attacks up
-    next = cur;
-    for (int d = 1; d <= d_to_top; d++) {
-        next = next.shift(Direction::N);
-        ret |= next;
-        if (blk & next) {
-            break;
-        }
-    }
-
-    return ret;
-};
-
-board::Bitboard Magics::get_bishop_attacks(board::Square sq,
-                                           board::Bitboard blk) {
-
-    Bitboard ret = 0;
-    int f = sq.file();
-    int r = sq.rank();
-    Bitboard cur = Bitboard(sq);
-    Bitboard next;
-
-    // Assign down, left
-    next = cur;
-    for (int d = 1; Square::is_legal(f - d, r - d); d++) {
-        next = next.shift(Direction::SW);
-        ret |= next;
-        if (blk & next) {
-            break;
-        }
-    }
-
-    // Assign down, right
-    next = cur;
-    for (int d = 1; Square::is_legal(f + d, r - d); d++) {
-        next = next.shift(Direction::SE);
-        ret |= next;
-        if (blk & next) {
-            break;
-        }
-    }
-
-    // Assign up, left
-    next = cur;
-    for (int d = 1; Square::is_legal(f - d, r + d); d++) {
-        next = next.shift(Direction::NW);
-        ret |= next;
-        if (blk & next) {
-            break;
-        }
-    }
-
-    // Assign up, right
-    next = cur;
-    for (int d = 1; Square::is_legal(f + d, r + d); d++) {
-        next = next.shift(Direction::NE);
-        ret |= next;
-        if (blk & next) {
-            break;
-        }
-    }
-
-    return ret;
-};
 
 Bitboard *Magics::get_attack_map(Piece p, Square sq) const {
     if (sq >= n_squares)
@@ -434,5 +326,5 @@ magic_key_t Magics::get_magic_key(Piece p, Square sq, Bitboard occ,
     Bitboard mask = get_mask(p, sq);
     return (bitboard_t)((occ & mask) * magic) >> get_shift_width(p, sq);
 }
-} // namespace magic
+} // namespace movegen
 } // namespace move
