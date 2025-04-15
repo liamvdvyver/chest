@@ -367,7 +367,9 @@ constexpr Bitboard::ElementIterator Bitboard::singletons() const {
 // Piece
 //
 
-enum class Piece : uint8_t { KING, QUEEN, BISHOP, KNIGHT, ROOK, PAWN };
+// Lowest valued members should follow same order as promoted pieces in move.h
+// TODO: test
+enum class Piece : uint8_t { KNIGHT, BISHOP, ROOK, QUEEN, PAWN, KING };
 
 static constexpr int n_pieces = 6; // For array sizing
 
@@ -387,6 +389,8 @@ board::Square to_square(const alg_t &sq);
 alg_t algebraic(const Square sq);
 
 // Get algebraic piece name
+//
+// TODO: lookup into array
 constexpr const char to_char(const Piece p) {
     switch (p) {
     case Piece::KING:

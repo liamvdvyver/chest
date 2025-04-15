@@ -5,7 +5,6 @@ add_compile_options(-O3 -flto -Wall)
 
 add_library(libChest
     src/libChest/board.cpp
-    src/libChest/move.cpp
     src/libChest/state.cpp
     src/libChest/magic.cpp
 )
