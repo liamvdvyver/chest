@@ -31,58 +31,54 @@ namespace move::movegen {
 
 //
 // Responsible for getting the moves from moving a certain piece type,
-// Instances compose state and move vector (i.e, per node of search),
-// Subtypes share static instances of PrecomputedAttackGenerators.
+// Instances compose the pawn move generators for one colour.
 //
 // TODO: check out some asm, how expensive is calling these constructors every
 // node?
 //
 template <board::Piece piece> class MoveGenerator {
   public:
-    constexpr MoveGenerator(std::vector<move::Move> &moves_,
-                            const state::State &state_)
-        : moves(moves_), state(state_) {};
-
+    MoveGenerator() {};
     // Add quiet moves to the moves list
-    virtual void get_quiet_moves() {
-        for (board::Bitboard b : attackers().singletons()) {
-            get_quiet_moves(b);
+    void get_quiet_moves(const state::State &state,
+                         std::vector<move::Move> &moves) {
+        for (board::Bitboard b : attackers(state).singletons()) {
+            get_quiet_moves(
+                state, moves, b, state.side_occupancy(state.to_move),
+                state.side_occupancy(!state.to_move), state.total_occupancy());
         }
     };
 
     // Add tactical moves to the moves list
-    virtual void get_loud_moves() {
-        for (board::Bitboard b : attackers().singletons()) {
-            get_loud_moves(b);
+    void get_loud_moves(const state::State &state,
+                        std::vector<move::Move> &moves) {
+        for (board::Bitboard b : attackers(state).singletons()) {
+            get_loud_moves(state, moves, b, state.side_occupancy(state.to_move),
+                           state.side_occupancy(!state.to_move),
+                           state.total_occupancy());
         }
     };
-
-    // Get out of check
-    // void get_check_moves() {
-    //     for (board::Bitboard b : attackers().singletons()) {
-    //         get_check_moves(b);
-    //     }
-    // };
 
     // Add all moves to the moves list
     //
     // Calls other methods, override if quiet/loud moves can be more quickly
     // generated together.
-    virtual void get_all_moves() {
+    void get_all_moves(const state::State &state,
+                       std::vector<move::Move> &moves) {
 
         // TODO: implement in state.h
         bool checked = false;
         if (checked) {
             // return get_check_moves();
         } else {
-            get_loud_moves();
-            get_quiet_moves();
+            get_loud_moves(state, moves);
+            get_quiet_moves(state, moves);
         };
     };
 
   protected:
     // Helper: all pieces to be looped over at this node
-    constexpr board::Bitboard attackers() const {
+    constexpr board::Bitboard attackers(const state::State &state) const {
         return state.copy_bitboard(piece, state.to_move);
     }
 
@@ -90,35 +86,34 @@ template <board::Piece piece> class MoveGenerator {
     // Pieces are found by looping over bitboard singletons,
     // implementations may bitscan to call required methods
     // without penalty.
-    virtual void constexpr get_quiet_moves(board::Bitboard origin,
+    virtual void constexpr get_quiet_moves(const state::State &state,
+                                           std::vector<move::Move> &moves,
+                                           board::Bitboard origin,
                                            board::Bitboard occ_to_move,
                                            board::Bitboard occ_opponent,
                                            board::Bitboard occ_total) = 0;
-    virtual void constexpr get_loud_moves(board::Bitboard origin,
+    virtual void constexpr get_loud_moves(const state::State &state,
+                                          std::vector<move::Move> &moves,
+                                          board::Bitboard origin,
                                           board::Bitboard occ_to_move,
                                           board::Bitboard occ_opponent,
                                           board::Bitboard occ_total) = 0;
-    // virtual void constexpr get_check_moves(board::Bitboard origin,
-    //                                        board::Bitboard occ_to_move,
-    //                                        board::Bitboard occ_opponent,
-    //                                        board::Bitboard occ_total) = 0;
-
-    std::vector<move::Move> &moves;
-    const state::State &state;
 };
 
 //
 // Pawn moves
 //
 
-// Sepate methods for attacks/pushes
 template <board::Colour c>
 class PawnMoveGenerator : public MoveGenerator<board::Piece::PAWN> {
+
   public:
-    using MoveGenerator::MoveGenerator;
+    using MoveGenerator::get_loud_moves;
+    using MoveGenerator::get_quiet_moves;
 
   private:
-    void get_single_pushes(board::Bitboard origin, board::Bitboard occ_total,
+    void get_single_pushes(std::vector<move::Move> &moves,
+                           board::Bitboard origin, board::Bitboard occ_total,
                            board::Square from) {
         board::Bitboard push_dest = m_single_pusher.get_attack_set(from);
         if (push_dest & occ_total) {
@@ -139,7 +134,8 @@ class PawnMoveGenerator : public MoveGenerator<board::Piece::PAWN> {
         }
     };
 
-    void get_double_pushes(board::Bitboard origin, board::Bitboard occ_total,
+    void get_double_pushes(std::vector<move::Move> &moves,
+                           board::Bitboard origin, board::Bitboard occ_total,
                            board::Square from) {
 
         board::Bitboard push_dest = m_double_pusher.get_attack_set(from);
@@ -151,7 +147,8 @@ class PawnMoveGenerator : public MoveGenerator<board::Piece::PAWN> {
                            MoveType::SINGLE_PUSH);
     };
 
-    void get_captures(board::Bitboard origin, board::Bitboard occ_opponent,
+    void get_captures(std::vector<move::Move> &moves, const state::State &state,
+                      board::Bitboard origin, board::Bitboard occ_opponent,
                       board::Square from) {
 
         board::Bitboard capture_dests = m_attacker.get_attack_set(from);
@@ -187,52 +184,63 @@ class PawnMoveGenerator : public MoveGenerator<board::Piece::PAWN> {
     }
 
     // (consider promotions to be loud)
-    virtual void get_quiet_moves(board::Bitboard origin,
+    virtual void get_quiet_moves(const state::State &state,
+                                 std::vector<move::Move> &moves,
+                                 board::Bitboard origin,
                                  board::Bitboard occ_to_move,
                                  board::Bitboard occ_opponent,
                                  board::Bitboard occ_total) override {
 
         board::Square from = origin.single_bitscan_forward();
-        get_single_pushes(origin, occ_total, from);
-        get_double_pushes(origin, occ_total, from);
+        get_single_pushes(moves, origin, occ_total, from);
+        get_double_pushes(moves, origin, occ_total, from);
     }
 
-    virtual void get_loud_moves(board::Bitboard origin,
+    virtual void get_loud_moves(const state::State &state,
+                                std::vector<move::Move> &moves,
+                                board::Bitboard origin,
                                 board::Bitboard occ_to_move,
                                 board::Bitboard occ_opponent,
                                 board::Bitboard occ_total) override {
 
         board::Square from = origin.single_bitscan_forward();
-        get_captures(origin, occ_total, from);
+        get_captures(moves, state, origin, occ_total, from);
     }
 
-  private:
-    // Attack set generators
-    // Instantiate classes based on colour
-    class SinglePusher : attack::PawnSinglePushGenerator<c> {
+    // Sepate methods for attacks/pushes
+    // template <board::Colour c>
+    // class SinglePusher : public attack::PawnSinglePushGenerator<c> {
+    class SinglePusher : public attack::PawnSinglePushGenerator<c> {
       public:
         using attack::PawnSinglePushGenerator<c>::PawnSinglePushGenerator;
     };
-    class DoublePusher : attack::PawnDoublePushGenerator<c> {
+
+    // template <board::Colour c>
+    class DoublePusher : public attack::PawnDoublePushGenerator<c> {
       public:
         using attack::PawnDoublePushGenerator<c>::PawnDoublePushGenerator;
     };
-    class Attacker : attack::PawnAttackGenerator<c> {
+
+    // template <board::Colour c>
+    class Attacker : public attack::PawnAttackGenerator<c> {
       public:
         using attack::PawnAttackGenerator<c>::PawnAttackGenerator;
     };
-
+    // private:
+    // Attack set generators
+    // Instantiate classes based on colour
     // Keep an instance of each in static memory
     // TODO: test static vs stack allocation
-    static SinglePusher m_single_pusher{};
-    static DoublePusher m_double_pusher{};
-    static Attacker m_attacker{};
+    SinglePusher m_single_pusher{};
+    DoublePusher m_double_pusher{};
+    Attacker m_attacker{};
 
     // Helper constants
     static constexpr int back_rank_n = (bool)c ? board::board_size - 1 : 0;
     static constexpr board::Bitboard back_rank_mask =
-        board::Bitboard::file_mask(back_rank_n);
+        board::Bitboard::rank_mask(back_rank_n);
 };
+
 } // namespace move::movegen
 
 #endif
