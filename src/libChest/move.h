@@ -86,7 +86,7 @@ struct Move : Wrapper<move_t, Move> {
     constexpr Move(board::Square from, board::Square to, MoveType type)
         : Move(((sixbit_mask & (move_t)from) << from_offset) |
                ((sixbit_mask & (move_t)to) << to_offset) |
-               (fourbit_mask & (move_t)type << movetype_offset)) {};
+               ((fourbit_mask & (move_t)type) << movetype_offset)) {};
 
     // Gets the origin square
     constexpr board::Square from() const {
