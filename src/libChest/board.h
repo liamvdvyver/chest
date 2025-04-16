@@ -143,7 +143,7 @@ struct Bitboard : Wrapper<bitboard_t, Bitboard> {
 
     // Logical bitset difference
     constexpr Bitboard setdiff(const Bitboard other) const {
-        return ((value | other.value) ^ (other.value));
+        return value & ~other;
     }
 
     // Check membership
@@ -225,27 +225,30 @@ struct Bitboard : Wrapper<bitboard_t, Bitboard> {
     // As above, but prevent any wrap around.
     // More expensive.
     constexpr Bitboard shift_no_wrap(Direction d) const {
-        Bitboard mask{0};
+        return setdiff(shift_mask(d)).shift(d);
+    }
+
+    constexpr Bitboard shift_mask(Direction d) const {
         switch (d) {
         case Direction::N:
-            mask = rank_mask(board_size - 1);
+            return rank_mask(board_size - 1);
         case Direction::S:
-            mask = rank_mask(0);
+            return rank_mask(0);
         case Direction::E:
-            mask = file_mask(board_size - 1);
+            return file_mask(board_size - 1);
         case Direction::W:
-            mask = file_mask(0);
+            return file_mask(0);
         case Direction::NE:
-            mask = rank_mask(board_size - 1) | file_mask(board_size - 1);
+            return rank_mask(board_size - 1) | file_mask(board_size - 1);
         case Direction::NW:
-            mask = rank_mask(board_size - 1) | file_mask(0);
+            return rank_mask(board_size - 1) | file_mask(0);
         case Direction::SE:
-            mask = rank_mask(0) | file_mask(board_size - 1);
+            return rank_mask(0) | file_mask(board_size - 1);
         case Direction::SW:
-            mask = rank_mask(0) | file_mask(0);
+            return rank_mask(0) | file_mask(0);
+        default:
+            assert(false);
         }
-
-        return shift(d).setdiff(mask);
     }
 
     // TODO: profile
