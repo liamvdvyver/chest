@@ -414,7 +414,6 @@ template <int max_shift> class MagicAttackGenerator {
 
         // Success
         std::cout << "Found magic: " << (board::bitboard_t)magic
-                  << " for piece: " << "BRUIHHH TODO: WTf"
                   << " at square: " << std::to_string(sq) << std::endl;
 
         return true;
