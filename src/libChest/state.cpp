@@ -148,7 +148,7 @@ Bitboard State::copy_bitboard(Piece piece, Colour colour) const {
 bool &State::can_castle(Piece side, Colour colour) {
     assert(side == Piece::QUEEN || side == Piece::KING);
 
-    return m_castling_rights[(int)colour][(int)side];
+    return m_castling_rights[(int)colour][(int)(side == Piece::KING)];
 }
 
 //
@@ -181,7 +181,6 @@ std::optional<ColouredPiece> const State::piece_at(Bitboard bit) const {
     }
     return {};
 }
-
 
 //
 // Pretty printing
