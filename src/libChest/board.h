@@ -65,7 +65,7 @@ struct Square : Wrapper<square_t, Square> {
 
     // Bounds check square number
     constexpr bool is_legal() const {
-        return (value >= 0 && value < n_squares);
+        return (value < n_squares);
     }
 
     struct AllSquareIterator;

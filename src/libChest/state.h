@@ -65,7 +65,8 @@ class State {
     board::Bitboard &get_bitboard(board::Piece piece, board::Colour colour);
 
     // Castling rights accessor
-    bool &can_castle(board::Piece side, board::Colour colour);
+    bool &get_castling_rights(board::Piece side, board::Colour colour);
+    const bool &can_castle(board::Piece side, board::Colour colour) const;
 
     // Union of piece bitboards, per side
     board::Bitboard side_occupancy(board::Colour colour) const;

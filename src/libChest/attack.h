@@ -215,7 +215,28 @@ constexpr static board::Bitboard gen_pawn_attacks(board::Bitboard starting,
 // base Mover class.
 // I suspect vtables shouldn't cause any issues here.
 //
+
+// Generate attack set given square
+template <typename T>
+concept JumpingAttackGenerator = requires(T t) {
+    { t.get_attack_set(board::Square()) } -> std::same_as<board::Bitboard>;
+};
+
+// Generate attack set given square and relevant occupancy
+template <typename T>
+concept SlidingAttackGenerator = requires(T t) {
+    {
+        t.get_attack_set(board::Square(), board::Bitboard())
+    } -> std::same_as<board::Bitboard>;
+};
+
+template <typename T>
+concept AttackGenerator =
+    requires(T t) { requires JumpingAttackGenerator<T> || SlidingAttackGenerator<T>; };
+
 class PrecomputedAttackGenerator {
+    // static_assert(AttackGenerator<PrecomputedAttackGenerator>);
+
   public:
     // Give function pointer to get_moves method, compute maps.
     PrecomputedAttackGenerator() {};
@@ -236,6 +257,7 @@ class PrecomputedAttackGenerator {
 };
 
 class KingAttackGenerator : public PrecomputedAttackGenerator {
+    // static_assert(JumpingAttackGenerator<KingAttackGenerator>);
   public:
     KingAttackGenerator() { init_attack_sets(); }
 
@@ -246,6 +268,7 @@ class KingAttackGenerator : public PrecomputedAttackGenerator {
 };
 
 class KnightAttackGenerator : public PrecomputedAttackGenerator {
+    // static_assert(JumpingAttackGenerator<KingAttackGenerator>);
   public:
     KnightAttackGenerator() { init_attack_sets(); }
 
@@ -269,6 +292,7 @@ class KnightAttackGenerator : public PrecomputedAttackGenerator {
 
 template <board::Colour c>
 class PawnPushGenerator : public PrecomputedAttackGenerator {
+    // static_assert(JumpingAttackGenerator<KingAttackGenerator>);
   public:
     PawnPushGenerator() { init_attack_sets(); }
 
@@ -326,7 +350,9 @@ typedef board::Bitboard magic_t;
 typedef uint16_t magic_key_t;
 
 // Parameterise key (bit) size for attacks to make array size concrete.
+// template <int max_shift> class MagicAttackGenerator : PrecomputedAttackGenerator {
 template <int max_shift> class MagicAttackGenerator {
+    // static_assert(SlidingAttackGenerator<MagicAttackGenerator<max_shift>>);
 
   public:
     MagicAttackGenerator() : m_masks(), m_attacks(), m_magics(), m_shifts() {};

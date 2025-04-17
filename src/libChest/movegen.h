@@ -5,12 +5,13 @@
 #include "board.h"
 #include "move.h"
 #include "state.h"
+#include <type_traits>
 #include <vector>
 
 //
 // Perform (pseudo-legal) move generation for one piece type x state.
-// I.e. all moves must be legal, except may result in check.
-// For now, when we expand a node, we can just see if we are in check.
+// I.e. all moves must be legal, except may result in check, or enemy king
+// capture. For now, when we expand a node, we can just see if we are in check.
 //
 // TODO: test legal move generation.
 //
@@ -36,12 +37,24 @@ namespace move::movegen {
 // TODO: check out some asm, how expensive is calling these constructors every
 // node?
 //
-template <board::Piece piece> class MoveGenerator {
+
+// TODO: use a concept?
+class MoveGenerator {
+    virtual void get_quiet_moves(const state::State &state,
+                                 std::vector<move::Move> &moves) = 0;
+    virtual void get_loud_moves(const state::State &state,
+                                std::vector<move::Move> &moves) = 0;
+    virtual void get_all_moves(const state::State &state,
+                               std::vector<move::Move> &moves) = 0;
+};
+
+template <board::Piece piece> class PieceMoveGenerator : public MoveGenerator {
+
   public:
-    MoveGenerator() {};
+    PieceMoveGenerator() {};
     // Add quiet moves to the moves list
-    void get_quiet_moves(const state::State &state,
-                         std::vector<move::Move> &moves) {
+    virtual void get_quiet_moves(const state::State &state,
+                                 std::vector<move::Move> &moves) {
         for (board::Bitboard b : attackers(state).singletons()) {
             get_quiet_moves(
                 state, moves, b, state.side_occupancy(state.to_move),
@@ -78,7 +91,8 @@ template <board::Piece piece> class MoveGenerator {
 
   protected:
     // Helper: all pieces to be looped over at this node
-    constexpr board::Bitboard attackers(const state::State &state) const {
+    virtual constexpr board::Bitboard
+    attackers(const state::State &state) const {
         return state.copy_bitboard(piece, state.to_move);
     }
 
@@ -101,15 +115,67 @@ template <board::Piece piece> class MoveGenerator {
 };
 
 //
+// Normal jumping (king/knight) move generation
+//
+
+template <board::Piece piece, typename T>
+class JumpingMoveGenerator : public PieceMoveGenerator<piece> {
+
+  public:
+    using PieceMoveGenerator<piece>::get_loud_moves;
+    using PieceMoveGenerator<piece>::get_quiet_moves;
+
+  private:
+    // Compose a PrecomputedAttackGenerator with assert
+    T m_attacker;
+    static_assert(
+        std::is_base_of<attack::PrecomputedAttackGenerator, T>::value);
+
+    virtual void get_quiet_moves(const state::State &state,
+                                 std::vector<move::Move> &moves,
+                                 board::Bitboard origin,
+                                 board::Bitboard occ_to_move,
+                                 board::Bitboard occ_opponent,
+                                 board::Bitboard occ_total) override {
+
+        board::Square from = origin.single_bitscan_forward();
+        board::Bitboard attacked =
+            m_attacker.get_attack_set(from).setdiff(occ_total);
+
+        for (board::Bitboard dest : attacked.singletons()) {
+            moves.emplace_back(from, dest.single_bitscan_forward(),
+                               MoveType::NORMAL);
+        }
+    };
+
+    virtual void get_loud_moves(const state::State &state,
+                                std::vector<move::Move> &moves,
+                                board::Bitboard origin,
+                                board::Bitboard occ_to_move,
+                                board::Bitboard occ_opponent,
+                                board::Bitboard occ_total) override {
+
+        board::Square from = origin.single_bitscan_forward();
+        board::Bitboard attacked = m_attacker.get_attack_set(from);
+        attacked &= occ_opponent;
+
+        for (board::Bitboard dest : attacked.singletons()) {
+            moves.emplace_back(from, dest.single_bitscan_forward(),
+                               MoveType::CAPTURE);
+        }
+    };
+};
+
+//
 // Pawn moves
 //
 
 template <board::Colour c>
-class PawnMoveGenerator : public MoveGenerator<board::Piece::PAWN> {
+class PawnMoveGenerator : public PieceMoveGenerator<board::Piece::PAWN> {
 
   public:
-    using MoveGenerator::get_loud_moves;
-    using MoveGenerator::get_quiet_moves;
+    using PieceMoveGenerator::get_loud_moves;
+    using PieceMoveGenerator::get_quiet_moves;
 
   private:
     void get_single_pushes(std::vector<move::Move> &moves,
@@ -239,6 +305,246 @@ class PawnMoveGenerator : public MoveGenerator<board::Piece::PAWN> {
     static constexpr int back_rank_n = (bool)c ? board::board_size - 1 : 0;
     static constexpr board::Bitboard back_rank_mask =
         board::Bitboard::rank_mask(back_rank_n);
+};
+
+//
+// Uniform move generation.
+//
+
+// For pieces which move the same for quiet moves/attacks,
+// and for white/black.
+// Composes a AttackGenerator.
+template <board::Piece piece, typename T>
+// requires attack::AttackGenerator<T>
+class UniformMoveGenerator : public PieceMoveGenerator<piece> {
+
+  public:
+    using PieceMoveGenerator<piece>::get_loud_moves;
+    using PieceMoveGenerator<piece>::get_quiet_moves;
+
+  private:
+    // Compose an AttackGenerator
+    T m_attacker;
+
+    virtual void get_quiet_moves(const state::State &state,
+                                 std::vector<move::Move> &moves,
+                                 board::Bitboard origin,
+                                 board::Bitboard occ_to_move,
+                                 board::Bitboard occ_opponent,
+                                 board::Bitboard occ_total) override {
+
+        board::Square from = origin.single_bitscan_forward();
+        board::Bitboard attacked =
+            m_attacker.get_attack_set(from).setdiff(occ_total);
+
+        for (board::Bitboard dest : attacked.singletons()) {
+            moves.emplace_back(from, dest.single_bitscan_forward(),
+                               MoveType::NORMAL);
+        }
+    };
+
+    virtual void get_loud_moves(const state::State &state,
+                                std::vector<move::Move> &moves,
+                                board::Bitboard origin,
+                                board::Bitboard occ_to_move,
+                                board::Bitboard occ_opponent,
+                                board::Bitboard occ_total) override {
+
+        board::Square from = origin.single_bitscan_forward();
+        board::Bitboard attacked = m_attacker.get_attack_set(from);
+        attacked &= occ_opponent;
+
+        for (board::Bitboard dest : attacked.singletons()) {
+            moves.emplace_back(from, dest.single_bitscan_forward(),
+                               MoveType::CAPTURE);
+        }
+    }
+};
+
+// Sliding move generators include the queen as a piece to move.
+template <board::Piece piece, typename T>
+class SlidingMoveGenerator : public PieceMoveGenerator<piece> {
+  public:
+    using PieceMoveGenerator<piece>::get_loud_moves;
+    using PieceMoveGenerator<piece>::get_quiet_moves;
+
+  protected:
+    T m_attacker;
+
+    // Include queen as slider
+    constexpr board::Bitboard
+    attackers(const state::State &state) const override {
+        return state.copy_bitboard(piece, state.to_move) |
+               state.copy_bitboard(board::Piece::QUEEN, state.to_move);
+    }
+
+    virtual void get_quiet_moves(const state::State &state,
+                                 std::vector<move::Move> &moves,
+                                 board::Bitboard origin,
+                                 board::Bitboard occ_to_move,
+                                 board::Bitboard occ_opponent,
+                                 board::Bitboard occ_total) override {
+
+        board::Square from = origin.single_bitscan_forward();
+        board::Bitboard attacked =
+            m_attacker.get_attack_set(from, occ_total).setdiff(occ_total);
+
+        for (board::Bitboard dest : attacked.singletons()) {
+            moves.emplace_back(from, dest.single_bitscan_forward(),
+                               MoveType::NORMAL);
+        }
+    };
+
+    virtual void get_loud_moves(const state::State &state,
+                                std::vector<move::Move> &moves,
+                                board::Bitboard origin,
+                                board::Bitboard occ_to_move,
+                                board::Bitboard occ_opponent,
+                                board::Bitboard occ_total) override {
+
+        board::Square from = origin.single_bitscan_forward();
+        board::Bitboard attacked = m_attacker.get_attack_set(from, occ_total);
+        attacked &= occ_opponent;
+
+        for (board::Bitboard dest : attacked.singletons()) {
+            moves.emplace_back(from, dest.single_bitscan_forward(),
+                               MoveType::CAPTURE);
+        }
+    }
+};
+
+// // Rooks need to also add castles
+class RookMoveGenerator
+    : public SlidingMoveGenerator<board::Piece::ROOK,
+                                  attack::RookAttackGenerator> {
+
+    using SlidingMoveGenerator::get_quiet_moves;
+
+  public:
+    virtual void get_quiet_moves(const state::State &state,
+                                 std::vector<move::Move> &moves) override {
+        SlidingMoveGenerator::get_quiet_moves(state, moves);
+        get_castles(state, moves,
+                    state.total_occupancy()); // TODO: don't calculate this
+                                              // twice, if it matters at all
+    }
+
+  private:
+    // Assumes that castling rights are set correctly,
+    // i.e. doesn't check king position, rook positions.
+    void get_castles(const state::State &state, std::vector<move::Move> &moves,
+                     board::Bitboard total_occ) {
+
+        // Castle positions
+        const board::Square w_ks_castle = board::H1;
+        const board::Square w_qs_castle = board::A1;
+        const board::Square b_ks_castle = board::H8;
+        const board::Square b_qs_castle = board::A8;
+        const board::Bitboard ks_castles =
+            board::Bitboard(w_ks_castle) | board::Bitboard(b_ks_castle);
+        const board::Bitboard qs_castles =
+            board::Bitboard(w_qs_castle) | board::Bitboard(b_qs_castle);
+
+        // King positions
+        const board::Square w_king = board::E1;
+        const board::Square b_king = board::E8;
+        const board::Bitboard king_bb =
+            board::Bitboard(w_king) | board::Bitboard(b_king);
+
+        // Prebaked castle moves
+        move::Move b_ks_move =
+            move::Move(b_ks_castle, b_king, MoveType::CASTLE);
+        move::Move b_qs_move =
+            move::Move(b_qs_castle, b_king, MoveType::CASTLE);
+        move::Move w_ks_move =
+            move::Move(w_ks_castle, w_king, MoveType::CASTLE);
+        move::Move w_qs_move =
+            move::Move(w_qs_castle, w_king, MoveType::CASTLE);
+
+        // Current player rooks
+        board::Bitboard cur_rooks = board::Bitboard(
+            state.copy_bitboard(board::Piece::ROOK, state.to_move));
+
+        // Check both sides
+        // TODO: better to get pos based on colour?
+        // This has the nice property of easy assertion.
+
+        if (state.can_castle(board::Piece::KING, state.to_move)) {
+            board::Square ks_pos =
+                (cur_rooks & ks_castles).single_bitscan_forward();
+            board::Bitboard ks_attack =
+                m_attacker.get_attack_set(ks_pos, total_occ);
+            if (ks_attack & king_bb) {
+                moves.push_back((bool)state.to_move ? w_ks_move : b_ks_move);
+            }
+        }
+
+        if (state.can_castle(board::Piece::QUEEN, state.to_move)) {
+            board::Square qs_pos =
+                (cur_rooks & qs_castles).single_bitscan_forward();
+            board::Bitboard qs_attack =
+                m_attacker.get_attack_set(qs_pos, total_occ);
+            if (qs_attack & king_bb) {
+                moves.push_back((bool)state.to_move ? w_qs_move : b_qs_move);
+            }
+        }
+    };
+};
+
+//
+// All move generation
+//
+
+// Gets all the legal moves in a position,
+// composes all neccessary MoveGenerators
+class AllMoveGenerator : public MoveGenerator {
+
+  public:
+    AllMoveGenerator()
+        : m_w_pawn_mover(), m_b_pawn_mover(), m_knight_mover(), m_king_mover(),
+          m_bishop_mover(), m_rook_mover() {}
+
+    virtual void get_quiet_moves(const state::State &state,
+                                 std::vector<move::Move> &moves) override {
+        (bool)state.to_move ? m_w_pawn_mover.get_quiet_moves(state, moves)
+                            : m_b_pawn_mover.get_quiet_moves(state, moves);
+        m_knight_mover.get_quiet_moves(state, moves);
+        m_king_mover.get_quiet_moves(state, moves);
+        m_bishop_mover.get_quiet_moves(state, moves);
+        m_rook_mover.get_quiet_moves(state, moves);
+    };
+
+    virtual void get_loud_moves(const state::State &state,
+                                std::vector<move::Move> &moves) override {
+        (bool)state.to_move ? m_w_pawn_mover.get_loud_moves(state, moves)
+                            : m_b_pawn_mover.get_loud_moves(state, moves);
+        m_knight_mover.get_loud_moves(state, moves);
+        m_king_mover.get_loud_moves(state, moves);
+        m_bishop_mover.get_loud_moves(state, moves);
+        m_rook_mover.get_loud_moves(state, moves);
+    };
+    virtual void get_all_moves(const state::State &state,
+                               std::vector<move::Move> &moves) override {
+
+        (bool)state.to_move ? m_w_pawn_mover.get_all_moves(state, moves)
+                            : m_b_pawn_mover.get_all_moves(state, moves);
+        m_knight_mover.get_all_moves(state, moves);
+        m_king_mover.get_all_moves(state, moves);
+        m_bishop_mover.get_all_moves(state, moves);
+        m_rook_mover.get_all_moves(state, moves);
+    };
+
+  private:
+    // Hold instances of MoveGenerators
+    PawnMoveGenerator<board::Colour::WHITE> m_w_pawn_mover;
+    PawnMoveGenerator<board::Colour::BLACK> m_b_pawn_mover;
+    UniformMoveGenerator<board::Piece::KNIGHT, attack::KnightAttackGenerator>
+        m_knight_mover;
+    UniformMoveGenerator<board::Piece::KING, attack::KingAttackGenerator>
+        m_king_mover;
+    SlidingMoveGenerator<board::Piece::BISHOP, attack::BishopAttackGenerator>
+        m_bishop_mover;
+    RookMoveGenerator m_rook_mover;
 };
 
 } // namespace move::movegen

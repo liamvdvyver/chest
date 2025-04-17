@@ -2,24 +2,11 @@
   {
     "arguments": [
       "/usr/bin/c++",
+      "-std=c++20",
       "-O3",
       "-flto",
       "-Wall",
-      "-c",
-      "-o",
-      "CMakeFiles/libChest.dir/src/libChest/magic.cpp.o",
-      "/home/lvdv/git/chest/src/libChest/magic.cpp"
-    ],
-    "directory": "/home/lvdv/git/chest",
-    "file": "/home/lvdv/git/chest/src/libChest/magic.cpp",
-    "output": "/home/lvdv/git/chest/CMakeFiles/libChest.dir/src/libChest/magic.cpp.o"
-  },
-  {
-    "arguments": [
-      "/usr/bin/c++",
-      "-O3",
-      "-flto",
-      "-Wall",
+      "-Wextra",
       "-c",
       "-o",
       "CMakeFiles/chest.dir/src/chest.cpp.o",

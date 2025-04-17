@@ -106,11 +106,11 @@ State::State(const fen_t &fen_string) : State() {
                 throw std::invalid_argument(
                     "Castling rights must specify queen or king only");
 
-            if (can_castle(side, colour))
+            if (get_castling_rights(side, colour))
                 throw std::invalid_argument(
                     "Castling rights may not be redundant");
 
-            can_castle(side, colour) = true;
+            get_castling_rights(side, colour) = true;
         }
     }
 
@@ -145,7 +145,13 @@ Bitboard State::copy_bitboard(Piece piece, Colour colour) const {
     return m_pieces[(int)colour][(int)piece];
 }
 
-bool &State::can_castle(Piece side, Colour colour) {
+bool &State::get_castling_rights(Piece side, Colour colour) {
+    assert(side == Piece::QUEEN || side == Piece::KING);
+
+    return m_castling_rights[(int)colour][(int)(side == Piece::KING)];
+}
+
+const bool &State::can_castle(Piece side, Colour colour) const {
     assert(side == Piece::QUEEN || side == Piece::KING);
 
     return m_castling_rights[(int)colour][(int)(side == Piece::KING)];
