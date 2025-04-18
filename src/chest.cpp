@@ -7,6 +7,9 @@
 
 int main(int argc, char **argv) {
 
+    (void)argc;
+    (void)argv;
+
     // Load up a new game
     state::State st = state::State::new_game();
     std::cout << st.pretty() << std::endl;

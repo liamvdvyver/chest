@@ -317,6 +317,7 @@ struct Bitboard::SubsetIterator {
     // Not semantically correct, only used for ranges
     // No need to perform comparison to determine if == end()
     constexpr bool operator!=(SubsetIterator const &other) {
+        (void)other; // unused
         return !done || !val.empty();
     }
     constexpr const SubsetIterator begin() { return *this; }
