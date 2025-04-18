@@ -64,9 +64,7 @@ struct Square : Wrapper<square_t, Square> {
     }
 
     // Bounds check square number
-    constexpr bool is_legal() const {
-        return (value < n_squares);
-    }
+    constexpr bool is_legal() const { return (value < n_squares); }
 
     struct AllSquareIterator;
 
@@ -376,10 +374,7 @@ enum class Piece : uint8_t { KNIGHT, BISHOP, ROOK, QUEEN, PAWN, KING };
 
 static constexpr int n_pieces = 6; // For array sizing
 
-//
-// IO: not performance citicial -> defined in implementation file
-//
-
+// IO in implementation
 namespace io {
 
 // Type of algebraic square names
@@ -394,7 +389,7 @@ alg_t algebraic(const Square sq);
 // Get algebraic piece name
 //
 // TODO: lookup into array
-constexpr const char to_char(const Piece p) {
+constexpr char to_char(const Piece p) {
     switch (p) {
     case Piece::KING:
         return 'k';
@@ -420,7 +415,7 @@ constexpr const char to_char(const Piece p) {
 }
 
 // Parse algebraic piece name (case insensitive)
-constexpr const Piece from_char(const char c) {
+constexpr Piece from_char(const char c) {
     switch (tolower(c)) {
     case 'k':
         return Piece::KING;
