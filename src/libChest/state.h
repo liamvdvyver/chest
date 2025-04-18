@@ -2,10 +2,12 @@
 #define STATE_H
 
 #include "board.h"
-#include "move.h"
 
 #include <optional>
-#include <vector>
+
+//
+// Defines representations of full, partial, or augemnted game state
+//
 
 namespace state {
 
@@ -21,18 +23,17 @@ struct ColouredPiece {
     board::Colour colour;
 };
 
-// Store complete game state.
+static constexpr int n_castling_sides = 2; // For array sizing
+
+// Store complete (minimal) game state.
 // Does not track n-fold repetitions.
 // Does not pre-compute any redundant information.
 //
 // Most members are directly accessible, except:
 // * Piece bitboard representation,
 // * Castling rights,
-// since the way these are stored is subject to change.
 //
-
-static constexpr int n_castling_sides = 2; // For array sizing
-
+// which have implementations subject to change.
 struct State {
 
   public:
@@ -177,13 +178,14 @@ struct AugmentedState {
     board::Bitboard &opponent_occupancy() {
         return side_occupancy(!state.to_move);
     }
-    const board::Bitboard &side_occupancy(board::Colour colour) const {
+    constexpr const board::Bitboard &
+    side_occupancy(board::Colour colour) const {
         return m_side_occupancy[(int)colour];
     }
-    const board::Bitboard &side_occupancy() const {
+    constexpr const board::Bitboard &side_occupancy() const {
         return side_occupancy(state.to_move);
     }
-    const board::Bitboard &opponent_occupancy() const {
+    constexpr const board::Bitboard &opponent_occupancy() const {
         return side_occupancy(!state.to_move);
     }
 

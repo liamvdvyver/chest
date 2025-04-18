@@ -1,4 +1,10 @@
 #include "state.h"
+#include <vector>
+
+//
+// Defines IO for game state
+// all other code is contexpr in the main module.
+//
 
 namespace state {
 
