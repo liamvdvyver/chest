@@ -10,6 +10,7 @@ Old-school (bitboards, negamax+pruning) chess engine, with the following goals:
 - Write a good linear eval, and maybe train a better eval at some point
 
 I.e. this is mostly built for me to learn, and hence I am not being judicious in my selection of what to include at all!
+Since it is in the early stages, (except for IO type functionality) the main library `libChess` is header-only. This will probably change once the headers themselves are a bit more stable. So much of it is `constexpr` though, so maybe not, we'll see.
 
 # Features
 
