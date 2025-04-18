@@ -64,7 +64,7 @@ template <board::Piece piece> class PieceMoveGenerator : public MoveGenerator {
 
     // Add tactical moves to the moves list
     virtual void get_loud_moves(const state::AugmentedState &astate,
-                        std::vector<move::Move> &moves) override {
+                                std::vector<move::Move> &moves) override {
         for (board::Bitboard b : attackers(astate).singletons()) {
             get_loud_moves(astate, moves, b);
         }
@@ -75,7 +75,7 @@ template <board::Piece piece> class PieceMoveGenerator : public MoveGenerator {
     // Calls other methods, override if quiet/loud moves can be more quickly
     // generated together.
     virtual void get_all_moves(const state::AugmentedState &state,
-                       std::vector<move::Move> &moves) override {
+                               std::vector<move::Move> &moves) override {
 
         // TODO: implement in state.h
         bool checked = false;
@@ -166,8 +166,7 @@ class PawnMoveGenerator : public PieceMoveGenerator<board::Piece::PAWN> {
 
   private:
     void get_single_pushes(std::vector<move::Move> &moves,
-                           board::Bitboard origin, board::Bitboard occ_total,
-                           board::Square from) {
+                           board::Bitboard occ_total, board::Square from) {
         board::Bitboard push_dest = m_single_pusher.get_attack_set(from);
         if (push_dest & occ_total) {
             return;
@@ -188,8 +187,7 @@ class PawnMoveGenerator : public PieceMoveGenerator<board::Piece::PAWN> {
     };
 
     void get_double_pushes(std::vector<move::Move> &moves,
-                           board::Bitboard origin, board::Bitboard occ_total,
-                           board::Square from) {
+                           board::Bitboard occ_total, board::Square from) {
 
         board::Bitboard push_dest = m_double_pusher.get_attack_set(from);
         if (push_dest.empty() | (push_dest & occ_total)) {
@@ -202,8 +200,7 @@ class PawnMoveGenerator : public PieceMoveGenerator<board::Piece::PAWN> {
 
     void get_captures(std::vector<move::Move> &moves,
                       const state::AugmentedState &astate,
-                      board::Bitboard origin, board::Bitboard occ_opponent,
-                      board::Square from) {
+                      board::Bitboard occ_opponent, board::Square from) {
 
         board::Bitboard capture_dests = m_attacker.get_attack_set(from);
 
@@ -246,8 +243,8 @@ class PawnMoveGenerator : public PieceMoveGenerator<board::Piece::PAWN> {
                                  board::Bitboard origin) override {
 
         board::Square from = origin.single_bitscan_forward();
-        get_single_pushes(moves, origin, astate.total_occupancy, from);
-        get_double_pushes(moves, origin, astate.total_occupancy, from);
+        get_single_pushes(moves, astate.total_occupancy, from);
+        get_double_pushes(moves, astate.total_occupancy, from);
     }
 
     virtual void get_loud_moves(const state::AugmentedState &astate,
@@ -255,7 +252,7 @@ class PawnMoveGenerator : public PieceMoveGenerator<board::Piece::PAWN> {
                                 board::Bitboard origin) override {
 
         board::Square from = origin.single_bitscan_forward();
-        get_captures(moves, astate, origin, astate.total_occupancy, from);
+        get_captures(moves, astate, astate.total_occupancy, from);
     }
 
     // Sepate methods for attacks/pushes
@@ -487,8 +484,9 @@ class AllMoveGenerator : public MoveGenerator {
 
     virtual void get_quiet_moves(const state::AugmentedState &astate,
                                  std::vector<move::Move> &moves) override {
-        (bool)astate.state.to_move ? m_w_pawn_mover.get_quiet_moves(astate, moves)
-                            : m_b_pawn_mover.get_quiet_moves(astate, moves);
+        (bool)astate.state.to_move
+            ? m_w_pawn_mover.get_quiet_moves(astate, moves)
+            : m_b_pawn_mover.get_quiet_moves(astate, moves);
         m_knight_mover.get_quiet_moves(astate, moves);
         m_king_mover.get_quiet_moves(astate, moves);
         m_bishop_mover.get_quiet_moves(astate, moves);
@@ -497,8 +495,9 @@ class AllMoveGenerator : public MoveGenerator {
 
     virtual void get_loud_moves(const state::AugmentedState &astate,
                                 std::vector<move::Move> &moves) override {
-        (bool)astate.state.to_move ? m_w_pawn_mover.get_loud_moves(astate, moves)
-                            : m_b_pawn_mover.get_loud_moves(astate, moves);
+        (bool)astate.state.to_move
+            ? m_w_pawn_mover.get_loud_moves(astate, moves)
+            : m_b_pawn_mover.get_loud_moves(astate, moves);
         m_knight_mover.get_loud_moves(astate, moves);
         m_king_mover.get_loud_moves(astate, moves);
         m_bishop_mover.get_loud_moves(astate, moves);
@@ -507,8 +506,9 @@ class AllMoveGenerator : public MoveGenerator {
     virtual void get_all_moves(const state::AugmentedState &astate,
                                std::vector<move::Move> &moves) override {
 
-        (bool)astate.state.to_move ? m_w_pawn_mover.get_all_moves(astate, moves)
-                            : m_b_pawn_mover.get_all_moves(astate, moves);
+        (bool)astate.state.to_move
+            ? m_w_pawn_mover.get_all_moves(astate, moves)
+            : m_b_pawn_mover.get_all_moves(astate, moves);
         m_knight_mover.get_all_moves(astate, moves);
         m_king_mover.get_all_moves(astate, moves);
         m_bishop_mover.get_all_moves(astate, moves);
