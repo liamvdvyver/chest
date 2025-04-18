@@ -359,12 +359,12 @@ template <MultiAttacker T> class PrecomputedMultiAttacker {
     constexpr board::Bitboard operator()(board::Square starting) const {
         return m_attack_sets[starting];
     };
-    PrecomputedMultiAttacker() { init_attack_sets(); };
+    constexpr PrecomputedMultiAttacker() { init_attack_sets(); };
 
   private:
     board::Bitboard m_attack_sets[board::n_squares];
     T m_attack_generator;
-    void init_attack_sets() {
+    constexpr void init_attack_sets() {
         for (board::Square sq : board::Square::AllSquareIterator()) {
             m_attack_sets[sq] = m_attack_generator(board::Bitboard(sq));
         }
@@ -390,12 +390,12 @@ template <ColouredMultiAttacker T> class PrecomputedColouredMultiAttacker {
                                          board::Colour colour) const {
         return m_attack_sets[(int)colour][starting];
     };
-    PrecomputedColouredMultiAttacker() { init_attack_sets(); };
+    constexpr PrecomputedColouredMultiAttacker() { init_attack_sets(); };
 
   private:
     board::Bitboard m_attack_sets[board::n_colours][board::n_squares];
     T m_attack_generator;
-    void init_attack_sets() {
+    constexpr void init_attack_sets() {
         for (board::Square sq : board::Square::AllSquareIterator()) {
             m_attack_sets[(int)board::Colour::BLACK][sq] =
                 m_attack_generator(board::Bitboard(sq), board::Colour::BLACK);
@@ -422,11 +422,11 @@ template <int max_shift, SlidingAttacker TAttacker, Attacker TMasker>
 class MagicAttacker {
 
   public:
-    MagicAttacker() : m_masks(), m_attacks(), m_magics(), m_shifts() {
+    constexpr MagicAttacker() : m_masks(), m_attacks(), m_magics(), m_shifts() {
         init();
     };
 
-    void init() {
+    constexpr void init() {
         init_masks();
         init_shifts();
         init_magics();
@@ -434,7 +434,8 @@ class MagicAttacker {
 
     // Get all squares attacked by a piece.
     // May include own pieces.
-    board::Bitboard operator()(board::Square sq, board::Bitboard occ) const {
+    constexpr board::Bitboard operator()(board::Square sq,
+                                         board::Bitboard occ) const {
         return m_attacks[sq][get_magic_key(sq, occ)];
     };
 
@@ -448,12 +449,15 @@ class MagicAttacker {
 
     // Generate blocker mask
     TMasker m_masker;
-    board::Bitboard const gen_mask(board::Square sq) { return m_masker(sq); };
+    constexpr board::Bitboard const gen_mask(board::Square sq) {
+        return m_masker(sq);
+    };
 
     // Generate attacks given attacker square and (relevant or total) blocker
     // occupancy
     TAttacker m_attacker;
-    board::Bitboard const gen_attacks(board::Square sq, board::Bitboard blk) {
+    constexpr board::Bitboard const gen_attacks(board::Square sq,
+                                                board::Bitboard blk) {
         return m_attacker(sq, blk);
     };
 
@@ -479,8 +483,8 @@ class MagicAttacker {
 
     // Populate attack maps for a position, given a candidate magic number.
     // Returns whether successful.
-    bool init_attacks(magic_t magic, board::Square sq,
-                      std::vector<magic_key_t> &visited) {
+    constexpr bool init_attacks(magic_t magic, board::Square sq,
+                                std::vector<magic_key_t> &visited) {
         visited.clear();
 
         board::Bitboard *coord_attack_map = m_attacks[sq];
@@ -517,7 +521,7 @@ class MagicAttacker {
     };
 
     // Populate all blocker masks
-    void init_masks() {
+    constexpr void init_masks() {
         int max_shift_found = 0;
         for (board::Square sq : board::Square::AllSquareIterator()) {
             board::Bitboard mask = gen_mask(sq);
@@ -530,7 +534,7 @@ class MagicAttacker {
     };
 
     // Populate all magic numbers
-    void init_magics() {
+    constexpr void init_magics() {
 
         magic_t magic_num;
         bool done;
@@ -554,7 +558,7 @@ class MagicAttacker {
 
     // Populate all attack map key sizes
     // TODO: test if faster to generate on the fly.
-    void init_shifts() {
+    constexpr void init_shifts() {
         for (board::Square sq : board::Square::AllSquareIterator()) {
             m_shifts[sq] = m_masks[sq].size();
         }
@@ -565,19 +569,20 @@ class MagicAttacker {
     //
 
     // Get the attack map key, given position, blockers (relevant or total)
-    magic_key_t get_magic_key(board::Square sq, board::Bitboard occ) const {
+    constexpr magic_key_t get_magic_key(board::Square sq,
+                                        board::Bitboard occ) const {
         return get_magic_key(sq, occ, m_magics[sq]);
     };
 
     // Helper
-    int shift_width(board::Square sq) const {
+    constexpr int shift_width(board::Square sq) const {
         return board::n_squares - m_shifts[sq];
     }
 
     // Get the attack map key, given position, blockers (relevant or total), and
     // a magic number
-    magic_key_t get_magic_key(board::Square sq, board::Bitboard occ,
-                              magic_t magic) const {
+    constexpr magic_key_t get_magic_key(board::Square sq, board::Bitboard occ,
+                                        magic_t magic) const {
         board::Bitboard mask = m_masks[sq];
         return (board::bitboard_t)((occ & mask) * magic) >> shift_width(sq);
     };
@@ -587,22 +592,22 @@ class MagicAttacker {
 // Create concrete instances
 //
 
-typedef PrecomputedMultiAttacker<detail::GenKingAttacks> kingAttacker;
-typedef PrecomputedMultiAttacker<detail::GenKnightAttacks> knightAttacker;
+typedef PrecomputedMultiAttacker<detail::GenKingAttacks> KingAttacker;
+typedef PrecomputedMultiAttacker<detail::GenKnightAttacks> KnightAttacker;
 
 typedef PrecomputedColouredMultiAttacker<detail::GenPawnSinglePushes>
-    pawnSinglePusher;
+    PawnSinglePusher;
 typedef PrecomputedColouredMultiAttacker<detail::GenPawnDoublePushes>
-    pawnDoublePusher;
-typedef PrecomputedColouredMultiAttacker<detail::GenAllPawnPushes> pawnPusher;
-typedef PrecomputedColouredMultiAttacker<detail::GenPawnAttacks> pawnAttacker;
+    PawnDoublePusher;
+typedef PrecomputedColouredMultiAttacker<detail::GenAllPawnPushes> PawnPusher;
+typedef PrecomputedColouredMultiAttacker<detail::GenPawnAttacks> PawnAttacker;
 
 typedef MagicAttacker<9, detail::GenBishopAttacks, detail::GenBishopMask>
-    bishopAttacker;
+    BishopAttacker;
 typedef MagicAttacker<12, detail::GenRookAttacks, detail::GenRookMask>
-    rookAttacker;
-static_assert(SlidingAttacker<bishopAttacker>);
-static_assert(SlidingAttacker<rookAttacker>);
+    RookAttacker;
+static_assert(SlidingAttacker<BishopAttacker>);
+static_assert(SlidingAttacker<RookAttacker>);
 
 } // namespace move::attack
 
