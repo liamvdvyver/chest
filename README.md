@@ -1,57 +1,64 @@
 # chest
 
-C++ chess engine written by a guy who doesn't know C++.
+Old-school (bitboards, negamax+pruning) chess engine, with the following goals:
 
-After a failed attempt in R (all I want is to stack allocate a uint64_t, is that too much to ask?), hence the old name.
+- Learn modern C++
+- Be fast (hence, along with the last point, the heavy use of concepts/class templates and
+  disdain for anything dynamic)
+- Deep dive on alpha-beta search (all about move ordering, aspiration windows,
+  heuristics)
+- Write a good linear eval, and maybe train a better eval at some point
+
+I.e. this is mostly built for me to learn, and hence I am not being judicious in my selection of what to include at all!
 
 # Features
 
-* Bitboard board representation
-* Parse FEN string
-* Magic bitboard sliding piece pseudo-legal move generation
+- Bitboard board representation, compact (16-bit, bitflag heavy) move representation,
+- Parse FEN strings,
+- Magic bitboard sliding piece pseudo-legal move generation,
+- Precomputed jumping piece move generation,
+- Castling,
+- Staged move generation: loud (tactical) vs. quiet moves
 
 # TODO
 
 ## Move Generation
 
-* Jumping piece pseudo-legal move generation
-* Castling
-* Check detection (legal move generation)
-* Capture/check first move ordering
+- Check detection (legal move generation)
+- Capture/check first move ordering
 
 Further:
 
-* Loud line generation
-* Check evasion only
+- Check evasion only
 
 ## Move making
 
-* Zobrist hashing
-* Make/unmake move
+- Zobrist hashing
+- Make/unmake move
 
 ## Evaluation
 
-* Material evaluation
-* King safety
-* Pawn structure
+- Material evaluation
+- King safety
+- Pawn structure
 
 Possibly:
 
-* Incremental update (store with state/search node)
+- Incremental update (store with state/search node)
 
 ## Search
 
-* Id-dfs
-* Alpha/beta pruning (fail soft/hard)
-* Halfmove clock
+- Id-dfs
+- Alpha/beta pruning (fail soft/hard)
+- Halfmove clock
 
 Further:
 
-* Quiescence search
-* LMR
-* Endgame tablebase
-* Opening book
+- Quiescence search
+- LMR
+- Endgame tablebase
+- Opening book
 
 ## Engine
 
-* Support a standard (can't be bothered to build a frontend)
+- Support a standard (can't be bothered to build a frontend)
