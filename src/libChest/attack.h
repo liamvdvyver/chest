@@ -53,9 +53,6 @@ namespace detail {
 
 // Get the attack set for a piece at a position, given occupancy (relevant
 // blockers or total occupancy)
-//
-// TODO: make operators static (C++23)
-//
 struct GenBishopAttacks {
     constexpr static board::Bitboard operator()(board::Square sq,
                                                 board::Bitboard blk) {
@@ -354,6 +351,7 @@ static_assert(Attacker<GenBishopMask>);
 // * MultiAttacker -> GenKnightAttacks
 // * ColouredMultiAttacker -> GenPawnSinglePushes
 
+// Given a MultiAttacker, create an attacker which stores precomputed moves.
 template <MultiAttacker T> class PrecomputedMultiAttacker {
   public:
     constexpr board::Bitboard operator()(board::Square starting) const {
@@ -372,18 +370,7 @@ template <MultiAttacker T> class PrecomputedMultiAttacker {
 };
 static_assert(Attacker<PrecomputedMultiAttacker<detail::GenKnightAttacks>>);
 
-//
-// Pawns are colour dependant, and move in different ways.
-// Setup a PrecomputedMover for each colour, for each direction.
-//
-// This does mean that the pre-computed moves are not stored together for each
-// colour/movment type.
-//
-// TODO: test if the following is true:
-// Since the move tables are (8 * 64) bytes (bigger than a cache line),
-// and we can process one type of move at a time (using the same table as much
-// as possible), the hit to cache locality shouldn't be a massive problem
-
+// Precompute moves, allow lookup by square and colour.
 template <ColouredMultiAttacker T> class PrecomputedColouredMultiAttacker {
   public:
     constexpr board::Bitboard operator()(board::Square starting,
@@ -407,17 +394,15 @@ template <ColouredMultiAttacker T> class PrecomputedColouredMultiAttacker {
 static_assert(ColouredAttacker<
               PrecomputedColouredMultiAttacker<detail::GenPawnSinglePushes>>);
 
-// TODO: similar to the pawn case, test whether separating out
-// bishop/rook has an effect from cache locality.
-// Suspect vtables should have minimal effect, only initialisation is virtual.
-
 // Magic numbers
 typedef board::Bitboard magic_t;
 
 // Attack table keys
 typedef uint16_t magic_key_t;
 
+// Given attack and mask generators, implement plain magic bitboards.
 // Parameterise key (bit) size for attacks to make array size concrete.
+// TODO: test out fancy (variable shift) bitboards.
 template <int max_shift, SlidingAttacker TAttacker, Attacker TMasker>
 class MagicAttacker {
 
@@ -557,7 +542,6 @@ class MagicAttacker {
     };
 
     // Populate all attack map key sizes
-    // TODO: test if faster to generate on the fly.
     constexpr void init_shifts() {
         for (board::Square sq : board::Square::AllSquareIterator()) {
             m_shifts[sq] = m_masks[sq].size();
@@ -575,8 +559,12 @@ class MagicAttacker {
     };
 
     // Helper
+    // Plain magic bitboard -> constant shift
     constexpr int shift_width(board::Square sq) const {
-        return board::n_squares - m_shifts[sq];
+        (void)sq;
+        return board::n_squares - max_shift;
+        // For fancy bitboards:
+        // return board::n_squares - m_shifts[sq];
     }
 
     // Get the attack map key, given position, blockers (relevant or total), and

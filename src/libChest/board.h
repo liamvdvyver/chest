@@ -48,7 +48,7 @@ struct Square : Wrapper<square_t, Square> {
     constexpr operator square_t() const { return value; };
 
     // Enumerate LERF from cartesian coordinates
-    constexpr Square(int f, int r) : Square(r * board_size + f) {
+    constexpr Square(uint f, uint r) : Square(r * board_size + f) {
         assert(is_legal(f, r));
     }
 
@@ -59,8 +59,8 @@ struct Square : Wrapper<square_t, Square> {
     constexpr int rank() const { return value / board_size; }
 
     // Bounds check file and rank
-    static constexpr bool is_legal(const int f, const int r) {
-        return (r < board_size && f < board_size && r >= 0 && f >= 0);
+    static constexpr bool is_legal(const uint f, const uint r) {
+        return (r < board_size && f < board_size);
     }
 
     // Bounds check square number
