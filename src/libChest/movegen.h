@@ -395,33 +395,40 @@ template <MultiMoveGenerator TMover> class RookMoverFactory : TMover {
         const board::Square b_king = board::E8;
 
         // Prebaked castle moves
-        const move::Move b_ks_move =
-            move::Move(b_ks_castle, b_king, MoveType::CASTLE);
-        const move::Move b_qs_move =
-            move::Move(b_qs_castle, b_king, MoveType::CASTLE);
-        const move::Move w_ks_move =
-            move::Move(w_ks_castle, w_king, MoveType::CASTLE);
-        const move::Move w_qs_move =
-            move::Move(w_qs_castle, w_king, MoveType::CASTLE);
-
-        // Masks: squares which must be unobstructed to castle
-        static const board::Bitboard w_ks_mask =
-            board::Bitboard(board::Square(board::F1)) ^
-            board::Bitboard(board::Square(board::G1));
-        static const board::Bitboard w_qs_mask =
-            board::Bitboard(board::Square(board::B1)) ^
-            board::Bitboard(board::Square(board::C1)) ^
-            board::Bitboard(board::Square(board::D1));
-        static const board::Bitboard b_ks_mask =
-            w_ks_mask.shift(0, board::board_size - 1);
-        static const board::Bitboard b_qs_mask =
-            w_qs_mask.shift(0, board::board_size - 1);
+        // TODO: calculate in State::CastlingInfo, or something else?
+        // This is messy and I don't like it.
+        const move::Move b_ks_move = move::Move(
+            astate.castling_info
+                .rook_start[(int)board::Colour::BLACK]
+                           [state::CastlingInfo::side_idx(board::Piece::KING)],
+            astate.castling_info.king_start[(int)board::Colour::BLACK],
+            MoveType::CASTLE);
+        const move::Move b_qs_move = move::Move(
+            astate.castling_info
+                .rook_start[(int)board::Colour::BLACK]
+                           [state::CastlingInfo::side_idx(board::Piece::QUEEN)],
+            astate.castling_info.king_start[(int)board::Colour::BLACK],
+            MoveType::CASTLE);
+        const move::Move w_ks_move = move::Move(
+            astate.castling_info
+                .rook_start[(int)board::Colour::WHITE]
+                           [state::CastlingInfo::side_idx(board::Piece::KING)],
+            astate.castling_info.king_start[(int)board::Colour::WHITE],
+            MoveType::CASTLE);
+        const move::Move w_qs_move = move::Move(
+            astate.castling_info
+                .rook_start[(int)board::Colour::WHITE]
+                           [state::CastlingInfo::side_idx(board::Piece::QUEEN)],
+            astate.castling_info.king_start[(int)board::Colour::WHITE],
+            MoveType::CASTLE);
 
         // Check both sides
         if (astate.state.get_castling_rights(board::Piece::KING,
                                              astate.state.to_move)) {
             board::Bitboard ks_mask =
-                (bool)astate.state.to_move ? w_ks_mask : b_ks_mask;
+                astate.castling_info.rook_mask[(int)astate.state.to_move]
+                                              [state::CastlingInfo::side_idx(
+                                                  board::Piece::KING)];
             board::Bitboard ks_blockers = ks_mask & total_occ;
             if (ks_blockers.empty()) {
                 moves.push_back((bool)astate.state.to_move ? w_ks_move
@@ -432,7 +439,9 @@ template <MultiMoveGenerator TMover> class RookMoverFactory : TMover {
         if (astate.state.get_castling_rights(board::Piece::QUEEN,
                                              astate.state.to_move)) {
             board::Bitboard qs_mask =
-                (bool)astate.state.to_move ? w_qs_mask : b_qs_mask;
+                astate.castling_info.rook_mask[(int)astate.state.to_move]
+                                              [state::CastlingInfo::side_idx(
+                                                  board::Piece::QUEEN)];
             board::Bitboard qs_blockers = qs_mask & total_occ;
             if (qs_blockers.empty()) {
                 moves.push_back((bool)astate.state.to_move ? w_qs_move

@@ -24,7 +24,102 @@ struct ColouredPiece {
     board::Colour colour;
 };
 
-static constexpr int n_castling_sides = 2; // For array sizing
+// Precompute masks/squares for castling
+struct CastlingInfo {
+    static constexpr int n_castling_sides = 2; // For array sizing
+  private:
+    // The following final destinations are the same for classical and 960, and
+    // will remain const:
+
+    // Final king positions
+    static constexpr board::Square w_ks_king_dest = board::G1;
+    static constexpr board::Square w_qs_king_dest = board::C1;
+    static constexpr board::Square b_ks_king_dest = board::G8;
+    static constexpr board::Square b_qs_king_dest = board::C8;
+
+    // Final rook positions
+    static constexpr board::Square w_ks_rook_dest = board::F1;
+    static constexpr board::Square w_qs_rook_dest = board::D1;
+    static constexpr board::Square b_ks_rook_dest = board::F8;
+    static constexpr board::Square b_qs_rook_dest = board::D8;
+
+    // The following should be calculated at game init to support 960:
+
+    // Initial king positions
+    static constexpr board::Square w_king_start = board::E1;
+    static constexpr board::Square b_king_start = board::E8;
+
+    // Locations of rooks w/ castling rights
+    static constexpr board::Square w_ks_rook_start = board::H1;
+    static constexpr board::Square w_qs_rook_start = board::A1;
+    static constexpr board::Square b_ks_rook_start = board::H8;
+    static constexpr board::Square b_qs_rook_start = board::A8;
+
+    // Masks: squares which must be unobstructed to castle
+    static constexpr board::Bitboard w_ks_rook_mask =
+        board::Bitboard(board::Square(board::F1)) ^
+        board::Bitboard(board::Square(board::G1));
+    static constexpr board::Bitboard w_qs_rook_mask =
+        board::Bitboard(board::Square(board::B1)) ^
+        board::Bitboard(board::Square(board::C1)) ^
+        board::Bitboard(board::Square(board::D1));
+    static constexpr board::Bitboard b_ks_rook_mask =
+        w_ks_rook_mask.shift(0, board::board_size - 1);
+    static constexpr board::Bitboard b_qs_rook_mask =
+        w_qs_rook_mask.shift(0, board::board_size - 1);
+
+    // Masks: squares which must be unchecked to castle
+    static constexpr board::Bitboard w_ks_king_mask =
+        board::Bitboard(board::Square(board::E1)) ^
+        board::Bitboard(board::Square(board::F1)) ^
+        board::Bitboard(board::Square(board::G1));
+    static constexpr board::Bitboard w_qs_king_mask =
+        board::Bitboard(board::Square(board::E1)) ^
+        board::Bitboard(board::Square(board::D1)) ^
+        board::Bitboard(board::Square(board::C1));
+    static constexpr board::Bitboard b_ks_king_mask =
+        w_ks_king_mask.shift(0, board::board_size - 1);
+    static constexpr board::Bitboard b_qs_king_mask =
+        w_qs_king_mask.shift(0, board::board_size - 1);
+
+  public:
+    // Find index for layout of queenside/kingside arrays
+    static constexpr int side_idx(board::Piece side) {
+        // General layout used for castling-related matters:
+        // {black: {qs, ks}, white: {qs, ks}}
+        assert(side == board::Piece::QUEEN || side == board::Piece::KING);
+        return ((int)(side == board::Piece::KING));
+    }
+
+    // Final king positions
+    static constexpr board::Square
+        king_destinations[board::n_colours][n_castling_sides]{
+            {b_qs_king_dest, w_qs_king_dest}, {b_qs_king_dest, w_qs_king_dest}};
+
+    // Final rook positions
+    static constexpr board::Square
+        rook_destinations[board::n_colours][n_castling_sides]{
+            {b_qs_rook_dest, w_qs_rook_dest}, {b_qs_rook_dest, w_qs_rook_dest}};
+
+    // Initial king positions
+    static constexpr board::Square king_start[board::n_colours]{b_king_start,
+                                                                w_king_start};
+
+    // Locations of rooks w/ castling rights
+    static constexpr board::Square
+        rook_start[board::n_colours][n_castling_sides]{
+            {b_qs_rook_start, w_qs_rook_start},
+            {b_qs_rook_start, w_qs_rook_start}};
+
+    // Masks: squares which must be unobstructed to caste
+    static constexpr board::Bitboard
+        rook_mask[board::n_colours][n_castling_sides]{
+            {b_qs_rook_mask, w_qs_rook_mask}, {b_qs_rook_mask, w_qs_rook_mask}};
+    // Masks: squares which must be unchecked to caste
+    static constexpr board::Bitboard
+        king_mask[board::n_colours][n_castling_sides]{
+            {b_qs_king_mask, w_qs_king_mask}, {b_qs_king_mask, w_qs_king_mask}};
+};
 
 // Store complete (minimal) game state.
 // Does not track n-fold repetitions.
@@ -164,8 +259,8 @@ struct State {
     // Helper: defines layout of castling rights bitset
     constexpr int castling_rights_offset(board::Piece side,
                                          board::Colour colour) const {
-        assert(side == board::Piece::QUEEN || side == board::Piece::KING);
-        return (2 * (int)colour) + ((int)(side == board::Piece::KING));
+
+        return (2 * (int)colour) + CastlingInfo::side_idx(side);
     }
 };
 
@@ -184,11 +279,13 @@ struct AugmentedState {
   public:
     AugmentedState(State state)
         : state(state), total_occupancy(state.total_occupancy()),
+          castling_info{},
           m_side_occupancy{state.side_occupancy((board::Colour)0),
                            state.side_occupancy((board::Colour)1)} {};
 
     State state;
     board::Bitboard total_occupancy;
+    CastlingInfo castling_info;
 
     // Helper accessor for side_occupancy bitsets
     // TODO: is there a better way to ensure const correctness like this?
@@ -213,7 +310,6 @@ struct AugmentedState {
   private:
     board::Bitboard m_side_occupancy[board::n_colours];
 };
-
 }; // namespace state
 
 #endif
