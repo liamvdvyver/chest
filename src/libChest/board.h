@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 #include "wrapper.h"
 
@@ -217,7 +218,7 @@ struct Bitboard : Wrapper<bitboard_t, Bitboard> {
         case Direction::SW:
             return value >> (board_size + 1);
         }
-        assert(false); // handled all cases
+        std::unreachable();
     }
 
     // As above, but prevent any wrap around.
@@ -245,7 +246,7 @@ struct Bitboard : Wrapper<bitboard_t, Bitboard> {
         case Direction::SW:
             return rank_mask(0) | file_mask(0);
         default:
-            assert(false);
+            std::unreachable();
         }
     }
 
