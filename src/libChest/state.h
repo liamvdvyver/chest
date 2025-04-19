@@ -3,6 +3,7 @@
 
 #include "board.h"
 
+#include <cstdint>
 #include <optional>
 
 //
@@ -50,7 +51,7 @@ struct State {
     std::optional<board::Square> ep_square;
 
     // Plies since capture/pawn push
-    int halfmove_clock;
+    uint8_t halfmove_clock;
 
     // (2-ply) moves since game start
     int fullmove_number;
@@ -132,6 +133,26 @@ struct State {
 
     // Pretty printing
     std::string pretty() const;
+
+    // Stores information other than the from/to squares and move type
+    // which is neccessary to unmake a move
+    struct IrreversibleInfo {
+        board::Piece captured_piece;
+        uint8_t halfmove_clock;
+        uint8_t castling_rights;
+    };
+
+    constexpr IrreversibleInfo
+    irreversible(board::Piece captured = (board::Piece)0) const {
+        return {.captured_piece = captured,
+                .halfmove_clock = halfmove_clock,
+                .castling_rights = m_castling_rights};
+    };
+
+    constexpr void reset(IrreversibleInfo info) {
+        halfmove_clock = info.halfmove_clock;
+        m_castling_rights = info.castling_rights;
+    };
 
   private:
     // Position of all pieces for each player
