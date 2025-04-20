@@ -48,6 +48,40 @@ enum class MoveType : movetype_t {
     // clang-format on
 };
 
+std::string pretty(MoveType m) {
+    switch (m) {
+    case MoveType::NORMAL:
+        return "NORMAL";
+    case MoveType::CASTLE:
+        return "CASTLE";
+    case MoveType::SINGLE_PUSH:
+        return "SINGLE_PUSH";
+    case MoveType::DOUBLE_PUSH:
+        return "DOUBLE_PUSH";
+    case MoveType::PROMOTE_KNIGHT:
+        return "PROMOTE_KNIGHT";
+    case MoveType::PROMOTE_BISHOP:
+        return "PROMOTE_BISHOP";
+    case MoveType::PROMOTE_ROOK:
+        return "PROMOTE_ROOK";
+    case MoveType::PROMOTE_QUEEN:
+        return "PROMOTE_QUEEN";
+    case MoveType::CAPTURE:
+        return "CAPTURE";
+    case MoveType::CAPTURE_EP:
+        return "CAPTURE_EP";
+
+    case MoveType::PROMOTE_CAPTURE_KNIGHT:
+        return "PROMOTE_CAPTURE_KNIGHT";
+    case MoveType::PROMOTE_CAPTURE_BISHOP:
+        return "PROMOTE_CAPTURE_BISHOP";
+    case MoveType::PROMOTE_CAPTURE_ROOK:
+        return "PROMOTE_CAPTURE_ROOK";
+    case MoveType::PROMOTE_CAPTURE_QUEEN:
+        return "PROMOTE_CAPTURE_QUEEN";
+    }
+}
+
 // TODO: determine at compile time?
 static constexpr MoveType max = MoveType::PROMOTE_CAPTURE_QUEEN;
 static constexpr movetype_t capture_mask = 0b1000;
@@ -63,6 +97,11 @@ constexpr bool is_capture(MoveType type) {
 constexpr bool is_promotion(MoveType type) {
     return promo_flag_mask & (movetype_t)type;
 };
+
+constexpr bool is_pawn_move(MoveType type) {
+    return type == MoveType::SINGLE_PUSH || type == MoveType::DOUBLE_PUSH ||
+           is_promotion(type);
+}
 
 // Is this a castle?
 constexpr bool is_castle(MoveType type) { return type == MoveType::CASTLE; }

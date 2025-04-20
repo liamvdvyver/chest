@@ -376,6 +376,13 @@ enum class Piece : uint8_t { KNIGHT, BISHOP, ROOK, QUEEN, PAWN, KING };
 
 static constexpr int n_pieces = 6; // For array sizing
 
+// Container for piece of a certain colour
+struct ColouredPiece {
+    board::Piece piece;
+    board::Colour colour;
+};
+
+
 // IO in implementation
 namespace io {
 
@@ -415,6 +422,43 @@ constexpr char to_char(const Piece p) {
 
     return (0); // silence warnings
 }
+
+constexpr std::string to_uni(const ColouredPiece cp) {
+    switch (cp.colour) {
+    case Colour::WHITE:
+        switch (cp.piece) {
+        case Piece::KING:
+            return "♚";
+        case Piece::QUEEN:
+            return "♛";
+
+        case Piece::BISHOP:
+            return "♝";
+        case Piece::KNIGHT:
+            return "♞";
+        case Piece::ROOK:
+            return "♜";
+        case Piece::PAWN:
+            return "♟";
+        }
+    case Colour::BLACK:
+        switch (cp.piece) {
+        case Piece::KING:
+            return "♔";
+        case Piece::QUEEN:
+            return "♕";
+
+        case Piece::BISHOP:
+            return "♗";
+        case Piece::KNIGHT:
+            return "♘";
+        case Piece::ROOK:
+            return "♖";
+        case Piece::PAWN:
+            return "♙";
+        }
+    }
+};
 
 // Parse algebraic piece name (case insensitive)
 constexpr Piece from_char(const char c) {

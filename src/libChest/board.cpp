@@ -20,7 +20,7 @@ board::Square board::io::to_square(const alg_t &sq) {
     return Square(rank, file);
 }
 
-board::io::alg_t algebraic(const board::Square sq) {
+board::io::alg_t board::io::algebraic(const board::Square sq) {
     board::io::alg_t ret = "";
 
     ret += sq.file() + 'A';
@@ -34,6 +34,7 @@ std::string board::Bitboard::pretty() const {
     for (int r = board::board_size - 1; r >= 0; r--) {
         for (int c = 0; c < board::board_size; c++) {
             ret += (1 & (value >> (board::board_size * r + c))) ? "1" : ".";
+            ret += " ";
         }
         ret += "\n";
     }

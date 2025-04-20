@@ -1,4 +1,6 @@
 #include "state.h"
+#include "board.h"
+#include <string>
 #include <vector>
 
 //
@@ -134,20 +136,55 @@ std::string State::pretty() const {
     for (int r = board::board_size - 1; r >= 0; r--) {
         for (int c = 0; c < board::board_size; c++) {
 
-            std::optional<ColouredPiece> atLoc =
+            std::optional<board::ColouredPiece> atLoc =
                 piece_at(board::Bitboard(board::Square(c, r)));
 
             if (atLoc.has_value()) {
-                char retChar = board::io::to_char(atLoc.value().piece);
-                if (atLoc.value().colour == board::Colour::WHITE) {
-                    retChar = toupper(retChar);
-                }
-                ret += retChar;
-            } else
+                ret += board::io::to_uni(atLoc.value());
+            } else {
                 ret += ".";
+            }
+            ret += " ";
         }
         ret += "\n";
     }
+    return ret;
+};
+
+std::string State::to_fen() const {
+    std::string ret = "";
+
+    // To move
+    ret += (bool)to_move ? 'w' : 'b';
+    ret += ' ';
+
+    // Castling rights
+    if (get_castling_rights(board::Piece::KING, board::Colour::WHITE)) {
+        ret += 'K';
+    }
+    if (get_castling_rights(board::Piece::QUEEN, board::Colour::WHITE)) {
+        ret += 'Q';
+    }
+    if (get_castling_rights(board::Piece::KING, board::Colour::BLACK)) {
+        ret += 'k';
+    }
+    if (get_castling_rights(board::Piece::QUEEN, board::Colour::BLACK)) {
+        ret += 'q';
+    }
+    ret += ' ';
+
+    // EP square
+    ret +=
+        ep_square.has_value() ? board::io::algebraic(ep_square.value()) : "-";
+    ret += ' ';
+
+    // Halfmove clock
+    ret += std::to_string(halfmove_clock);
+    ret += " ";
+
+    // Fullmove number
+    ret + std::to_string(fullmove_number);
+
     return ret;
 };
 

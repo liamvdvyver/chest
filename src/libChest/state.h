@@ -18,15 +18,8 @@ typedef std::string fen_t; // FEN strings
 static const fen_t new_game_fen =
     "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
-// Container for piece of a certain colour
-struct ColouredPiece {
-    board::Piece piece;
-    board::Colour colour;
-};
-
 // Precompute masks/squares for castling
 struct CastlingInfo {
-    static constexpr int n_castling_sides = 2; // For array sizing
   private:
     // The following final destinations are the same for classical and 960, and
     // will remain const:
@@ -46,43 +39,49 @@ struct CastlingInfo {
     // The following should be calculated at game init to support 960:
 
     // Initial king positions
-    static constexpr board::Square w_king_start = board::E1;
-    static constexpr board::Square b_king_start = board::E8;
+    const board::Square w_king_start = board::E1;
+    const board::Square b_king_start = board::E8;
 
     // Locations of rooks w/ castling rights
-    static constexpr board::Square w_ks_rook_start = board::H1;
-    static constexpr board::Square w_qs_rook_start = board::A1;
-    static constexpr board::Square b_ks_rook_start = board::H8;
-    static constexpr board::Square b_qs_rook_start = board::A8;
+    const board::Square w_ks_rook_start = board::H1;
+    const board::Square w_qs_rook_start = board::A1;
+    const board::Square b_ks_rook_start = board::H8;
+    const board::Square b_qs_rook_start = board::A8;
 
     // Masks: squares which must be unobstructed to castle
-    static constexpr board::Bitboard w_ks_rook_mask =
+    const board::Bitboard w_ks_rook_mask =
         board::Bitboard(board::Square(board::F1)) ^
         board::Bitboard(board::Square(board::G1));
-    static constexpr board::Bitboard w_qs_rook_mask =
+    const board::Bitboard w_qs_rook_mask =
         board::Bitboard(board::Square(board::B1)) ^
         board::Bitboard(board::Square(board::C1)) ^
         board::Bitboard(board::Square(board::D1));
-    static constexpr board::Bitboard b_ks_rook_mask =
+    const board::Bitboard b_ks_rook_mask =
         w_ks_rook_mask.shift(0, board::board_size - 1);
-    static constexpr board::Bitboard b_qs_rook_mask =
+    const board::Bitboard b_qs_rook_mask =
         w_qs_rook_mask.shift(0, board::board_size - 1);
 
     // Masks: squares which must be unchecked to castle
-    static constexpr board::Bitboard w_ks_king_mask =
+    const board::Bitboard w_ks_king_mask =
         board::Bitboard(board::Square(board::E1)) ^
         board::Bitboard(board::Square(board::F1)) ^
         board::Bitboard(board::Square(board::G1));
-    static constexpr board::Bitboard w_qs_king_mask =
+    const board::Bitboard w_qs_king_mask =
         board::Bitboard(board::Square(board::E1)) ^
         board::Bitboard(board::Square(board::D1)) ^
         board::Bitboard(board::Square(board::C1));
-    static constexpr board::Bitboard b_ks_king_mask =
+    const board::Bitboard b_ks_king_mask =
         w_ks_king_mask.shift(0, board::board_size - 1);
-    static constexpr board::Bitboard b_qs_king_mask =
+    const board::Bitboard b_qs_king_mask =
         w_qs_king_mask.shift(0, board::board_size - 1);
 
   public:
+    // For array sizing
+    static constexpr int n_castling_sides = 2;
+    // Easy iteration through castles
+    static constexpr board::Piece castling_sides[n_castling_sides]{
+        board::Piece::QUEEN, board::Piece::KING};
+
     // Find index for layout of queenside/kingside arrays
     static constexpr int side_idx(board::Piece side) {
         // General layout used for castling-related matters:
@@ -91,34 +90,55 @@ struct CastlingInfo {
         return ((int)(side == board::Piece::KING));
     }
 
+    // Given a square of a rook and a colour, find which side (king/queen) the
+    // rook belongs to, if any
+    constexpr std::optional<board::Piece> get_side(board::Square square,
+                                                   board::Colour colour) const {
+        for (board::Piece side : castling_sides) {
+            if (square == rook_start[(int)colour][side_idx(side)]) {
+                return {side};
+            }
+        }
+        return {};
+    };
+
+    // Given a square of a rook, find which side and colour the piece belongs
+    // to, if any
+    constexpr std::optional<board::Piece> get_side(board::Square square) const {
+        std::optional<board::Piece> w_ret =
+            get_side(square, board::Colour::WHITE);
+        return w_ret.has_value() ? w_ret
+                                 : get_side(square, board::Colour::BLACK);
+    };
+
+    //
+    // Data: raw arrays
+    //
+
     // Final king positions
     static constexpr board::Square
         king_destinations[board::n_colours][n_castling_sides]{
-            {b_qs_king_dest, w_qs_king_dest}, {b_qs_king_dest, w_qs_king_dest}};
+            {b_qs_king_dest, b_ks_king_dest}, {w_qs_king_dest, w_ks_king_dest}};
 
     // Final rook positions
     static constexpr board::Square
         rook_destinations[board::n_colours][n_castling_sides]{
-            {b_qs_rook_dest, w_qs_rook_dest}, {b_qs_rook_dest, w_qs_rook_dest}};
+            {b_qs_rook_dest, b_ks_rook_dest}, {w_qs_rook_dest, w_ks_rook_dest}};
 
     // Initial king positions
-    static constexpr board::Square king_start[board::n_colours]{b_king_start,
-                                                                w_king_start};
+    const board::Square king_start[board::n_colours]{b_king_start,
+                                                     w_king_start};
 
     // Locations of rooks w/ castling rights
-    static constexpr board::Square
-        rook_start[board::n_colours][n_castling_sides]{
-            {b_qs_rook_start, w_qs_rook_start},
-            {b_qs_rook_start, w_qs_rook_start}};
+    const board::Square rook_start[board::n_colours][n_castling_sides]{
+        {b_qs_rook_start, b_ks_rook_start}, {w_qs_rook_start, w_ks_rook_start}};
 
     // Masks: squares which must be unobstructed to caste
-    static constexpr board::Bitboard
-        rook_mask[board::n_colours][n_castling_sides]{
-            {b_qs_rook_mask, w_qs_rook_mask}, {b_qs_rook_mask, w_qs_rook_mask}};
+    const board::Bitboard rook_mask[board::n_colours][n_castling_sides]{
+        {b_qs_rook_mask, b_ks_rook_mask}, {w_qs_rook_mask, w_ks_rook_mask}};
     // Masks: squares which must be unchecked to caste
-    static constexpr board::Bitboard
-        king_mask[board::n_colours][n_castling_sides]{
-            {b_qs_king_mask, w_qs_king_mask}, {b_qs_king_mask, w_qs_king_mask}};
+    const board::Bitboard king_mask[board::n_colours][n_castling_sides]{
+        {b_qs_king_mask, b_ks_king_mask}, {w_qs_king_mask, w_ks_king_mask}};
 };
 
 // Store complete (minimal) game state.
@@ -199,8 +219,26 @@ struct State {
                side_occupancy(board::Colour::WHITE);
     }
 
+    // First bitboard matching mask, given colour
+    constexpr board::Bitboard *bitboard_containing(board::Bitboard bit,
+                                                   board::Colour colour) {
+        for (int pieceIdx = 0; pieceIdx < board::n_pieces; pieceIdx++) {
+            board::Bitboard *ret = &m_pieces[(int)colour][pieceIdx];
+            if (*ret & bit) {
+                return ret;
+            }
+        }
+        return nullptr;
+    }
+
+    // First bitboard matching mask
+    constexpr board::Bitboard *bitboard_containing(board::Bitboard bit) {
+        board::Bitboard *ret = bitboard_containing(bit, board::Colour::WHITE);
+        return ret ? ret : bitboard_containing(bit, board::Colour::BLACK);
+    }
+
     // First piece matching mask
-    constexpr std::optional<ColouredPiece> const
+    constexpr std::optional<board::ColouredPiece> const
     piece_at(board::Bitboard bit) const {
         for (int colourIdx = 0; colourIdx <= 1; colourIdx++) {
             for (int pieceIdx = 0; pieceIdx < board::n_pieces; pieceIdx++) {
@@ -228,6 +266,7 @@ struct State {
 
     // Pretty printing
     std::string pretty() const;
+    std::string to_fen() const;
 
     // Stores information other than the from/to squares and move type
     // which is neccessary to unmake a move

@@ -266,7 +266,7 @@ class PawnMoveGenerator {
                                   board::Bitboard origin) {
 
         board::Square from = origin.single_bitscan_forward();
-        get_captures(moves, astate, astate.total_occupancy, from,
+        get_captures(moves, astate, astate.opponent_occupancy(), from,
                      astate.state.to_move);
     }
 
@@ -383,16 +383,6 @@ template <MultiMoveGenerator TMover> class RookMoverFactory : TMover {
     void get_castles(const state::AugmentedState &astate,
                      std::vector<move::Move> &moves,
                      board::Bitboard total_occ) {
-
-        // Castle positions
-        const board::Square w_ks_castle = board::H1;
-        const board::Square w_qs_castle = board::A1;
-        const board::Square b_ks_castle = board::H8;
-        const board::Square b_qs_castle = board::A8;
-
-        // King positions
-        const board::Square w_king = board::E1;
-        const board::Square b_king = board::E8;
 
         // Prebaked castle moves
         // TODO: calculate in State::CastlingInfo, or something else?
