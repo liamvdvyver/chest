@@ -84,11 +84,11 @@ concept PiecewiseMoveGenerator =
 template <attack::Attacker TAttacker> class SingletonMoverFactory {
 
   public:
-    SingletonMoverFactory() : m_attacker() {};
+    SingletonMoverFactory(const TAttacker &attacker) : m_attacker(attacker) {};
 
     constexpr void get_quiet_moves(const state::AugmentedState &astate,
                                    std::vector<move::Move> &moves,
-                                   board::Bitboard origin) {
+                                   board::Bitboard origin) const {
 
         board::Square from = origin.single_bitscan_forward();
         board::Bitboard attacked =
@@ -102,7 +102,7 @@ template <attack::Attacker TAttacker> class SingletonMoverFactory {
 
     constexpr void get_loud_moves(const state::AugmentedState &astate,
                                   std::vector<move::Move> &moves,
-                                  board::Bitboard origin) {
+                                  board::Bitboard origin) const {
 
         board::Square from = origin.single_bitscan_forward();
         board::Bitboard attacked = m_attacker(from);
@@ -115,7 +115,7 @@ template <attack::Attacker TAttacker> class SingletonMoverFactory {
     };
 
   private:
-    TAttacker m_attacker;
+    const TAttacker &m_attacker;
 };
 static_assert(
     SingletonMoveGenerator<SingletonMoverFactory<attack::KingAttacker>>);
@@ -125,11 +125,12 @@ template <attack::SlidingAttacker TAttacker>
 class SlidingSingletonMoverFactory {
 
   public:
-    SlidingSingletonMoverFactory() : m_attacker() {};
+    SlidingSingletonMoverFactory(const TAttacker &attacker)
+        : m_attacker(attacker) {};
 
     constexpr void get_quiet_moves(const state::AugmentedState &astate,
                                    std::vector<move::Move> &moves,
-                                   board::Bitboard origin) {
+                                   board::Bitboard origin) const {
 
         board::Square from = origin.single_bitscan_forward();
         board::Bitboard attacked = m_attacker(from, astate.total_occupancy)
@@ -143,7 +144,7 @@ class SlidingSingletonMoverFactory {
 
     constexpr void get_loud_moves(const state::AugmentedState &astate,
                                   std::vector<move::Move> &moves,
-                                  board::Bitboard origin) {
+                                  board::Bitboard origin) const {
 
         board::Square from = origin.single_bitscan_forward();
         board::Bitboard attacked = m_attacker(from, astate.total_occupancy);
@@ -156,7 +157,7 @@ class SlidingSingletonMoverFactory {
     };
 
   private:
-    TAttacker m_attacker;
+    const TAttacker &m_attacker;
 };
 static_assert(
     SingletonMoveGenerator<SlidingSingletonMoverFactory<attack::RookAttacker>>);
@@ -193,11 +194,11 @@ class SlidingPiecewiseFactory : public TMover {
 template <PiecewiseMoveGenerator TMover> class MultiMoverFactory {
 
   public:
-    MultiMoverFactory() : m_mover() {};
+    MultiMoverFactory(TMover mover) : m_mover(mover) {};
 
     // Add quiet moves to the moves list
     constexpr void get_quiet_moves(const state::AugmentedState &astate,
-                                   std::vector<move::Move> &moves) {
+                                   std::vector<move::Move> &moves) const {
         for (board::Bitboard b : m_mover.attackers(astate).singletons()) {
             m_mover.get_quiet_moves(astate, moves, b);
         }
@@ -205,7 +206,8 @@ template <PiecewiseMoveGenerator TMover> class MultiMoverFactory {
 
     // Add tactical moves to the moves list
     constexpr void get_loud_moves(const state::AugmentedState &astate,
-                                  std::vector<move::Move> &moves) {
+                                  std::vector<move::Move> &moves) const {
+
         for (board::Bitboard b : m_mover.attackers(astate).singletons()) {
             m_mover.get_loud_moves(astate, moves, b);
         }
@@ -247,12 +249,16 @@ template <attack::ColouredAttacker TSinglePusher,
 class PawnMoveGenerator {
 
   public:
-    PawnMoveGenerator() : m_single_pusher(), m_double_pusher(), m_attacker() {};
+    PawnMoveGenerator(const TSinglePusher &single_pusher,
+                      const TDoublePusher &double_pusher,
+                      const TAttacker &attacker)
+        : m_single_pusher(single_pusher), m_double_pusher(double_pusher),
+          m_attacker(attacker) {};
 
     // (consider promotions to be loud)
     constexpr void get_quiet_moves(const state::AugmentedState &astate,
                                    std::vector<move::Move> &moves,
-                                   board::Bitboard origin) {
+                                   board::Bitboard origin) const {
 
         board::Square from = origin.single_bitscan_forward();
         get_single_pushes(moves, astate.total_occupancy, from,
@@ -263,7 +269,7 @@ class PawnMoveGenerator {
 
     constexpr void get_loud_moves(const state::AugmentedState &astate,
                                   std::vector<move::Move> &moves,
-                                  board::Bitboard origin) {
+                                  board::Bitboard origin) const {
 
         board::Square from = origin.single_bitscan_forward();
         get_captures(moves, astate, astate.opponent_occupancy(), from,
@@ -271,14 +277,14 @@ class PawnMoveGenerator {
     }
 
   private:
-    TSinglePusher m_single_pusher;
-    TDoublePusher m_double_pusher;
-    TAttacker m_attacker;
+    const TSinglePusher &m_single_pusher;
+    const TDoublePusher &m_double_pusher;
+    const TAttacker &m_attacker;
 
     constexpr void get_single_pushes(std::vector<move::Move> &moves,
                                      board::Bitboard occ_total,
                                      board::Square from,
-                                     board::Colour to_move) {
+                                     board::Colour to_move) const {
         board::Bitboard push_dest = m_single_pusher(from, to_move);
         if (push_dest & occ_total) {
             return;
@@ -301,7 +307,7 @@ class PawnMoveGenerator {
     constexpr void get_double_pushes(std::vector<move::Move> &moves,
                                      board::Bitboard occ_total,
                                      board::Square from,
-                                     board::Colour to_move) {
+                                     board::Colour to_move) const {
 
         board::Bitboard push_dest = m_double_pusher(from, to_move);
         if (push_dest.empty() | (push_dest & occ_total)) {
@@ -315,7 +321,8 @@ class PawnMoveGenerator {
     constexpr void get_captures(std::vector<move::Move> &moves,
                                 const state::AugmentedState &astate,
                                 board::Bitboard occ_opponent,
-                                board::Square from, board::Colour to_move) {
+                                board::Square from,
+                                board::Colour to_move) const {
 
         board::Bitboard capture_dests = m_attacker(from, to_move);
 
@@ -372,7 +379,7 @@ template <MultiMoveGenerator TMover> class RookMoverFactory : TMover {
     using TMover::TMover;
 
     constexpr void get_quiet_moves(const state::AugmentedState &astate,
-                                   std::vector<move::Move> &moves) {
+                                   std::vector<move::Move> &moves) const {
         get_castles(astate, moves, astate.total_occupancy);
         TMover::get_quiet_moves(astate, moves);
     }
@@ -382,7 +389,7 @@ template <MultiMoveGenerator TMover> class RookMoverFactory : TMover {
     // i.e. doesn't check king position, rook positions.
     void get_castles(const state::AugmentedState &astate,
                      std::vector<move::Move> &moves,
-                     board::Bitboard total_occ) {
+                     board::Bitboard total_occ) const {
 
         // Prebaked castle moves
         // TODO: calculate in State::CastlingInfo, or something else?
@@ -456,8 +463,13 @@ class AllMoveGenerator {
 
   public:
     constexpr AllMoveGenerator()
-        : m_pawn_mover(), m_knight_mover(), m_bishop_mover(), m_rook_mover(),
-          m_king_mover() {}
+        : m_pawn_attacker(), m_pawn_single_pusher(), m_pawn_double_pusher(),
+          m_knight_attacker(), m_bishop_attacker(), m_rook_attacker(),
+          m_king_attacker(),
+          m_pawn_mover(
+              {m_pawn_single_pusher, m_pawn_double_pusher, m_pawn_attacker}),
+          m_knight_mover(m_knight_attacker), m_bishop_mover(m_bishop_attacker),
+          m_rook_mover(m_rook_attacker), m_king_mover(m_king_attacker) {}
 
     constexpr void get_quiet_moves(const state::AugmentedState &astate,
                                    std::vector<move::Move> &moves) {
@@ -491,7 +503,16 @@ class AllMoveGenerator {
     };
 
   private:
-    // Hold instances of MoveGenerators
+    // Hold instances of Attackers
+    attack::PawnAttacker m_pawn_attacker;
+    attack::PawnSinglePusher m_pawn_single_pusher;
+    attack::PawnDoublePusher m_pawn_double_pusher;
+    attack::KnightAttacker m_knight_attacker;
+    attack::BishopAttacker m_bishop_attacker;
+    attack::RookAttacker m_rook_attacker;
+    attack::KingAttacker m_king_attacker;
+
+    // Create instances of MoveGenerators
     PawnMover m_pawn_mover;
     KnightMover m_knight_mover;
     BishopMover m_bishop_mover;
