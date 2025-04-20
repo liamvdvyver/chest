@@ -4,7 +4,9 @@
 #include "board.h"
 
 #include <cstdint>
+#include <iostream>
 #include <optional>
+#include <string>
 
 //
 // Defines representations of full, partial, or augemnted game state
@@ -274,18 +276,30 @@ struct State {
         board::Piece captured_piece;
         uint8_t halfmove_clock;
         uint8_t castling_rights;
+        int8_t ep_file; // set to negative if no square, TODO: maybe just store
+                        // ep like this?
     };
 
     constexpr IrreversibleInfo
     irreversible(board::Piece captured = (board::Piece)0) const {
         return {.captured_piece = captured,
                 .halfmove_clock = halfmove_clock,
-                .castling_rights = m_castling_rights};
+                .castling_rights = m_castling_rights,
+                .ep_file = ep_square.has_value()
+                               ? (int8_t)ep_square.value().file()
+                               : (int8_t)-1};
     };
 
+    // Assumes the player to move is the one who made the move
     constexpr void reset(IrreversibleInfo info) {
         halfmove_clock = info.halfmove_clock;
         m_castling_rights = info.castling_rights;
+        if (info.ep_file >= 0) {
+            ep_square =
+                board::Square(info.ep_file, board::push_rank[(int)(!to_move)]);
+        } else {
+            ep_square = {};
+        }
     };
 
   private:

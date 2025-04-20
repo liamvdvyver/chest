@@ -100,7 +100,7 @@ constexpr bool is_promotion(MoveType type) {
 
 constexpr bool is_pawn_move(MoveType type) {
     return type == MoveType::SINGLE_PUSH || type == MoveType::DOUBLE_PUSH ||
-           is_promotion(type);
+           type == MoveType::CAPTURE_EP || is_promotion(type);
 }
 
 // Is this a castle?
@@ -141,6 +141,14 @@ struct Move : Wrapper<move_t, Move> {
     constexpr MoveType type() const {
         return (MoveType)(fourbit_mask & (value >> movetype_offset));
     };
+
+    std::string pretty() const {
+        std::string ret = ::move::pretty(type());
+        ret += ": ";
+        ret += board::io::algebraic(from());
+        ret += board::io::algebraic(to());
+        return ret;
+    }
 
   private:
     //

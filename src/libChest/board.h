@@ -54,10 +54,10 @@ struct Square : Wrapper<square_t, Square> {
     }
 
     // Extract file (x-coord) from LERF enumerated squre
-    constexpr int file() const { return value % board_size; }
+    constexpr uint8_t file() const { return value % board_size; }
 
     // Extract rank (y-coord) from LERF enumerated squre
-    constexpr int rank() const { return value / board_size; }
+    constexpr int8_t rank() const { return value / board_size; }
 
     // Bounds check file and rank
     static constexpr bool is_legal(const uint f, const uint r) {
@@ -382,7 +382,6 @@ struct ColouredPiece {
     board::Colour colour;
 };
 
-
 // IO in implementation
 namespace io {
 
@@ -488,6 +487,18 @@ constexpr Piece from_char(const char c) {
 }
 
 } // namespace io
+
+//
+// Rank constants: for convinience
+//
+
+constexpr uint8_t home_rank[n_colours]{board_size - 1, 0};
+constexpr uint8_t pawn_rank[n_colours]{board_size - 2, 1};
+constexpr uint8_t push_rank[n_colours]{board_size - 3, 2};
+constexpr uint8_t double_push_rank[n_colours]{board_size - 4, 3};
+constexpr uint8_t pre_promote_rank[n_colours]{1, board_size - 2};
+constexpr uint8_t back_rank[n_colours]{0, board_size - 1};
+
 } // namespace board
 
 #endif

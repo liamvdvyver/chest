@@ -310,12 +310,13 @@ class PawnMoveGenerator {
                                      board::Colour to_move) const {
 
         board::Bitboard push_dest = m_double_pusher(from, to_move);
-        if (push_dest.empty() | (push_dest & occ_total)) {
+        board::Bitboard jump_dest = m_single_pusher(from, to_move);
+        if (push_dest.empty() | ((push_dest ^ jump_dest) & occ_total)) {
             return;
         }
 
         moves.emplace_back(from, push_dest.single_bitscan_forward(),
-                           MoveType::SINGLE_PUSH);
+                           MoveType::DOUBLE_PUSH);
     };
 
     constexpr void get_captures(std::vector<move::Move> &moves,
@@ -327,9 +328,11 @@ class PawnMoveGenerator {
         board::Bitboard capture_dests = m_attacker(from, to_move);
 
         const board::Bitboard ep_bb =
-            board::Bitboard(astate.state.ep_square.value_or(0));
+            astate.state.ep_square.has_value()
+                ? board::Bitboard(astate.state.ep_square.value())
+                : 0;
+        capture_dests &= (occ_opponent | ep_bb);
 
-        capture_dests &= occ_opponent;
         if (capture_dests.empty()) {
             return;
         }
@@ -354,12 +357,8 @@ class PawnMoveGenerator {
         }
     }
 
-    // Helpers
-    static constexpr int back_rank_n(board::Colour c) {
-        return (bool)c ? board::board_size - 1 : 0;
-    }
     static constexpr board::Bitboard back_rank_mask(board::Colour c) {
-        return board::Bitboard::rank_mask(back_rank_n(c));
+        return board::Bitboard::rank_mask(board::back_rank[(int)c]);
     }
 };
 
@@ -459,6 +458,7 @@ static_assert(MultiMoveGenerator<RookMover>);
 
 // Gets all the legal moves in a position,
 // composes all neccessary MultiMoveGenerator specialisers.
+// Also performs check detection.
 class AllMoveGenerator {
 
   public:
@@ -472,7 +472,7 @@ class AllMoveGenerator {
           m_rook_mover(m_rook_attacker), m_king_mover(m_king_attacker) {}
 
     constexpr void get_quiet_moves(const state::AugmentedState &astate,
-                                   std::vector<move::Move> &moves) {
+                                   std::vector<move::Move> &moves) const {
         m_pawn_mover.get_quiet_moves(astate, moves);
         m_knight_mover.get_quiet_moves(astate, moves);
         m_bishop_mover.get_quiet_moves(astate, moves);
@@ -481,7 +481,7 @@ class AllMoveGenerator {
     };
 
     constexpr void get_loud_moves(const state::AugmentedState &astate,
-                                  std::vector<move::Move> &moves) {
+                                  std::vector<move::Move> &moves) const {
         m_pawn_mover.get_loud_moves(astate, moves);
         m_knight_mover.get_loud_moves(astate, moves);
         m_bishop_mover.get_loud_moves(astate, moves);
@@ -489,7 +489,7 @@ class AllMoveGenerator {
         m_king_mover.get_loud_moves(astate, moves);
     };
     constexpr void get_all_moves(const state::AugmentedState &astate,
-                                 std::vector<move::Move> &moves) {
+                                 std::vector<move::Move> &moves) const {
         m_pawn_mover.get_loud_moves(astate, moves);
         m_pawn_mover.get_quiet_moves(astate, moves);
         m_knight_mover.get_loud_moves(astate, moves);
@@ -501,6 +501,23 @@ class AllMoveGenerator {
         m_king_mover.get_loud_moves(astate, moves);
         m_king_mover.get_quiet_moves(astate, moves);
     };
+
+    constexpr bool is_attacked(const state::AugmentedState &astate,
+                               board::Square sq, board::Colour colour) const {
+
+        return (m_pawn_attacker(sq, colour) &
+                astate.state.copy_bitboard(board::Piece::PAWN, !colour)) ||
+               (m_knight_attacker(sq) &
+                astate.state.copy_bitboard(board::Piece::KNIGHT, !colour)) ||
+               (m_bishop_attacker(sq, astate.total_occupancy) &
+                (astate.state.copy_bitboard(board::Piece::BISHOP, !colour) |
+                 astate.state.copy_bitboard(board::Piece::QUEEN, !colour))) ||
+               (m_rook_attacker(sq, astate.total_occupancy) &
+                (astate.state.copy_bitboard(board::Piece::ROOK, !colour) |
+                 astate.state.copy_bitboard(board::Piece::QUEEN, !colour))) ||
+               (m_king_attacker(sq) &
+                (astate.state.copy_bitboard(board::Piece::KING, !colour)));
+    }
 
   private:
     // Hold instances of Attackers

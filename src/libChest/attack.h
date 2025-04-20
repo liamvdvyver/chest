@@ -180,6 +180,10 @@ struct GenKingAttacks {
         ret |= starting.shift_no_wrap(board::Direction::S);
         ret |= starting.shift_no_wrap(board::Direction::E);
         ret |= starting.shift_no_wrap(board::Direction::W);
+        ret |= starting.shift_no_wrap(board::Direction::NE);
+        ret |= starting.shift_no_wrap(board::Direction::SE);
+        ret |= starting.shift_no_wrap(board::Direction::NW);
+        ret |= starting.shift_no_wrap(board::Direction::SW);
         return ret;
     }
 };
