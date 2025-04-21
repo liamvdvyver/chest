@@ -3,7 +3,6 @@
 
 #include "board.h"
 
-#include <iostream>
 #include <random>
 
 //
@@ -501,10 +500,6 @@ class MagicAttacker {
             visited.push_back(key);
             cur_elm = attacked;
         }
-
-        // Success
-        std::cout << "Found magic: " << (board::bitboard_t)magic
-                  << " at square: " << std::to_string(sq) << std::endl;
 
         return true;
     };

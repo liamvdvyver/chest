@@ -3,6 +3,7 @@
 
 #include "board.h"
 #include "wrapper.h"
+#include <utility>
 
 namespace move {
 
@@ -79,6 +80,8 @@ std::string pretty(MoveType m) {
         return "PROMOTE_CAPTURE_ROOK";
     case MoveType::PROMOTE_CAPTURE_QUEEN:
         return "PROMOTE_CAPTURE_QUEEN";
+    default:
+        std::unreachable();
     }
 }
 

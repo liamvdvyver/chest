@@ -471,10 +471,6 @@ struct SearchNode {
                 PerftResult subtree_result = perft(depth + 1);
                 ret += subtree_result;
                 ret.nodes += 1;
-                if (depth == 0) {
-                    std::cout << m.pretty() << ": " << subtree_result.perft
-                              << "\n";
-                }
             }
 
             unmake_move(m_made_moves.back());

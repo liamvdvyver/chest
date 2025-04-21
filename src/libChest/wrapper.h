@@ -76,12 +76,14 @@ template <typename T, typename WrapperType> struct Wrapper {
         return ++a.value;
     }
     constexpr friend WrapperType operator++(WrapperType &a, int b) {
+        (void)b;
         return a.value++;
     }
     constexpr friend WrapperType operator--(WrapperType &a) {
         return --a.value;
     }
     constexpr friend WrapperType operator--(WrapperType &a, int b) {
+        (void)b;
         return a.value--;
     }
 
@@ -132,7 +134,7 @@ template <typename T, typename WrapperType> struct Wrapper {
     }
 
   private:
-    T value;
+    [[no_unique_address]] T value;
 };
 
 #endif
