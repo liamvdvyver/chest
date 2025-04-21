@@ -7,7 +7,7 @@ Old-school (bitboards, negamax+pruning) chess engine, with the following goals:
   disdain for anything dynamic)
 - Deep dive on alpha-beta search (all about move ordering, aspiration windows,
   heuristics)
-- Write a good linear eval, and maybe train a better eval at some point
+- Write a good static eval, and maybe train a better eval at some point
 
 I.e. this is mostly built for me to learn, and hence I am not being judicious in my selection of what to include at all!
 Since it is in the early stages, (except for IO type functionality) the main library `libChess` is header-only. This will probably change once the headers themselves are a bit more stable. So much of it is `constexpr` though, so maybe not, we'll see.
@@ -16,10 +16,14 @@ Since it is in the early stages, (except for IO type functionality) the main lib
 
 - Bitboard board representation, compact (16-bit, bitflag heavy) move representation,
 - Parse FEN strings,
-- Magic bitboard sliding piece pseudo-legal move generation,
-- Precomputed jumping piece move generation,
-- Castling,
+- Pseudo-legal movegen:
+    - Sliding pieces: plain (fixed-shift) magic bitboards
+    - Look up tables for jumping pieces
 - Staged move generation: loud (tactical) vs. quiet moves
+- Make/unmake move (> 25Mn/s on perft):
+    - Single threaded,
+    - Including legality check,
+    - No bulk-counting
 
 # TODO
 
@@ -35,7 +39,6 @@ Further:
 ## Move making
 
 - Zobrist hashing
-- Make/unmake move
 
 ## Evaluation
 
