@@ -34,10 +34,12 @@ static const MadeMove nullMadeMove{0, State().irreversible()};
 struct SearchNode {
 
   public:
-    constexpr SearchNode(State state, int max_depth)
+    constexpr SearchNode(const move::movegen::AllMoveGenerator &mover,
+                         State state, int max_depth)
         : m_astate(AugmentedState(state)), m_max_depth(max_depth),
           m_made_moves(max_depth, nullMadeMove),
-          m_found_moves(max_depth, std::vector<move::Move>(max_moves, 0)) {};
+          m_found_moves(max_depth, std::vector<move::Move>(max_moves, 0)),
+          m_mover(mover) {};
 
     // All state changes which do not depend on current move
     // Called before processing board state
@@ -142,7 +144,7 @@ struct SearchNode {
                    m_astate.state.get_bitboard(board::Piece::KING, to_move));
 
         // Update rights
-        m_astate.state.set_castling_rights(side, to_move, false);
+        m_astate.state.set_both_castling_rights(to_move, false);
 
         // Set to_bb for rook
         return castling_info.rook_destinations[(int)to_move][side_idx];
@@ -169,7 +171,7 @@ struct SearchNode {
     // at this square, false otherwise.
     constexpr bool update_kg_castling_rights(board::Square loc,
                                              board::Colour player) {
-        if (m_astate.castling_info.king_start[(int)player] & loc) {
+        if (m_astate.castling_info.king_start[(int)player] == loc) {
             for (board::Piece side : CastlingInfo::castling_sides) {
                 m_astate.state.set_castling_rights(side, player, false);
             }
@@ -279,10 +281,12 @@ struct SearchNode {
         switch (type) {
         case move::MoveType::NORMAL:
             update_kg_castling_rights(from, to_move);
+            update_rk_castling_rights(from, to_move);
             return move_piece(from_bb, to_bb, moved);
         case move::MoveType::CAPTURE: {
 
             update_kg_castling_rights(from, to_move);
+            update_rk_castling_rights(from, to_move);
             board::Bitboard &removed =
                 *m_astate.state.bitboard_containing(to_bb, !to_move);
             return capture(from_bb, to, to_bb, moved, removed);
@@ -298,8 +302,12 @@ struct SearchNode {
         }
     }
 
-    // Make move and push MadeMove onto the stack
-    constexpr void make_move(move::Move move) {
+    // Returns true if the move was legal, false if it either:
+    // * Leaves the player who moved in check,
+    // * Was a castle starting/passing through check
+    constexpr bool make_move(move::Move move) {
+
+        bool was_legal = true;
 
         // TODO: for flexibility in using non-vector containers,
         // use maxdepth insteead of push/pop back
@@ -321,8 +329,41 @@ struct SearchNode {
         m_astate.state.ep_square = {};
 
         update_bitboards(made);
+
+        // Check legality
+        // TODO: roll this into the the update_bitboards switch
+        board::Bitboard to_move_king = m_astate.state.copy_bitboard(
+            board::Piece::KING, m_astate.state.to_move);
+
+        if (m_mover.is_attacked(m_astate, to_move_king.single_bitscan_forward(),
+                                m_astate.state.to_move)) {
+            was_legal = false;
+        }
+
+        // Special case: castle
+        if (was_legal && move.type() == move::MoveType::CASTLE) {
+
+            std::optional<board::Piece> side = m_astate.castling_info.get_side(
+                move.from(), m_astate.state.to_move);
+            assert(side.has_value());
+            const int side_idx = CastlingInfo::side_idx(side.value());
+
+            board::Bitboard king_mask =
+                m_astate.castling_info
+                    .king_mask[(int)m_astate.state.to_move][side_idx];
+            for (board::Bitboard sq : king_mask.singletons()) {
+                if (m_mover.is_attacked(m_astate, sq.single_bitscan_forward(),
+                                        m_astate.state.to_move)) {
+                    was_legal = false;
+                    break;
+                }
+            };
+        }
+
         // Next player
         m_astate.state.to_move = !m_astate.state.to_move;
+
+        return was_legal;
     };
 
     constexpr void unmake_move(MadeMove unmake) {
@@ -398,39 +439,44 @@ struct SearchNode {
         return;
     };
 
-    // Make/unmake perft
-    // TODO: legality test for castling (here/in castling movegen?)
-    int perft(const move::movegen::AllMoveGenerator &mover, int depth = 0) {
+    struct PerftResult {
+        uint64_t perft;
+        uint64_t nodes;
 
-        // Check legality: opponents king must not be attacked
-        board::Bitboard opp_king = m_astate.state.copy_bitboard(
-            board::Piece::KING, !m_astate.state.to_move);
-
-        if (mover.is_attacked(m_astate, opp_king.single_bitscan_forward(),
-                              !m_astate.state.to_move)) {
-            return 0;
+        PerftResult operator+=(const PerftResult &b) {
+            perft += b.perft;
+            nodes += b.nodes;
+            return *this;
         }
+    };
+
+    // Count the number of leaves at a certain depth, and (non-root) interior
+    // nodes
+    PerftResult perft(int depth = 0) {
 
         // Cutoff
         if (depth == m_max_depth) {
-            // std::cout << m_astate.state.pretty() << std::endl;
-            return 1;
+            return {.perft = 1, .nodes = 0};
         }
 
         m_found_moves.at(depth).clear();
-        mover.get_all_moves(m_astate, m_found_moves.at(depth));
-        int ret = 0;
+        m_mover.get_all_moves(m_astate, m_found_moves.at(depth));
+
+        PerftResult ret = {0, 0};
+
         for (move::Move m : m_found_moves.at(depth)) {
 
-            // if (depth == 0) {
-            //     std::cout << m.pretty();
-            // }
-            int this_move = 0;
+            bool was_legal = make_move(m);
+            if (was_legal) {
+                PerftResult subtree_result = perft(depth + 1);
+                ret += subtree_result;
+                ret.nodes += 1;
+                if (depth == 0) {
+                    std::cout << m.pretty() << ": " << subtree_result.perft
+                              << "\n";
+                }
+            }
 
-            // state::State cur_state = m_astate.state;
-            make_move(m);
-            this_move = perft(mover, depth + 1);
-            ret += this_move;
             unmake_move(m_made_moves.back());
             m_made_moves.pop_back();
         }
@@ -452,6 +498,7 @@ struct SearchNode {
     std::vector<MadeMove> m_made_moves;
     std::vector<std::vector<move::Move>> m_found_moves;
     friend int main(int argc, char **argv);
+    const move::movegen::AllMoveGenerator &m_mover;
 };
 } // namespace state
 #endif

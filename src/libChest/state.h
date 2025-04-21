@@ -66,12 +66,10 @@ struct CastlingInfo {
     // Masks: squares which must be unchecked to castle
     const board::Bitboard w_ks_king_mask =
         board::Bitboard(board::Square(board::E1)) ^
-        board::Bitboard(board::Square(board::F1)) ^
-        board::Bitboard(board::Square(board::G1));
+        board::Bitboard(board::Square(board::F1));
     const board::Bitboard w_qs_king_mask =
         board::Bitboard(board::Square(board::E1)) ^
-        board::Bitboard(board::Square(board::D1)) ^
-        board::Bitboard(board::Square(board::C1));
+        board::Bitboard(board::Square(board::D1));
     const board::Bitboard b_ks_king_mask =
         w_ks_king_mask.shift(0, board::board_size - 1);
     const board::Bitboard b_qs_king_mask =
@@ -135,10 +133,11 @@ struct CastlingInfo {
     const board::Square rook_start[board::n_colours][n_castling_sides]{
         {b_qs_rook_start, b_ks_rook_start}, {w_qs_rook_start, w_ks_rook_start}};
 
-    // Masks: squares which must be unobstructed to caste
+    // Masks: squares which must be unobstructed to castle
     const board::Bitboard rook_mask[board::n_colours][n_castling_sides]{
         {b_qs_rook_mask, b_ks_rook_mask}, {w_qs_rook_mask, w_ks_rook_mask}};
-    // Masks: squares which must be unchecked to caste
+    // Masks: squares which must be unchecked to castle (not including final
+    // destination, this is checked at the start of the turn)
     const board::Bitboard king_mask[board::n_colours][n_castling_sides]{
         {b_qs_king_mask, b_ks_king_mask}, {w_qs_king_mask, w_ks_king_mask}};
 };
@@ -203,6 +202,12 @@ struct State {
         int selected_bit_val = (rights << castling_rights_offset(side, colour));
         m_castling_rights =
             (m_castling_rights & ~selected_bit) ^ selected_bit_val;
+    }
+    constexpr void set_both_castling_rights(board::Colour colour,
+                                       bool rights) {
+        for (board::Piece side : CastlingInfo::castling_sides) {
+            set_castling_rights(side, colour, rights);
+        }
     }
     // Union of piece bitboards, per side
     constexpr board::Bitboard side_occupancy(board::Colour colour) const {
