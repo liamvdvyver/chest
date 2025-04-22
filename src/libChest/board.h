@@ -183,6 +183,9 @@ struct Bitboard : Wrapper<bitboard_t, Bitboard> {
 
     // Compute cardinality with Kerighan's method
     constexpr uint8_t size() const {
+        # if __has_builtin(__builtin_popcountll)
+        return __builtin_popcountll(value);
+        # else
         uint8_t ret = 0;
         Bitboard b = *this;
         while (b.value) {
@@ -190,6 +193,7 @@ struct Bitboard : Wrapper<bitboard_t, Bitboard> {
             b = b.reset_ls1b();
         }
         return ret;
+        #endif
     }
 
     constexpr Bitboard shift(int d_file = 0, int d_rank = 0) const {
@@ -275,14 +279,13 @@ struct Bitboard : Wrapper<bitboard_t, Bitboard> {
         return ret;
     }
 
-    // TODO: platform independence?
-    constexpr Square bitscan_forward() const {
-        return __builtin_ffs(value) - 1;
-    }
-
     // Assumes b is a power of two (i.e. a singly occupied bitboard)
     constexpr Square single_bitscan_forward() const {
+        #if __has_builtin(__builtin_ctzll)
+        return __builtin_ctzll(value);
+        #else
         return de_brujin_map[((value ^ (value - 1)) * debruijn64) >> 58];
+        #endif
     }
 
     std::string pretty() const;
@@ -371,7 +374,7 @@ constexpr Bitboard::ElementIterator Bitboard::singletons() const {
 //
 
 // Lowest valued members should follow same order as promoted pieces in move.h
-// TODO: test
+// King must be last, as in eval.h
 enum class Piece : uint8_t { KNIGHT, BISHOP, ROOK, QUEEN, PAWN, KING };
 
 static constexpr int n_pieces = 6; // For array sizing
