@@ -365,6 +365,10 @@ struct AugmentedState {
         return side_occupancy(!state.to_move);
     }
 
+    //
+    // Make/unmake move
+    //
+
   private:
     board::Bitboard m_side_occupancy[board::n_colours];
 };

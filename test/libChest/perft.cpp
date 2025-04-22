@@ -7,13 +7,21 @@
 // Test all depths up to threshold per position
 //
 
+// Results as of 22/05/24:
+//   InOrder = true -> 26.8Mn/s
+//   InOrder = false -> 28.3Mn/s
+// move generation logic decide the fastest way to get moves.
+constexpr bool in_order = false;
+
+const int max_depth = 6;
+
 struct PerftTest {
     std::string name;
     state::fen_t fen;
     std::vector<uint64_t> results;
 };
 
-move::movegen::AllMoveGenerator mover{};
+move::movegen::AllMoveGenerator<in_order> mover{};
 
 const std::string indent = "    ";
 const uint64_t million = 1000000;
@@ -27,18 +35,19 @@ static AveragePerft avg;
 
 void do_perft_test(const PerftTest &perft_case, size_t max_depth) {
 
-    state::State st(perft_case.fen);
+    state::AugmentedState astate(state::State(perft_case.fen));
     std::cout << indent << "Testing position: " << perft_case.name << std::endl;
 
     for (size_t i = 0; i < perft_case.results.size() && i < max_depth; i++) {
 
         std::cout << indent << indent << "perft(" << i << "): " << std::endl;
 
-        state::SearchNode sn(mover, st, i);
+        state::SearchNode<move::movegen::AllMoveGenerator<in_order>> sn(mover, astate, i);
 
         // Run perft
         auto start = std::chrono::steady_clock::now();
-        state::SearchNode::PerftResult res = sn.perft();
+        state::SearchNode<move::movegen::AllMoveGenerator<in_order>>::PerftResult res =
+            sn.perft();
         auto end = std::chrono::steady_clock::now();
 
         // Timing info
@@ -148,8 +157,12 @@ PerftTest cases[] = {
      "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10",
      {1, 46, 2079, 89890, 3894594, 164075551, 6923051137, 287188994746,
       11923589843526, 490154852788714}},
-
-};
+    {"Rocechess 'Good testposition'",
+     "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+     {1, 48, 2039, 97862, 4085603, 193690690, 8031647685}},
+    {"Rocechess 'Discover promotion bugs'",
+     "n1n5/PPPk4/8/8/8/8/4Kppp/5N1N b - - 0 1",
+     {1, 24, 496, 9483, 182838, 3605103, 71179139}}};
 
 //
 // Run
@@ -157,11 +170,11 @@ PerftTest cases[] = {
 
 TEST_CASE("Perft tests") {
     for (auto &perft_case : cases) {
-        do_perft_test(perft_case, 6);
+        do_perft_test(perft_case, max_depth);
     };
 
     std::cout << indent << "TOTAL (LEGAL) NODES: " << avg.million_nodes
               << " million" << std::endl;
-    std::cout << indent << "AVERAGE RATE: "
-              << avg.million_nodes / avg.seconds << "Mn/s" << std::endl;
+    std::cout << indent << "AVERAGE RATE: " << avg.million_nodes / avg.seconds
+              << "Mn/s" << std::endl;
 }

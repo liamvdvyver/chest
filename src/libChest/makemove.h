@@ -16,6 +16,8 @@
 // * a stack of made moves
 // * functionality to make/unmake a move
 //
+// TODO: clean up this whole header.
+//
 
 namespace state {
 
@@ -31,15 +33,13 @@ static const MadeMove nullMadeMove{0, State().irreversible()};
 // Stores augmented state, has buffers for made moves, found moves.
 // This is the basic unit for iterative (non-recursive, incrementally updated)
 // game tree traversal,
-struct SearchNode {
+template <move::movegen::PseudolegalGenerator T> struct SearchNode {
 
   public:
-    constexpr SearchNode(const move::movegen::AllMoveGenerator &mover,
-                         State state, int max_depth)
-        : m_astate(AugmentedState(state)), m_max_depth(max_depth),
-          m_made_moves(max_depth, nullMadeMove),
-          m_found_moves(max_depth, std::vector<move::Move>(max_moves, 0)),
-          m_mover(mover) {};
+    constexpr SearchNode(const T &mover, AugmentedState &astate, int max_depth)
+        : m_astate(astate), m_max_depth(max_depth), m_cur_depth(0),
+          m_mover(mover), m_made_moves(max_depth, nullMadeMove),
+          m_found_moves(max_depth, std::vector<move::Move>(max_moves, 0)) {};
 
     // All state changes which do not depend on current move
     // Called before processing board state
@@ -363,10 +363,15 @@ struct SearchNode {
         // Next player
         m_astate.state.to_move = !m_astate.state.to_move;
 
+        m_cur_depth++;
         return was_legal;
     };
 
-    constexpr void unmake_move(MadeMove unmake) {
+    constexpr void unmake_move() {
+
+        MadeMove unmake = m_made_moves.back();
+        m_made_moves.pop_back();
+        m_cur_depth--;
 
         m_astate.state.to_move = !m_astate.state.to_move;
         m_astate.state.reset(unmake.info);
@@ -450,31 +455,42 @@ struct SearchNode {
         }
     };
 
+    // Does depth == maxdepth?
+    constexpr bool bottomed_out() {
+        return m_max_depth == m_cur_depth;
+    }
+
+    // Find moves at the current depth
+    // Returns a reference to the vector containing the found moves
+    constexpr std::vector<move::Move> &find_moves() {
+
+        m_found_moves.at(m_cur_depth).clear();
+        m_mover.get_all_moves(m_astate, m_found_moves.at(m_cur_depth));
+        return m_found_moves.at(m_cur_depth);
+    }
+
     // Count the number of leaves at a certain depth, and (non-root) interior
     // nodes
-    PerftResult perft(int depth = 0) {
+    constexpr PerftResult perft() {
 
         // Cutoff
-        if (depth == m_max_depth) {
+        if (bottomed_out()) {
             return {.perft = 1, .nodes = 0};
         }
 
-        m_found_moves.at(depth).clear();
-        m_mover.get_all_moves(m_astate, m_found_moves.at(depth));
-
+        std::vector<move::Move> &moves = find_moves();
         PerftResult ret = {0, 0};
 
-        for (move::Move m : m_found_moves.at(depth)) {
+        for (move::Move m : moves) {
 
             bool was_legal = make_move(m);
             if (was_legal) {
-                PerftResult subtree_result = perft(depth + 1);
+                PerftResult subtree_result = perft();
                 ret += subtree_result;
                 ret.nodes += 1;
             }
 
-            unmake_move(m_made_moves.back());
-            m_made_moves.pop_back();
+            unmake_move();
         }
 
         return ret;
@@ -487,14 +503,14 @@ struct SearchNode {
     // I just chose 256, then we can index in with a uint8_t.
     static const int max_moves = 256;
 
-    AugmentedState m_astate;
+    AugmentedState &m_astate;
     int m_max_depth;
+    int m_cur_depth;
 
     // TODO: try different (stack-based) containers
+    const T &m_mover;
     std::vector<MadeMove> m_made_moves;
     std::vector<std::vector<move::Move>> m_found_moves;
-    friend int main(int argc, char **argv);
-    const move::movegen::AllMoveGenerator &m_mover;
 };
 } // namespace state
 #endif
