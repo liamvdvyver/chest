@@ -4,9 +4,9 @@
 #include "attack.h"
 #include "board.h"
 #include "move.h"
+#include "movebuffer.h"
 #include "state.h"
 #include <concepts>
-#include <vector>
 
 //
 // Perform (pseudo-legal) move generation for one piece type x state.
@@ -35,11 +35,11 @@ namespace move::movegen {
 // Staged move generation for multiple attackers in a set.
 // The primary level-interface used for move generation.
 template <typename T>
-concept MultiMoveGenerator = requires(T t, const state::AugmentedState &astate,
-                                      std::vector<move::Move> &moves) {
-    { t.get_quiet_moves(astate, moves) } -> std::same_as<void>;
-    { t.get_loud_moves(astate, moves) } -> std::same_as<void>;
-};
+concept MultiMoveGenerator =
+    requires(T t, const state::AugmentedState &astate, MoveBuffer &moves) {
+        { t.get_quiet_moves(astate, moves) } -> std::same_as<void>;
+        { t.get_loud_moves(astate, moves) } -> std::same_as<void>;
+    };
 
 // Unstaged move generation.
 // Currently not heavily, but there is tradeoff in the design of further
@@ -52,16 +52,16 @@ concept MultiMoveGenerator = requires(T t, const state::AugmentedState &astate,
 //   chosen).
 // TODO: test the performance implications.
 template <typename T>
-concept OneshotMoveGenerator = requires(
-    T t, const state::AugmentedState &astate, std::vector<move::Move> &moves) {
-    { t.get_all_moves(astate, moves) } -> std::same_as<void>;
-};
+concept OneshotMoveGenerator =
+    requires(T t, const state::AugmentedState &astate, MoveBuffer &moves) {
+        { t.get_all_moves(astate, moves) } -> std::same_as<void>;
+    };
 
 // Find (loud/quiet) moves for a single attacker
 template <typename T>
 concept SingletonMoveGenerator =
-    requires(T t, const state::AugmentedState &astate,
-             std::vector<move::Move> &moves, board::Bitboard singleton) {
+    requires(T t, const state::AugmentedState &astate, MoveBuffer &moves,
+             board::Bitboard singleton) {
         { t.get_quiet_moves(astate, moves, singleton) } -> std::same_as<void>;
         { t.get_loud_moves(astate, moves, singleton) } -> std::same_as<void>;
         { t.get_all_moves(astate, moves, singleton) } -> std::same_as<void>;
@@ -101,7 +101,7 @@ template <attack::Attacker TAttacker> class SingletonMoverFactory {
     SingletonMoverFactory(const TAttacker &attacker) : m_attacker(attacker) {};
 
     constexpr void get_quiet_moves(const state::AugmentedState &astate,
-                                   std::vector<move::Move> &moves,
+                                   MoveBuffer &moves,
                                    board::Bitboard origin) const {
 
         const board::Square from = origin.single_bitscan_forward();
@@ -109,13 +109,13 @@ template <attack::Attacker TAttacker> class SingletonMoverFactory {
         attacked = attacked.setdiff(astate.total_occupancy);
 
         for (board::Bitboard dest : attacked.singletons()) {
-            moves.emplace_back(from, dest.single_bitscan_forward(),
-                               MoveType::NORMAL);
+            moves.push_back(move::Move(from, dest.single_bitscan_forward(),
+                                       MoveType::NORMAL));
         }
     };
 
     constexpr void get_loud_moves(const state::AugmentedState &astate,
-                                  std::vector<move::Move> &moves,
+                                  MoveBuffer &moves,
                                   board::Bitboard origin) const {
 
         const board::Square from = origin.single_bitscan_forward();
@@ -123,13 +123,13 @@ template <attack::Attacker TAttacker> class SingletonMoverFactory {
         attacked &= astate.opponent_occupancy();
 
         for (board::Bitboard dest : attacked.singletons()) {
-            moves.emplace_back(from, dest.single_bitscan_forward(),
-                               MoveType::CAPTURE);
+            moves.push_back(move::Move(from, dest.single_bitscan_forward(),
+                                       MoveType::CAPTURE));
         }
     };
 
     constexpr void get_all_moves(const state::AugmentedState &astate,
-                                 std::vector<move::Move> &moves,
+                                 MoveBuffer &moves,
                                  board::Bitboard origin) const {
         get_loud_moves(astate, moves, origin);
         get_quiet_moves(astate, moves, origin);
@@ -150,7 +150,7 @@ class SlidingSingletonMoverFactory {
         : m_attacker(attacker) {};
 
     constexpr void get_quiet_moves(const state::AugmentedState &astate,
-                                   std::vector<move::Move> &moves,
+                                   MoveBuffer &moves,
                                    board::Bitboard origin) const {
 
         const board::Square from = origin.single_bitscan_forward();
@@ -158,13 +158,13 @@ class SlidingSingletonMoverFactory {
         attacked = attacked.setdiff(astate.total_occupancy);
 
         for (board::Bitboard dest : attacked.singletons()) {
-            moves.emplace_back(from, dest.single_bitscan_forward(),
-                               MoveType::NORMAL);
+            moves.push_back(move::Move(from, dest.single_bitscan_forward(),
+                                       MoveType::NORMAL));
         }
     };
 
     constexpr void get_loud_moves(const state::AugmentedState &astate,
-                                  std::vector<move::Move> &moves,
+                                  MoveBuffer &moves,
                                   board::Bitboard origin) const {
 
         const board::Square from = origin.single_bitscan_forward();
@@ -172,13 +172,13 @@ class SlidingSingletonMoverFactory {
         attacked &= astate.opponent_occupancy();
 
         for (board::Bitboard dest : attacked.singletons()) {
-            moves.emplace_back(from, dest.single_bitscan_forward(),
-                               MoveType::CAPTURE);
+            moves.push_back(move::Move(from, dest.single_bitscan_forward(),
+                                       MoveType::CAPTURE));
         }
     };
 
     constexpr void get_all_moves(const state::AugmentedState &astate,
-                                 std::vector<move::Move> &moves,
+                                 MoveBuffer &moves,
                                  board::Bitboard origin) const {
         get_loud_moves(astate, moves, origin);
         get_quiet_moves(astate, moves, origin);
@@ -226,7 +226,7 @@ template <PiecewiseMoveGenerator TMover> class MultiMoverFactory {
 
     // Add quiet moves to the moves list
     constexpr void get_quiet_moves(const state::AugmentedState &astate,
-                                   std::vector<move::Move> &moves) const {
+                                   MoveBuffer &moves) const {
         for (board::Bitboard b : m_mover.attackers(astate).singletons()) {
             m_mover.get_quiet_moves(astate, moves, b);
         }
@@ -234,7 +234,7 @@ template <PiecewiseMoveGenerator TMover> class MultiMoverFactory {
 
     // Add tactical moves to the moves list
     constexpr void get_loud_moves(const state::AugmentedState &astate,
-                                  std::vector<move::Move> &moves) const {
+                                  MoveBuffer &moves) const {
 
         for (board::Bitboard b : m_mover.attackers(astate).singletons()) {
             m_mover.get_loud_moves(astate, moves, b);
@@ -242,7 +242,7 @@ template <PiecewiseMoveGenerator TMover> class MultiMoverFactory {
     }
 
     constexpr void get_all_moves(const state::AugmentedState &astate,
-                                 std::vector<move::Move> &moves) const {
+                                 MoveBuffer &moves) const {
 
         for (board::Bitboard b : m_mover.attackers(astate).singletons()) {
             m_mover.get_all_moves(astate, moves, b);
@@ -293,7 +293,7 @@ class PawnMoveGenerator {
 
     // (consider promotions to be loud)
     constexpr void get_quiet_moves(const state::AugmentedState &astate,
-                                   std::vector<move::Move> &moves,
+                                   MoveBuffer &moves,
                                    board::Bitboard origin) const {
 
         board::Square from = origin.single_bitscan_forward();
@@ -304,7 +304,7 @@ class PawnMoveGenerator {
     }
 
     constexpr void get_loud_moves(const state::AugmentedState &astate,
-                                  std::vector<move::Move> &moves,
+                                  MoveBuffer &moves,
                                   board::Bitboard origin) const {
 
         board::Square from = origin.single_bitscan_forward();
@@ -313,7 +313,7 @@ class PawnMoveGenerator {
     }
 
     constexpr void get_all_moves(const state::AugmentedState &astate,
-                                 std::vector<move::Move> &moves,
+                                 MoveBuffer &moves,
                                  board::Bitboard origin) const {
 
         get_loud_moves(astate, moves, origin);
@@ -325,7 +325,7 @@ class PawnMoveGenerator {
     const TDoublePusher &m_double_pusher;
     const TAttacker &m_attacker;
 
-    constexpr void get_single_pushes(std::vector<move::Move> &moves,
+    constexpr void get_single_pushes(MoveBuffer &moves,
                                      board::Bitboard occ_total,
                                      board::Square from,
                                      board::Colour to_move) const {
@@ -339,16 +339,16 @@ class PawnMoveGenerator {
 
         // Promotions/normal push
         if (push_dest & back_rank_mask(to_move)) {
-            moves.emplace_back(from, to, MoveType::PROMOTE_QUEEN);
-            moves.emplace_back(from, to, MoveType::PROMOTE_ROOK);
-            moves.emplace_back(from, to, MoveType::PROMOTE_BISHOP);
-            moves.emplace_back(from, to, MoveType::PROMOTE_KNIGHT);
+            moves.push_back(move::Move(from, to, MoveType::PROMOTE_QUEEN));
+            moves.push_back(move::Move(from, to, MoveType::PROMOTE_ROOK));
+            moves.push_back(move::Move(from, to, MoveType::PROMOTE_BISHOP));
+            moves.push_back(move::Move(from, to, MoveType::PROMOTE_KNIGHT));
         } else {
-            moves.emplace_back(from, to, MoveType::SINGLE_PUSH);
+            moves.push_back(move::Move(from, to, MoveType::SINGLE_PUSH));
         }
     };
 
-    constexpr void get_double_pushes(std::vector<move::Move> &moves,
+    constexpr void get_double_pushes(MoveBuffer &moves,
                                      board::Bitboard occ_total,
                                      board::Square from,
                                      board::Colour to_move) const {
@@ -359,11 +359,11 @@ class PawnMoveGenerator {
             return;
         }
 
-        moves.emplace_back(from, push_dest.single_bitscan_forward(),
-                           MoveType::DOUBLE_PUSH);
+        moves.push_back(move::Move(from, push_dest.single_bitscan_forward(),
+                                   MoveType::DOUBLE_PUSH));
     };
 
-    constexpr void get_captures(std::vector<move::Move> &moves,
+    constexpr void get_captures(MoveBuffer &moves,
                                 const state::AugmentedState &astate,
                                 board::Bitboard occ_opponent,
                                 board::Square from,
@@ -383,20 +383,25 @@ class PawnMoveGenerator {
 
         if (capture_dests & back_rank_mask(to_move)) {
             for (board::Bitboard target : capture_dests.singletons()) {
-                moves.emplace_back(from, target.single_bitscan_forward(),
-                                   MoveType::PROMOTE_CAPTURE_QUEEN);
-                moves.emplace_back(from, target.single_bitscan_forward(),
-                                   MoveType::PROMOTE_CAPTURE_ROOK);
-                moves.emplace_back(from, target.single_bitscan_forward(),
-                                   MoveType::PROMOTE_CAPTURE_BISHOP);
-                moves.emplace_back(from, target.single_bitscan_forward(),
-                                   MoveType::PROMOTE_CAPTURE_KNIGHT);
+                moves.push_back(move::Move(from,
+                                           target.single_bitscan_forward(),
+                                           MoveType::PROMOTE_CAPTURE_QUEEN));
+                moves.push_back(move::Move(from,
+                                           target.single_bitscan_forward(),
+                                           MoveType::PROMOTE_CAPTURE_ROOK));
+                moves.push_back(move::Move(from,
+                                           target.single_bitscan_forward(),
+                                           MoveType::PROMOTE_CAPTURE_BISHOP));
+                moves.push_back(move::Move(from,
+                                           target.single_bitscan_forward(),
+                                           MoveType::PROMOTE_CAPTURE_KNIGHT));
             }
         } else {
             for (board::Bitboard target : capture_dests.singletons()) {
                 MoveType type = (target & ep_bb).empty() ? MoveType::CAPTURE
                                                          : MoveType::CAPTURE_EP;
-                moves.emplace_back(from, target.single_bitscan_forward(), type);
+                moves.push_back(
+                    move::Move(from, target.single_bitscan_forward(), type));
             }
         }
     }
@@ -423,13 +428,13 @@ template <MultiMoveGenerator TMover> class RookMoverFactory : TMover {
     using TMover::TMover;
 
     constexpr void get_quiet_moves(const state::AugmentedState &astate,
-                                   std::vector<move::Move> &moves) const {
+                                   MoveBuffer &moves) const {
         get_castles(astate, moves, astate.total_occupancy);
         TMover::get_quiet_moves(astate, moves);
     }
 
     constexpr void get_all_moves(const state::AugmentedState &astate,
-                                 std::vector<move::Move> &moves) const {
+                                 MoveBuffer &moves) const {
         TMover::get_all_moves(astate, moves);
         get_castles(astate, moves, astate.total_occupancy);
     }
@@ -437,8 +442,7 @@ template <MultiMoveGenerator TMover> class RookMoverFactory : TMover {
   private:
     // Assumes that castling rights are set correctly,
     // i.e. doesn't check king position, rook positions.
-    void get_castles(const state::AugmentedState &astate,
-                     std::vector<move::Move> &moves,
+    void get_castles(const state::AugmentedState &astate, MoveBuffer &moves,
                      board::Bitboard total_occ) const {
 
         // Prebaked castle moves
@@ -523,7 +527,7 @@ template <bool InOrder> class AllMoveGenerator {
           m_rook_mover(m_rook_attacker), m_king_mover(m_king_attacker) {}
 
     constexpr void get_quiet_moves(const state::AugmentedState &astate,
-                                   std::vector<move::Move> &moves) const {
+                                   MoveBuffer &moves) const {
         m_pawn_mover.get_quiet_moves(astate, moves);
         m_knight_mover.get_quiet_moves(astate, moves);
         m_bishop_mover.get_quiet_moves(astate, moves);
@@ -532,7 +536,7 @@ template <bool InOrder> class AllMoveGenerator {
     };
 
     constexpr void get_loud_moves(const state::AugmentedState &astate,
-                                  std::vector<move::Move> &moves) const {
+                                  MoveBuffer &moves) const {
         m_pawn_mover.get_loud_moves(astate, moves);
         m_knight_mover.get_loud_moves(astate, moves);
         m_bishop_mover.get_loud_moves(astate, moves);
@@ -541,7 +545,7 @@ template <bool InOrder> class AllMoveGenerator {
     };
 
     constexpr void get_all_moves(const state::AugmentedState &astate,
-                                 std::vector<move::Move> &moves) const {
+                                 MoveBuffer &moves) const {
         if constexpr (InOrder) {
             return get_all_moves_ordered(astate, moves);
         } else {
@@ -569,7 +573,7 @@ template <bool InOrder> class AllMoveGenerator {
   private:
     // Gets all moves, loud moves guaranteed first.
     constexpr void get_all_moves_ordered(const state::AugmentedState &astate,
-                                         std::vector<move::Move> &moves) const {
+                                         MoveBuffer &moves) const {
         get_loud_moves(astate, moves);
         get_quiet_moves(astate, moves);
     };
@@ -577,7 +581,7 @@ template <bool InOrder> class AllMoveGenerator {
     // Gets all moves, no guarantees on move ordering,
     // move ordering is deferred to members -> better memory access pattern
     constexpr void get_all_moves_defer(const state::AugmentedState &astate,
-                                       std::vector<move::Move> &moves) const {
+                                       MoveBuffer &moves) const {
         m_pawn_mover.get_all_moves(astate, moves);
         m_knight_mover.get_all_moves(astate, moves);
         m_bishop_mover.get_all_moves(astate, moves);

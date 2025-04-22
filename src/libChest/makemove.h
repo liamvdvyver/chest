@@ -7,7 +7,6 @@
 #include "state.h"
 #include <cstdio>
 #include <optional>
-#include <vector>
 
 //
 // A basic class which composes:
@@ -33,13 +32,13 @@ static const MadeMove nullMadeMove{0, State().irreversible()};
 // Stores augmented state, has buffers for made moves, found moves.
 // This is the basic unit for iterative (non-recursive, incrementally updated)
 // game tree traversal,
-template <move::movegen::PseudolegalGenerator T> struct SearchNode {
+template <move::movegen::PseudolegalGenerator T, size_t MaxDepth>
+struct SearchNode {
 
   public:
     constexpr SearchNode(const T &mover, AugmentedState &astate, int max_depth)
         : m_astate(astate), m_max_depth(max_depth), m_cur_depth(0),
-          m_mover(mover), m_made_moves(max_depth, nullMadeMove),
-          m_found_moves(max_depth, std::vector<move::Move>(max_moves, 0)) {};
+          m_mover(mover) {};
 
     // All state changes which do not depend on current move
     // Called before processing board state
@@ -456,13 +455,11 @@ template <move::movegen::PseudolegalGenerator T> struct SearchNode {
     };
 
     // Does depth == maxdepth?
-    constexpr bool bottomed_out() {
-        return m_max_depth == m_cur_depth;
-    }
+    constexpr bool bottomed_out() { return m_max_depth == m_cur_depth; }
 
     // Find moves at the current depth
     // Returns a reference to the vector containing the found moves
-    constexpr std::vector<move::Move> &find_moves() {
+    constexpr MoveBuffer &find_moves() {
 
         m_found_moves.at(m_cur_depth).clear();
         m_mover.get_all_moves(m_astate, m_found_moves.at(m_cur_depth));
@@ -478,7 +475,7 @@ template <move::movegen::PseudolegalGenerator T> struct SearchNode {
             return {.perft = 1, .nodes = 0};
         }
 
-        std::vector<move::Move> &moves = find_moves();
+        MoveBuffer &moves = find_moves();
         PerftResult ret = {0, 0};
 
         for (move::Move m : moves) {
@@ -496,21 +493,14 @@ template <move::movegen::PseudolegalGenerator T> struct SearchNode {
         return ret;
     };
 
-    // private:
-    // Size of move buffer
-    // Note: 218 is the limit of legal chess moves
-    // since we have psuedolegal moves, this could be insufficient,
-    // I just chose 256, then we can index in with a uint8_t.
-    static const int max_moves = 256;
-
     AugmentedState &m_astate;
     int m_max_depth;
     int m_cur_depth;
 
     // TODO: try different (stack-based) containers
     const T &m_mover;
-    std::vector<MadeMove> m_made_moves;
-    std::vector<std::vector<move::Move>> m_found_moves;
+    svec<MadeMove, MaxDepth> m_made_moves;
+    svec<MoveBuffer, MaxDepth> m_found_moves;
 };
 } // namespace state
 #endif

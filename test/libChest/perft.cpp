@@ -12,8 +12,7 @@
 //   InOrder = false -> 28.3Mn/s
 // move generation logic decide the fastest way to get moves.
 constexpr bool in_order = false;
-
-const int max_depth = 6;
+constexpr size_t max_depth_limit = 6;
 
 struct PerftTest {
     std::string name;
@@ -33,20 +32,20 @@ struct AveragePerft {
 
 static AveragePerft avg;
 
-void do_perft_test(const PerftTest &perft_case, size_t max_depth) {
+void do_perft_test(const PerftTest &perft_case, size_t depth_limit) {
 
     state::AugmentedState astate(state::State(perft_case.fen));
     std::cout << indent << "Testing position: " << perft_case.name << std::endl;
 
-    for (size_t i = 0; i < perft_case.results.size() && i < max_depth; i++) {
+    for (size_t i = 0; i < perft_case.results.size() && i < depth_limit; i++) {
 
         std::cout << indent << indent << "perft(" << i << "): " << std::endl;
 
-        state::SearchNode<move::movegen::AllMoveGenerator<in_order>> sn(mover, astate, i);
+        state::SearchNode<move::movegen::AllMoveGenerator<in_order>, max_depth_limit> sn(mover, astate, i);
 
         // Run perft
         auto start = std::chrono::steady_clock::now();
-        state::SearchNode<move::movegen::AllMoveGenerator<in_order>>::PerftResult res =
+        state::SearchNode<move::movegen::AllMoveGenerator<in_order>, max_depth_limit>::PerftResult res =
             sn.perft();
         auto end = std::chrono::steady_clock::now();
 
@@ -170,7 +169,7 @@ PerftTest cases[] = {
 
 TEST_CASE("Perft tests") {
     for (auto &perft_case : cases) {
-        do_perft_test(perft_case, max_depth);
+        do_perft_test(perft_case, max_depth_limit);
     };
 
     std::cout << indent << "TOTAL (LEGAL) NODES: " << avg.million_nodes
