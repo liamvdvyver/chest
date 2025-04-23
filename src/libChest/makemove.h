@@ -140,7 +140,7 @@ struct SearchNode {
         move_piece(board::Bitboard(castling_info.king_start[(int)to_move]),
                    board::Bitboard(
                        castling_info.king_destinations[(int)to_move][side_idx]),
-                   m_astate.state.get_bitboard(board::Piece::KING, to_move));
+                   m_astate.state.get_bitboard({to_move, board::Piece::KING}));
 
         // Update rights
         m_astate.state.set_both_castling_rights(to_move, false);
@@ -158,7 +158,7 @@ struct SearchNode {
             m_astate.castling_info.get_side(loc, player);
 
         if (ret.has_value()) {
-            m_astate.state.set_castling_rights(ret.value(), player, false);
+            m_astate.state.set_castling_rights({player, ret.value()}, false);
             return ret;
         }
 
@@ -172,7 +172,7 @@ struct SearchNode {
                                              board::Colour player) {
         if (m_astate.castling_info.king_start[(int)player] == loc) {
             for (board::Piece side : CastlingInfo::castling_sides) {
-                m_astate.state.set_castling_rights(side, player, false);
+                m_astate.state.set_castling_rights({player, side}, false);
             }
             return true;
         }
@@ -190,13 +190,13 @@ struct SearchNode {
 
         const board::Colour to_move = m_astate.state.to_move;
         board::Bitboard &moved =
-            m_astate.state.get_bitboard(board::Piece::PAWN, to_move);
+            m_astate.state.get_bitboard({to_move, board::Piece::PAWN});
 
         const board::Square from = mmove.move.from();
         const board::Square to = mmove.move.to();
         const move::MoveType type = mmove.move.type();
         board::Bitboard &removed =
-            m_astate.state.get_bitboard(mmove.info.captured_piece, !to_move);
+            m_astate.state.get_bitboard({!to_move, mmove.info.captured_piece});
 
         const board::Bitboard from_bb = board::Bitboard(from);
         const board::Bitboard to_bb = board::Bitboard(to);
@@ -219,7 +219,7 @@ struct SearchNode {
             uint8_t captured_rank = board::double_push_rank[(int)!to_move];
 
             board::Bitboard &removed =
-                m_astate.state.get_bitboard(board::Piece::PAWN, !to_move);
+                m_astate.state.get_bitboard({!to_move, board::Piece::PAWN});
             board::Bitboard removed_loc =
                 board::Bitboard(board::Square(to.file(), captured_rank));
             move_piece(removed_loc, to_bb, removed, !to_move);
@@ -244,7 +244,7 @@ struct SearchNode {
 
             board::Piece promoted = move::promoted_piece(type);
             swap_piece(to_bb, moved,
-                       m_astate.state.get_bitboard(promoted, to_move));
+                       m_astate.state.get_bitboard({to_move, promoted}));
         }
     };
 
@@ -269,13 +269,13 @@ struct SearchNode {
         // TODO: do this better
 
         std::optional<board::Piece> moved_type =
-            m_astate.state.piece_at(from_bb, to_move);
+            m_astate.state.piece_at(from_bb, to_move)->piece;
         if (moved_type == board::Piece::PAWN) {
             m_astate.state.halfmove_clock = 0;
         }
         assert(moved_type.has_value());
         board::Bitboard &moved =
-            m_astate.state.get_bitboard(moved_type.value(), to_move);
+            m_astate.state.get_bitboard({to_move, moved_type.value()});
 
         switch (type) {
         case move::MoveType::NORMAL:
@@ -287,7 +287,9 @@ struct SearchNode {
             update_kg_castling_rights(from, to_move);
             update_rk_castling_rights(from, to_move);
             board::Bitboard &removed =
-                *m_astate.state.bitboard_containing(to_bb, !to_move);
+            *m_astate.state.bitboard_containing(to_bb, !to_move);
+            // board::Bitboard &removed = m_astate.state.get_bitboard(
+            //     m_astate.state.piece_at(to_bb, !to_move).value());
             return capture(from_bb, to, to_bb, moved, removed);
         }
         case move::MoveType::CASTLE: {
@@ -314,10 +316,12 @@ struct SearchNode {
         board::Piece captured = (board::Piece)0;
         if (move::is_capture(move.type())) {
             // Assumed valid, unless en-passant
-            captured = m_astate.state
-                           .piece_at(board::Bitboard(move.to()),
-                                     !m_astate.state.to_move)
-                           .value_or(board::Piece::PAWN);
+            // captured = m_astate.state
+            //                .piece_at(board::Bitboard(move.to()),
+            //                          !m_astate.state.to_move)
+            //                .value_or(board::Piece::PAWN);
+            std::optional<board::ColouredPiece> captured_cp = m_astate.state.piece_at(board::Bitboard(move.to()), !m_astate.state.to_move);
+            captured = captured_cp.has_value() ? captured_cp->piece : board::Piece::PAWN;
         }
 
         MadeMove made{.move = move,
@@ -332,7 +336,7 @@ struct SearchNode {
         // Check legality
         // TODO: roll this into the the update_bitboards switch
         board::Bitboard to_move_king = m_astate.state.copy_bitboard(
-            board::Piece::KING, m_astate.state.to_move);
+            {m_astate.state.to_move, board::Piece::KING});
 
         if (m_mover.is_attacked(m_astate, to_move_king.single_bitscan_forward(),
                                 m_astate.state.to_move)) {
@@ -388,9 +392,9 @@ struct SearchNode {
         // Undo promotions
         if (move::is_promotion(type)) {
             board::Bitboard &promo_bb = m_astate.state.get_bitboard(
-                move::promoted_piece(type), to_move);
+                {to_move, move::promoted_piece(type)});
             board::Bitboard &pawn_bb =
-                m_astate.state.get_bitboard(board::Piece::PAWN, to_move);
+                m_astate.state.get_bitboard({to_move, board::Piece::PAWN});
             swap_piece(to_bb, promo_bb, pawn_bb);
         }
 
@@ -405,9 +409,9 @@ struct SearchNode {
             const int side_idx = castling_info.side_idx(side);
 
             board::Bitboard &king_bb =
-                m_astate.state.get_bitboard(board::Piece::KING, to_move);
+                m_astate.state.get_bitboard({to_move, board::Piece::KING});
             board::Bitboard &rook_bb =
-                m_astate.state.get_bitboard(board::Piece::ROOK, to_move);
+                m_astate.state.get_bitboard({to_move, board::Piece::ROOK});
 
             // Move the king back
             move_piece(castling_info.king_destinations[(int)to_move][side_idx],
@@ -422,16 +426,21 @@ struct SearchNode {
         // Move the piece normally
 
         // TODO: is it faster to store the piece type which was moved?
+        // board::Bitboard &moved =
+        //     move::is_pawn_move(type)
+        //         ? m_astate.state.get_bitboard({to_move, board::Piece::PAWN})
+        //         : *m_astate.state.bitboard_containing(to_bb, to_move);
         board::Bitboard &moved =
             move::is_pawn_move(type)
-                ? m_astate.state.get_bitboard(board::Piece::PAWN, to_move)
-                : *m_astate.state.bitboard_containing(to_bb, to_move);
+                ? m_astate.state.get_bitboard({to_move, board::Piece::PAWN})
+                : m_astate.state.get_bitboard(
+                      m_astate.state.piece_at(to_bb, to_move).value());
 
         move_piece(to_bb, from_bb, moved, to_move);
 
         if (move::is_capture(type)) {
             board::Bitboard &removed = m_astate.state.get_bitboard(
-                unmake.info.captured_piece, !to_move);
+                {!to_move, unmake.info.captured_piece});
             board::Square captured =
                 (type == move::MoveType::CAPTURE_EP)
                     ? board::Square(to.file(),

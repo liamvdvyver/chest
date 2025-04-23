@@ -2,6 +2,7 @@
 #define STATE_H
 
 #include "board.h"
+#include "incremental.h"
 
 #include <cstdint>
 #include <iostream>
@@ -177,36 +178,30 @@ struct State {
 
     // Position accessors
 
-    constexpr board::Bitboard &get_bitboard(board::Piece piece,
-                                            board::Colour colour) {
-        return m_pieces[(int)colour][(int)piece];
+    constexpr board::Bitboard &get_bitboard(board::ColouredPiece cp) {
+        return m_pieces[(int)cp.colour][(int)cp.piece];
     }
 
-    constexpr board::Bitboard copy_bitboard(board::Piece piece,
-                                            board::Colour colour) const {
-        return m_pieces[(int)colour][(int)piece];
+    constexpr board::Bitboard copy_bitboard(board::ColouredPiece cp) const {
+        return m_pieces[(int)cp.colour][(int)cp.piece];
     }
 
     // Castling rights accessors
 
-    constexpr bool get_castling_rights(board::Piece side,
-                                       board::Colour colour) const {
-        return (1) &
-               (m_castling_rights >> castling_rights_offset(side, colour));
+    constexpr bool get_castling_rights(board::ColouredPiece cp) const {
+        return (1) & (m_castling_rights >> castling_rights_offset(cp));
     }
 
     // TODO: test, and make it faster
-    constexpr void set_castling_rights(board::Piece side, board::Colour colour,
-                                       bool rights) {
-        int selected_bit = (1 << castling_rights_offset(side, colour));
-        int selected_bit_val = (rights << castling_rights_offset(side, colour));
+    constexpr void set_castling_rights(board::ColouredPiece cp, bool rights) {
+        int selected_bit = (1 << castling_rights_offset(cp));
+        int selected_bit_val = (rights << castling_rights_offset(cp));
         m_castling_rights =
             (m_castling_rights & ~selected_bit) ^ selected_bit_val;
     }
-    constexpr void set_both_castling_rights(board::Colour colour,
-                                       bool rights) {
+    constexpr void set_both_castling_rights(board::Colour colour, bool rights) {
         for (board::Piece side : CastlingInfo::castling_sides) {
-            set_castling_rights(side, colour, rights);
+            set_castling_rights({.colour = colour, .piece = side}, rights);
         }
     }
     // Union of piece bitboards, per side
@@ -239,33 +234,35 @@ struct State {
     }
 
     // First bitboard matching mask
-    constexpr board::Bitboard *bitboard_containing(board::Bitboard bit) {
-        board::Bitboard *ret = bitboard_containing(bit, board::Colour::WHITE);
-        return ret ? ret : bitboard_containing(bit, board::Colour::BLACK);
-    }
-
-    // First piece matching mask
-    constexpr std::optional<board::ColouredPiece> const
-    piece_at(board::Bitboard bit) const {
-        for (int colourIdx = 0; colourIdx <= 1; colourIdx++) {
-            for (int pieceIdx = 0; pieceIdx < board::n_pieces; pieceIdx++) {
-
-                if (!(m_pieces[colourIdx][pieceIdx] & bit).empty()) {
-                    return {{.piece = (board::Piece)pieceIdx,
-                             .colour = (board::Colour)colourIdx}};
-                }
-            }
-        }
-        return {};
-    }
-
+    // constexpr board::Bitboard *bitboard_containing(board::Bitboard bit) {
+    //     board::Bitboard *ret = bitboard_containing(bit, board::Colour::WHITE);
+    //     return ret ? ret : bitboard_containing(bit, board::Colour::BLACK);
+    // }
+    //
+    // // First piece matching mask
+    // constexpr std::optional<board::ColouredPiece> const
+    // piece_at(board::Bitboard bit) const {
+    //     for (int colourIdx = 0; colourIdx <= 1; colourIdx++) {
+    //         for (int pieceIdx = 0; pieceIdx < board::n_pieces; pieceIdx++) {
+    //
+    //             if (!(m_pieces[colourIdx][pieceIdx] & bit).empty()) {
+    //                 return {{
+    //                     .colour = (board::Colour)colourIdx,
+    //                     .piece = (board::Piece)pieceIdx,
+    //                 }};
+    //             }
+    //         }
+    //     }
+    //     return {};
+    // }
+    //
     // First piece matching mask of given colour
-    constexpr std::optional<board::Piece> const
+    constexpr std::optional<board::ColouredPiece> const
     piece_at(board::Bitboard bit, board::Colour colour) const {
         for (int pieceIdx = 0; pieceIdx < board::n_pieces; pieceIdx++) {
 
             if (!(m_pieces[(int)colour][pieceIdx] & bit).empty()) {
-                return (board::Piece)pieceIdx;
+                return {{colour, (board::Piece)pieceIdx}};
             }
         }
         return {};
@@ -307,6 +304,23 @@ struct State {
         }
     };
 
+    //
+    // Satisfy IncrementallyUpdateable
+    //
+
+    void move(board::Bitboard from_bb, board::Bitboard to_bb,
+              board::ColouredPiece(cp)) {
+        get_bitboard(cp) ^= (from_bb ^ to_bb);
+    };
+    void toggle(board::Bitboard loc, board::ColouredPiece(cp)) {
+        get_bitboard(cp) ^= loc;
+    };
+    // void swap_sameside(bb, colour, piece, piece)
+    // void swap(bb, cp, cp)
+    // void capture(bb, cp, cp)
+    // void remove_castling_rights(bb, cp)
+    // void remove_castling_rights(colour)
+
   private:
     // Position of all pieces for each player
     board::Bitboard m_pieces[board::n_colours][board::n_pieces];
@@ -315,10 +329,9 @@ struct State {
     uint8_t m_castling_rights;
 
     // Helper: defines layout of castling rights bitset
-    constexpr int castling_rights_offset(board::Piece side,
-                                         board::Colour colour) const {
+    constexpr int castling_rights_offset(board::ColouredPiece cp) const {
 
-        return (2 * (int)colour) + CastlingInfo::side_idx(side);
+        return (2 * (int)cp.colour) + CastlingInfo::side_idx(cp.piece);
     }
 };
 
@@ -365,13 +378,10 @@ struct AugmentedState {
         return side_occupancy(!state.to_move);
     }
 
-    //
-    // Make/unmake move
-    //
-
   private:
     board::Bitboard m_side_occupancy[board::n_colours];
 };
+// static_assert(IncrementallyUpdateable<State>);
 }; // namespace state
 
 #endif

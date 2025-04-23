@@ -381,8 +381,8 @@ static constexpr int n_pieces = 6; // For array sizing
 
 // Container for piece of a certain colour
 struct ColouredPiece {
-    board::Piece piece;
     board::Colour colour;
+    board::Piece piece;
 };
 
 // IO in implementation

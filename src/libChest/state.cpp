@@ -59,7 +59,7 @@ State::State(const fen_t &fen_string) : State::State() {
                                        ? board::Colour::WHITE
                                        : board::Colour::BLACK;
             board::Piece piece = board::io::from_char(placements[charIdx]);
-            get_bitboard(piece, colour) |=
+            get_bitboard({.colour = colour, .piece = piece}) |=
                 board::Bitboard(board::Square(colIdx, rowIdx));
             colIdx++;
         };
@@ -102,15 +102,18 @@ State::State(const fen_t &fen_string) : State::State() {
                                                         : board::Colour::BLACK;
             side = board::io::from_char(castling_rights_str.at(i));
 
+            board::ColouredPiece castling_cp = {.colour = colour,
+                                                .piece = side};
+
             if (side != board::Piece::QUEEN && side != board::Piece::KING)
                 throw std::invalid_argument(
                     "Castling rights must specify queen or king only");
 
-            if (get_castling_rights(side, colour))
+            if (get_castling_rights(castling_cp))
                 throw std::invalid_argument(
                     "Castling rights may not be redundant");
 
-            set_castling_rights(side, colour, true);
+            set_castling_rights(castling_cp, true);
         }
     }
 
@@ -159,16 +162,16 @@ std::string State::to_fen() const {
     ret += ' ';
 
     // Castling rights
-    if (get_castling_rights(board::Piece::KING, board::Colour::WHITE)) {
+    if (get_castling_rights({board::Colour::WHITE, board::Piece::KING})) {
         ret += 'K';
     }
-    if (get_castling_rights(board::Piece::QUEEN, board::Colour::WHITE)) {
+    if (get_castling_rights({board::Colour::WHITE, board::Piece::QUEEN})) {
         ret += 'Q';
     }
-    if (get_castling_rights(board::Piece::KING, board::Colour::BLACK)) {
+    if (get_castling_rights({board::Colour::BLACK, board::Piece::KING})) {
         ret += 'k';
     }
-    if (get_castling_rights(board::Piece::QUEEN, board::Colour::BLACK)) {
+    if (get_castling_rights({board::Colour::BLACK, board::Piece::QUEEN})) {
         ret += 'q';
     }
     ret += ' ';

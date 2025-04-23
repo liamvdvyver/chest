@@ -198,7 +198,7 @@ class PiecewiseFactory : public TMover {
   public:
     constexpr static board::Bitboard
     attackers(const state::AugmentedState &astate) {
-        return astate.state.copy_bitboard(piece, astate.state.to_move);
+        return astate.state.copy_bitboard({astate.state.to_move, piece});
     }
 };
 
@@ -210,9 +210,9 @@ class SlidingPiecewiseFactory : public TMover {
   public:
     constexpr static board::Bitboard
     attackers(const state::AugmentedState &astate) {
-        return astate.state.copy_bitboard(piece, astate.state.to_move) |
-               astate.state.copy_bitboard(board::Piece::QUEEN,
-                                          astate.state.to_move);
+        return astate.state.copy_bitboard({astate.state.to_move, piece}) |
+               astate.state.copy_bitboard(
+                   {astate.state.to_move, board::Piece::QUEEN});
     }
 };
 
@@ -474,8 +474,8 @@ template <MultiMoveGenerator TMover> class RookMoverFactory : TMover {
             MoveType::CASTLE);
 
         // Check both sides
-        if (astate.state.get_castling_rights(board::Piece::KING,
-                                             astate.state.to_move)) {
+        if (astate.state.get_castling_rights(
+                {astate.state.to_move, board::Piece::KING})) {
             board::Bitboard ks_mask =
                 astate.castling_info.rook_mask[(int)astate.state.to_move]
                                               [state::CastlingInfo::side_idx(
@@ -487,8 +487,8 @@ template <MultiMoveGenerator TMover> class RookMoverFactory : TMover {
             }
         }
 
-        if (astate.state.get_castling_rights(board::Piece::QUEEN,
-                                             astate.state.to_move)) {
+        if (astate.state.get_castling_rights(
+                {astate.state.to_move, board::Piece::QUEEN})) {
             board::Bitboard qs_mask =
                 astate.castling_info.rook_mask[(int)astate.state.to_move]
                                               [state::CastlingInfo::side_idx(
@@ -557,17 +557,17 @@ template <bool InOrder> class AllMoveGenerator {
                                board::Square sq, board::Colour colour) const {
 
         return (m_pawn_attacker(sq, colour) &
-                astate.state.copy_bitboard(board::Piece::PAWN, !colour)) ||
+                astate.state.copy_bitboard({!colour, board::Piece::PAWN})) ||
                (m_knight_attacker(sq) &
-                astate.state.copy_bitboard(board::Piece::KNIGHT, !colour)) ||
+                astate.state.copy_bitboard({!colour, board::Piece::KNIGHT})) ||
                (m_bishop_attacker(sq, astate.total_occupancy) &
-                (astate.state.copy_bitboard(board::Piece::BISHOP, !colour) |
-                 astate.state.copy_bitboard(board::Piece::QUEEN, !colour))) ||
+                (astate.state.copy_bitboard({!colour, board::Piece::BISHOP}) |
+                 astate.state.copy_bitboard({!colour, board::Piece::QUEEN}))) ||
                (m_rook_attacker(sq, astate.total_occupancy) &
-                (astate.state.copy_bitboard(board::Piece::ROOK, !colour) |
-                 astate.state.copy_bitboard(board::Piece::QUEEN, !colour))) ||
+                (astate.state.copy_bitboard({!colour, board::Piece::ROOK}) |
+                 astate.state.copy_bitboard({!colour, board::Piece::QUEEN}))) ||
                (m_king_attacker(sq) &
-                (astate.state.copy_bitboard(board::Piece::KING, !colour)));
+                (astate.state.copy_bitboard({!colour, board::Piece::KING})));
     }
 
   private:
