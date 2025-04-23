@@ -49,104 +49,44 @@ struct SearchNode {
         m_astate.state.halfmove_clock++;
     }
 
-    // Helpers: update astate/state bitboards
-    //
-    constexpr void move_piece(board::Bitboard from, board::Bitboard to,
-                              board::Bitboard &moved, board::Colour side) {
-        board::Bitboard from_to = from ^ to;
-        moved ^= from_to;
-        m_astate.side_occupancy(side) ^= from_to;
-        m_astate.total_occupancy ^= from_to;
-    }
-
-    // Update one piece's bitboard (for player to move), and incrementally
-    // update astate occupancy
-    constexpr void move_piece(board::Bitboard from, board::Bitboard to,
-                              board::Bitboard &moved) {
-        move_piece(from, to, moved, m_astate.state.to_move);
-    }
-
-    // Update (add/remove) one piece's bitboard based on a capture, and
-    // incrementally update astate occupancy
-    constexpr void toggle_piece(board::Bitboard removed_loc,
-                                board::Bitboard &removed_bb,
-                                board::Colour removed_colour) {
-        removed_bb ^= removed_loc;
-        m_astate.side_occupancy(removed_colour) ^= removed_loc;
-        m_astate.total_occupancy ^= removed_loc;
-    }
-
-    // Swap the piece occupying a square from one bitboard to another
-    // no update made to occupancy (since total occ doesn't change)
-    constexpr void swap_piece(board::Bitboard loc, board::Bitboard &old_bb,
-                              board::Bitboard &new_bb) {
-        old_bb ^= loc;
-        new_bb ^= loc;
-    }
-
-    // Swap occupancy from one player to another,
-    // no update made to state bitboards
-    constexpr void swap_occ(board::Bitboard loc) {
-        m_astate.side_occupancy() ^= loc;
-        m_astate.opponent_occupancy() ^= loc;
-    }
-
-    // Update the halfmove clock, bitboards, castling rights (captured piece
-    // only), and occupancy for a capture.
-    // Does not update castling rights for the attacker, since type might be
-    // known before calling (e.g. pawns moves).
-    constexpr void capture(board::Bitboard attacker_singleton,
-                           board::Square victim_sq,
-                           board::Bitboard victim_singleton,
-                           board::Bitboard &attacker, board::Bitboard &victim) {
-
-        const board::Bitboard from_to_bb =
-            attacker_singleton ^ victim_singleton;
-
-        // Reset halfmove clock
-        m_astate.state.halfmove_clock = 0;
-
-        // Update castling rights for potentially captured rooks
-        update_rk_castling_rights(victim_sq, !m_astate.state.to_move);
-
-        // Update bitboards
-        attacker ^= from_to_bb;
-        victim ^= victim_singleton;
-
-        // Update occupancy
-        m_astate.opponent_occupancy() ^= victim_singleton;
-        m_astate.side_occupancy() ^= from_to_bb;
-        m_astate.total_occupancy ^= attacker_singleton;
-    };
-
     // Helpers: make moves
 
-    // Move the king, remove castling rights, and return the final location for
-    // the bishop.
-    // Assumes castling is legal and from_bb is correct.
-    constexpr board::Bitboard castle(board::Square from) {
+    // Assumes move is pseudo-legal, returns whether it was legal.
+    // If legal, moves the king and the bishop and removes castling rights.
+    constexpr bool castle(board::Square from, board::Colour to_move) {
 
-        const board::Colour to_move = m_astate.state.to_move;
+        bool legal = true;
+
+        // Constants for convinience
         const CastlingInfo &castling_info = m_astate.castling_info;
 
-        // Get side (assumed valid)
-        const std::optional<board::Piece> opt_side =
-            castling_info.get_side(from, to_move);
-        assert(opt_side.has_value());
-        board::Piece side = opt_side.value();
-        int side_idx = CastlingInfo::side_idx(side);
+        // Get (queen/king)-side
+        const std::optional<board::Piece> side = castling_info.get_side(from, to_move);
+        board::ColouredPiece cp = {to_move, side.value()};
+
+        // Check legality
+        for (board::Bitboard sq :
+             castling_info.get_king_mask(cp).singletons()) {
+            if (m_mover.is_attacked(m_astate, sq.single_bitscan_forward(),
+                                    to_move)) {
+                legal = false;
+            }
+        }
 
         // Move the king
-        move_piece(board::Bitboard(castling_info.king_start[(int)to_move]),
-                   board::Bitboard(
-                       castling_info.king_destinations[(int)to_move][side_idx]),
-                   m_astate.state.get_bitboard({to_move, board::Piece::KING}));
+        m_astate.move(board::Bitboard(castling_info.get_king_start(to_move)),
+                      board::Bitboard(castling_info.get_king_destination(cp)),
+                      {to_move, board::Piece::KING});
+
+        // Move the rook
+        m_astate.move(board::Bitboard(castling_info.get_rook_start(cp)),
+                      board::Bitboard(castling_info.get_rook_destination(cp)),
+                      {to_move, board::Piece::ROOK});
 
         // Update rights
-        m_astate.state.set_both_castling_rights(to_move, false);
+        m_astate.state.remove_castling_rights(to_move);
 
-        // Set to_bb for rook
-        return castling_info.rook_destinations[(int)to_move][side_idx];
+        return legal;
     }
 
     // Given the colour/location of a (potential) rook which is moved/captured,
@@ -156,13 +96,10 @@ struct SearchNode {
     update_rk_castling_rights(board::Square loc, board::Colour player) {
         std::optional<board::Piece> ret =
             m_astate.castling_info.get_side(loc, player);
-
         if (ret.has_value()) {
-            m_astate.state.set_castling_rights({player, ret.value()}, false);
-            return ret;
+            m_astate.remove_castling_rights({player, ret.value()});
         }
-
-        return {};
+        return ret;
     }
 
     // Given the colour/location of a (potential) king which is moved update
@@ -170,10 +107,8 @@ struct SearchNode {
     // at this square, false otherwise.
     constexpr bool update_kg_castling_rights(board::Square loc,
                                              board::Colour player) {
-        if (m_astate.castling_info.king_start[(int)player] == loc) {
-            for (board::Piece side : CastlingInfo::castling_sides) {
-                m_astate.state.set_castling_rights({player, side}, false);
-            }
+        if (m_astate.castling_info.get_king_start(player) == loc) {
+            m_astate.state.remove_castling_rights(player);
             return true;
         }
         return false;
@@ -181,192 +116,113 @@ struct SearchNode {
 
     // Move handlers
 
-    // Pawns are complicated, this handles it.
-    // TODO: clean it up.
-    constexpr void handle_pawn_move(MadeMove mmove) {
-
-        // Reset halfmove clock
-        m_astate.state.halfmove_clock = 0;
-
-        const board::Colour to_move = m_astate.state.to_move;
-        board::Bitboard &moved =
-            m_astate.state.get_bitboard({to_move, board::Piece::PAWN});
-
-        const board::Square from = mmove.move.from();
-        const board::Square to = mmove.move.to();
-        const move::MoveType type = mmove.move.type();
-        board::Bitboard &removed =
-            m_astate.state.get_bitboard({!to_move, mmove.info.captured_piece});
-
-        const board::Bitboard from_bb = board::Bitboard(from);
-        const board::Bitboard to_bb = board::Bitboard(to);
-
-        // Handle special cases: single/double push, ep capture
-
-        switch (type) {
-        case move::MoveType::SINGLE_PUSH: {
-            move_piece(from_bb, to_bb, moved);
-            return;
-        }
-        case move::MoveType::DOUBLE_PUSH: {
-            const uint8_t ep_rank = board::push_rank[(int)to_move];
-            m_astate.state.ep_square = board::Square(from.file(), ep_rank);
-            move_piece(from_bb, to_bb, moved);
-            return;
-        }
-        case (move::MoveType::CAPTURE_EP): {
-            // Rank of captured piece
-            uint8_t captured_rank = board::double_push_rank[(int)!to_move];
-
-            board::Bitboard &removed =
-                m_astate.state.get_bitboard({!to_move, board::Piece::PAWN});
-            board::Bitboard removed_loc =
-                board::Bitboard(board::Square(to.file(), captured_rank));
-            move_piece(removed_loc, to_bb, removed, !to_move);
-            capture(from_bb, to, to_bb, moved, removed);
-            return;
-        }
-        default:
-            break;
-        }
-
-        // Get pawn in new location
-        if (move::is_capture(type)) {
-            capture(from_bb, to, to_bb, moved, removed);
-        } else {
-
-            // Move to new location
-            move_piece(from_bb, to_bb, moved);
-        }
-
-        // Swap for promoted piece
-        if (move::is_promotion(type)) {
-
-            board::Piece promoted = move::promoted_piece(type);
-            swap_piece(to_bb, moved,
-                       m_astate.state.get_bitboard({to_move, promoted}));
-        }
-    };
-
-    // Update bitboards for a move, updates castling rights, resets the halfmove
-    // clock
-    constexpr void update_bitboards(MadeMove mmove) {
-
-        // Null move: nothing to do
-        if (!mmove.move) {
-            return;
-        }
-
-        const board::Square from = mmove.move.from();
-        const board::Square to = mmove.move.to();
-        const move::MoveType type = mmove.move.type();
-        const board::Colour to_move = m_astate.state.to_move;
-
-        board::Bitboard from_bb = board::Bitboard(mmove.move.from());
-        board::Bitboard to_bb = board::Bitboard(mmove.move.to());
-
-        // Gets set below
-        // TODO: do this better
-
-        std::optional<board::Piece> moved_type =
-            m_astate.state.piece_at(from_bb, to_move)->piece;
-        if (moved_type == board::Piece::PAWN) {
-            m_astate.state.halfmove_clock = 0;
-        }
-        assert(moved_type.has_value());
-        board::Bitboard &moved =
-            m_astate.state.get_bitboard({to_move, moved_type.value()});
-
-        switch (type) {
-        case move::MoveType::NORMAL:
-            update_kg_castling_rights(from, to_move);
-            update_rk_castling_rights(from, to_move);
-            return move_piece(from_bb, to_bb, moved);
-        case move::MoveType::CAPTURE: {
-
-            update_kg_castling_rights(from, to_move);
-            update_rk_castling_rights(from, to_move);
-            board::Bitboard &removed =
-            *m_astate.state.bitboard_containing(to_bb, !to_move);
-            // board::Bitboard &removed = m_astate.state.get_bitboard(
-            //     m_astate.state.piece_at(to_bb, !to_move).value());
-            return capture(from_bb, to, to_bb, moved, removed);
-        }
-        case move::MoveType::CASTLE: {
-            to_bb = castle(from);
-            return move_piece(from_bb, to_bb, moved);
-        }
-        default: {
-            assert(move::is_pawn_move(type));
-            return handle_pawn_move(mmove);
-        }
-        }
-    }
-
-    // Returns true if the move was legal, false if it either:
+    // Returns true if the move was legal, false if:
     // * Leaves the player who moved in check,
     // * Was a castle starting/passing through check
+    // Move is pushed to the stack.
     constexpr bool make_move(move::Move move) {
 
-        bool was_legal = true;
+        // Default values, update as needed
+        MadeMove made{.move = move, .info = m_astate.state.irreversible()};
 
-        // TODO: for flexibility in using non-vector containers,
-        // use maxdepth insteead of push/pop back
+        // Get some constants
+        const board::Colour to_move = m_astate.state.to_move;
+        const board::Bitboard from_bb = board::Bitboard(move.from());
+        const board::Bitboard to_bb = board::Bitboard(move.to());
 
-        board::Piece captured = (board::Piece)0;
-        if (move::is_capture(move.type())) {
-            // Assumed valid, unless en-passant
-            // captured = m_astate.state
-            //                .piece_at(board::Bitboard(move.to()),
-            //                          !m_astate.state.to_move)
-            //                .value_or(board::Piece::PAWN);
-            std::optional<board::ColouredPiece> captured_cp = m_astate.state.piece_at(board::Bitboard(move.to()), !m_astate.state.to_move);
-            captured = captured_cp.has_value() ? captured_cp->piece : board::Piece::PAWN;
-        }
-
-        MadeMove made{.move = move,
-                      .info = m_astate.state.irreversible(captured)};
-
-        m_made_moves.push_back(made);
+        // Prepare for next move
+        // Early returns still need to push the made move
         tick();
         m_astate.state.ep_square = {};
-
-        update_bitboards(made);
-
-        // Check legality
-        // TODO: roll this into the the update_bitboards switch
-        board::Bitboard to_move_king = m_astate.state.copy_bitboard(
-            {m_astate.state.to_move, board::Piece::KING});
-
-        if (m_mover.is_attacked(m_astate, to_move_king.single_bitscan_forward(),
-                                m_astate.state.to_move)) {
-            was_legal = false;
-        }
-
-        // Special case: castle
-        if (was_legal && move.type() == move::MoveType::CASTLE) {
-
-            std::optional<board::Piece> side = m_astate.castling_info.get_side(
-                move.from(), m_astate.state.to_move);
-            assert(side.has_value());
-            const int side_idx = CastlingInfo::side_idx(side.value());
-
-            board::Bitboard king_mask =
-                m_astate.castling_info
-                    .king_mask[(int)m_astate.state.to_move][side_idx];
-            for (board::Bitboard sq : king_mask.singletons()) {
-                if (m_mover.is_attacked(m_astate, sq.single_bitscan_forward(),
-                                        m_astate.state.to_move)) {
-                    was_legal = false;
-                    break;
-                }
-            };
-        }
-
-        // Next player
-        m_astate.state.to_move = !m_astate.state.to_move;
-
         m_cur_depth++;
+
+        // Find moved piece (avoid lookup if pawn move)
+        board::ColouredPiece moved;
+        if (move::is_pawn_move(move.type())) {
+            moved = {to_move, board::Piece::PAWN};
+        } else {
+            moved = m_astate.state.piece_at(from_bb, to_move).value();
+        }
+
+        // Handle castles
+        if (move.type() == move::MoveType::CASTLE) {
+            m_astate.state.to_move = !m_astate.state.to_move;
+            m_made_moves.push_back(made);
+            return castle(move.from(), to_move);
+        } else {
+
+            // Move
+            m_astate.move(from_bb, to_bb, moved);
+
+            // Handle capture
+            if (move::is_capture(move.type())) {
+
+                // En-passant: first move piece back to the target square
+                // TODO: is it faster to use the en-passant info from state?
+                board::ColouredPiece captured;
+                if (move.type() == move::MoveType::CAPTURE_EP) {
+
+                    captured = {!to_move, board::Piece::PAWN};
+
+                    // Find the square of the double-pushed pawn
+                    uint8_t dp_rank = board::double_push_rank[(int)!to_move];
+                    board::Square dp_square{move.to().file(), dp_rank};
+                    m_astate.move(board::Bitboard(dp_square), to_bb, captured);
+
+                    // Otherwise, find the piece
+                } else {
+
+                    captured = m_astate.state.piece_at(to_bb, !to_move).value();
+
+                    // Update rights if a rook was taken
+                    update_rk_castling_rights(move.to(), !to_move);
+                }
+
+                // Remove the captured piece
+                m_astate.toggle(to_bb, captured);
+
+                // Update the made move
+                made.info.captured_piece = captured.piece;
+            }
+
+            // Handle pawn moves; wrapping conditional avoids branching when we
+            // know it is not a pawn move
+            // TODO: is it quicker to just use the switch?
+            if (moved.piece == board::Piece::PAWN) {
+
+                m_astate.state.halfmove_clock = 0;
+
+                // Set the en-passant square
+                if (move.type() == move::MoveType::DOUBLE_PUSH) {
+                    m_astate.state.ep_square = board::Square(
+                        move.to().file(), board::push_rank[(int)to_move]);
+                }
+
+                // Promote
+                else if (move::is_promotion(move.type())) {
+                    board::Piece promoted = move::promoted_piece(move.type());
+                    m_astate.swap_sameside(to_bb, to_move, board::Piece::PAWN,
+                                           promoted);
+                }
+
+            } else {
+
+                // If the piece wasn't a PAWN,
+                // update castling rights for moved piece
+                update_rk_castling_rights(move.from(), to_move);
+                update_kg_castling_rights(move.from(), to_move);
+            }
+        }
+
+        // Legality check
+        bool was_legal = !m_mover.is_attacked(
+            m_astate,
+            m_astate.state.copy_bitboard({to_move, board::Piece::KING})
+                .single_bitscan_forward(),
+            to_move);
+
+        m_astate.state.to_move = !m_astate.state.to_move;
+        m_made_moves.push_back(made);
         return was_legal;
     };
 
@@ -391,11 +247,8 @@ struct SearchNode {
 
         // Undo promotions
         if (move::is_promotion(type)) {
-            board::Bitboard &promo_bb = m_astate.state.get_bitboard(
-                {to_move, move::promoted_piece(type)});
-            board::Bitboard &pawn_bb =
-                m_astate.state.get_bitboard({to_move, board::Piece::PAWN});
-            swap_piece(to_bb, promo_bb, pawn_bb);
+            m_astate.swap_sameside(to_bb, to_move, move::promoted_piece(type),
+                                   board::Piece::PAWN);
         }
 
         // Undo captures
@@ -406,47 +259,40 @@ struct SearchNode {
             const CastlingInfo &castling_info = m_astate.castling_info;
             const board::Piece side =
                 castling_info.get_side(from, to_move).value();
-            const int side_idx = castling_info.side_idx(side);
+            const board::ColouredPiece cp = {to_move, side};
 
-            board::Bitboard &king_bb =
-                m_astate.state.get_bitboard({to_move, board::Piece::KING});
-            board::Bitboard &rook_bb =
-                m_astate.state.get_bitboard({to_move, board::Piece::ROOK});
+            board::ColouredPiece king = {to_move, board::Piece::KING};
+            board::ColouredPiece rook = {to_move, board::Piece::ROOK};
 
             // Move the king back
-            move_piece(castling_info.king_destinations[(int)to_move][side_idx],
-                       to, king_bb);
+            m_astate.move(castling_info.get_king_destination(cp), to, king);
 
             // Move the rook back
-            move_piece(castling_info.rook_destinations[(int)to_move][side_idx],
-                       from, rook_bb);
+            m_astate.move(castling_info.get_rook_destination(cp), from, rook);
 
             return;
         }
         // Move the piece normally
 
-        // TODO: is it faster to store the piece type which was moved?
-        // board::Bitboard &moved =
-        //     move::is_pawn_move(type)
-        //         ? m_astate.state.get_bitboard({to_move, board::Piece::PAWN})
-        //         : *m_astate.state.bitboard_containing(to_bb, to_move);
-        board::Bitboard &moved =
-            move::is_pawn_move(type)
-                ? m_astate.state.get_bitboard({to_move, board::Piece::PAWN})
-                : m_astate.state.get_bitboard(
-                      m_astate.state.piece_at(to_bb, to_move).value());
+        board::ColouredPiece moved;
+        if (move::is_pawn_move(type)) {
+            moved = {.colour = to_move, .piece = board::Piece::PAWN};
+        } else {
+            moved = m_astate.state.piece_at(to_bb, to_move).value();
+        }
 
-        move_piece(to_bb, from_bb, moved, to_move);
+        m_astate.move(from_bb, to_bb, moved);
 
         if (move::is_capture(type)) {
-            board::Bitboard &removed = m_astate.state.get_bitboard(
-                {!to_move, unmake.info.captured_piece});
+            board::ColouredPiece removed = {!to_move,
+                                            unmake.info.captured_piece};
+
             board::Square captured =
                 (type == move::MoveType::CAPTURE_EP)
                     ? board::Square(to.file(),
                                     board::double_push_rank[(int)!to_move])
                     : to;
-            toggle_piece(board::Bitboard(captured), removed, !to_move);
+            m_astate.toggle(board::Bitboard(captured), removed);
         }
 
         return;
@@ -479,6 +325,8 @@ struct SearchNode {
     // nodes
     constexpr PerftResult perft() {
 
+        // std::cout << m_astate.state.pretty() << std::endl;
+
         // Cutoff
         if (bottomed_out()) {
             return {.perft = 1, .nodes = 0};
@@ -502,11 +350,21 @@ struct SearchNode {
         return ret;
     };
 
+    // Clears move buffers and sets max_depth
+    void prep_search(int depth) {
+
+        assert(depth <= MaxDepth);
+
+        m_max_depth = depth;
+        m_cur_depth = 0;
+        m_made_moves.clear();
+        m_found_moves.clear();
+    };
+
     AugmentedState &m_astate;
     int m_max_depth;
     int m_cur_depth;
 
-    // TODO: try different (stack-based) containers
     const T &m_mover;
     svec<MadeMove, MaxDepth> m_made_moves;
     svec<MoveBuffer, MaxDepth> m_found_moves;

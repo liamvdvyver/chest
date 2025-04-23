@@ -445,58 +445,20 @@ template <MultiMoveGenerator TMover> class RookMoverFactory : TMover {
     void get_castles(const state::AugmentedState &astate, MoveBuffer &moves,
                      board::Bitboard total_occ) const {
 
-        // Prebaked castle moves
-        // TODO: calculate in State::CastlingInfo, or something else?
-        // This is messy and I don't like it.
-        const move::Move b_ks_move = move::Move(
-            astate.castling_info
-                .rook_start[(int)board::Colour::BLACK]
-                           [state::CastlingInfo::side_idx(board::Piece::KING)],
-            astate.castling_info.king_start[(int)board::Colour::BLACK],
-            MoveType::CASTLE);
-        const move::Move b_qs_move = move::Move(
-            astate.castling_info
-                .rook_start[(int)board::Colour::BLACK]
-                           [state::CastlingInfo::side_idx(board::Piece::QUEEN)],
-            astate.castling_info.king_start[(int)board::Colour::BLACK],
-            MoveType::CASTLE);
-        const move::Move w_ks_move = move::Move(
-            astate.castling_info
-                .rook_start[(int)board::Colour::WHITE]
-                           [state::CastlingInfo::side_idx(board::Piece::KING)],
-            astate.castling_info.king_start[(int)board::Colour::WHITE],
-            MoveType::CASTLE);
-        const move::Move w_qs_move = move::Move(
-            astate.castling_info
-                .rook_start[(int)board::Colour::WHITE]
-                           [state::CastlingInfo::side_idx(board::Piece::QUEEN)],
-            astate.castling_info.king_start[(int)board::Colour::WHITE],
-            MoveType::CASTLE);
+        for (board::Piece side : state::CastlingInfo::castling_sides) {
 
-        // Check both sides
-        if (astate.state.get_castling_rights(
-                {astate.state.to_move, board::Piece::KING})) {
-            board::Bitboard ks_mask =
-                astate.castling_info.rook_mask[(int)astate.state.to_move]
-                                              [state::CastlingInfo::side_idx(
-                                                  board::Piece::KING)];
-            board::Bitboard ks_blockers = ks_mask & total_occ;
-            if (ks_blockers.empty()) {
-                moves.push_back((bool)astate.state.to_move ? w_ks_move
-                                                           : b_ks_move);
-            }
-        }
-
-        if (astate.state.get_castling_rights(
-                {astate.state.to_move, board::Piece::QUEEN})) {
-            board::Bitboard qs_mask =
-                astate.castling_info.rook_mask[(int)astate.state.to_move]
-                                              [state::CastlingInfo::side_idx(
-                                                  board::Piece::QUEEN)];
-            board::Bitboard qs_blockers = qs_mask & total_occ;
-            if (qs_blockers.empty()) {
-                moves.push_back((bool)astate.state.to_move ? w_qs_move
-                                                           : b_qs_move);
+            board::ColouredPiece cp = {astate.state.to_move, side};
+            if (astate.state.get_castling_rights(cp)) {
+                board::Bitboard rk_mask =
+                    astate.castling_info.get_rook_mask(cp);
+                board::Bitboard ks_blockers = rk_mask & total_occ;
+                if (ks_blockers.empty()) {
+                    moves.push_back(
+                        move::Move(astate.castling_info.get_rook_start(cp),
+                                   astate.castling_info.get_king_start(
+                                       astate.state.to_move),
+                                   MoveType::CASTLE));
+                }
             }
         }
     };
@@ -514,7 +476,7 @@ static_assert(MultiMoveGenerator<RookMover>);
 // Gets all the legal moves in a position,
 // composes all neccessary MultiMoveGenerator specialisers.
 // Also performs check detection.
-template <bool InOrder> class AllMoveGenerator {
+template <bool InOrder=false> class AllMoveGenerator {
 
   public:
     constexpr AllMoveGenerator()

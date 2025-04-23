@@ -1,9 +1,9 @@
 #include "libChest/board.h"
 #include "libChest/move.h"
+#include "libChest/movebuffer.h"
 #include "libChest/movegen.h"
 #include "libChest/state.h"
 #include <iostream>
-#include <vector>
 
 int main(int argc, char **argv) {
 
@@ -18,7 +18,7 @@ int main(int argc, char **argv) {
     move::movegen::AllMoveGenerator mover;
 
     // Get all starting moves
-    std::vector<move::Move> mvs{};
+    MoveBuffer mvs{};
     mover.get_all_moves(st, mvs);
 
     // All the generated moves

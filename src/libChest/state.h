@@ -23,6 +23,14 @@ static const fen_t new_game_fen =
 
 // Precompute masks/squares for castling
 struct CastlingInfo {
+
+  public:
+    // For array sizing
+    static constexpr int n_castling_sides = 2;
+    // Easy iteration through castles
+    static constexpr board::Piece castling_sides[n_castling_sides]{
+        board::Piece::QUEEN, board::Piece::KING};
+
   private:
     // The following final destinations are the same for classical and 960, and
     // will remain const:
@@ -66,22 +74,29 @@ struct CastlingInfo {
 
     // Masks: squares which must be unchecked to castle
     const board::Bitboard w_ks_king_mask =
-        board::Bitboard(board::Square(board::E1)) ^
+        w_ks_king_dest ^ board::Bitboard(board::Square(board::E1)) ^
         board::Bitboard(board::Square(board::F1));
     const board::Bitboard w_qs_king_mask =
-        board::Bitboard(board::Square(board::E1)) ^
+        w_qs_king_dest ^ board::Bitboard(board::Square(board::E1)) ^
         board::Bitboard(board::Square(board::D1));
     const board::Bitboard b_ks_king_mask =
         w_ks_king_mask.shift(0, board::board_size - 1);
     const board::Bitboard b_qs_king_mask =
         w_qs_king_mask.shift(0, board::board_size - 1);
 
-  public:
-    // For array sizing
-    static constexpr int n_castling_sides = 2;
-    // Easy iteration through castles
-    static constexpr board::Piece castling_sides[n_castling_sides]{
-        board::Piece::QUEEN, board::Piece::KING};
+    // Raw arrays
+
+    const board::Square king_start[board::n_colours]{b_king_start,
+                                                     w_king_start};
+
+    const board::Square rook_start[board::n_colours][n_castling_sides]{
+        {b_qs_rook_start, b_ks_rook_start}, {w_qs_rook_start, w_ks_rook_start}};
+
+    const board::Bitboard rook_mask[board::n_colours][n_castling_sides]{
+        {b_qs_rook_mask, b_ks_rook_mask}, {w_qs_rook_mask, w_ks_rook_mask}};
+
+    const board::Bitboard king_mask[board::n_colours][n_castling_sides]{
+        {b_qs_king_mask, b_ks_king_mask}, {w_qs_king_mask, w_ks_king_mask}};
 
     // Find index for layout of queenside/kingside arrays
     static constexpr int side_idx(board::Piece side) {
@@ -91,6 +106,7 @@ struct CastlingInfo {
         return ((int)(side == board::Piece::KING));
     }
 
+  public:
     // Given a square of a rook and a colour, find which side (king/queen) the
     // rook belongs to, if any
     constexpr std::optional<board::Piece> get_side(board::Square square,
@@ -113,34 +129,51 @@ struct CastlingInfo {
     };
 
     //
-    // Data: raw arrays
+    // Data: public accessos
     //
 
-    // Final king positions
+    // Given colour and castling side, the king's destination
     static constexpr board::Square
-        king_destinations[board::n_colours][n_castling_sides]{
-            {b_qs_king_dest, b_ks_king_dest}, {w_qs_king_dest, w_ks_king_dest}};
+    get_king_destination(board::ColouredPiece cp) {
+        static constexpr const board::Square
+            king_destinations[board::n_colours][n_castling_sides]{
+                {b_qs_king_dest, b_ks_king_dest},
+                {w_qs_king_dest, w_ks_king_dest}};
+        return king_destinations[(int)cp.colour][side_idx(cp.piece)];
+    }
 
-    // Final rook positions
-    static constexpr board::Square
-        rook_destinations[board::n_colours][n_castling_sides]{
-            {b_qs_rook_dest, b_ks_rook_dest}, {w_qs_rook_dest, w_ks_rook_dest}};
+    // Given colour and castling side, the rook's destination
+    static board::Square get_rook_destination(board::ColouredPiece cp) {
+        static constexpr const board::Square
+            rook_destinations[board::n_colours][n_castling_sides]{
+                {b_qs_rook_dest, b_ks_rook_dest},
+                {w_qs_rook_dest, w_ks_rook_dest}};
+        return rook_destinations[(int)cp.colour][side_idx(cp.piece)];
+    }
 
-    // Initial king positions
-    const board::Square king_start[board::n_colours]{b_king_start,
-                                                     w_king_start};
+    // Given colour and castling side, the rook's starting position
+    board::Square get_rook_start(board::ColouredPiece cp) const {
+        return rook_start[(int)cp.colour][side_idx(cp.piece)];
+    }
 
-    // Locations of rooks w/ castling rights
-    const board::Square rook_start[board::n_colours][n_castling_sides]{
-        {b_qs_rook_start, b_ks_rook_start}, {w_qs_rook_start, w_ks_rook_start}};
+    // Given colour, the king's starting position
+    board::Square get_king_start(board::Colour colour) const {
+        return king_start[(int)colour];
+    }
 
-    // Masks: squares which must be unobstructed to castle
-    const board::Bitboard rook_mask[board::n_colours][n_castling_sides]{
-        {b_qs_rook_mask, b_ks_rook_mask}, {w_qs_rook_mask, w_ks_rook_mask}};
-    // Masks: squares which must be unchecked to castle (not including final
-    // destination, this is checked at the start of the turn)
-    const board::Bitboard king_mask[board::n_colours][n_castling_sides]{
-        {b_qs_king_mask, b_ks_king_mask}, {w_qs_king_mask, w_ks_king_mask}};
+    // Given colour and castling side, which squares must be unobstructed,
+    // including the final destination
+    board::Bitboard get_rook_mask(board::ColouredPiece cp) const {
+        return rook_mask[(int)cp.colour][side_idx(cp.piece)];
+    }
+
+    // Given colour and castling side, which squares must be unchecked,
+    // including the starting and final king squares
+    board::Bitboard get_king_mask(board::ColouredPiece cp) const {
+        return king_mask[(int)cp.colour][side_idx(cp.piece)];
+    }
+
+    friend struct State;
 };
 
 // Store complete (minimal) game state.
@@ -221,41 +254,23 @@ struct State {
                side_occupancy(board::Colour::WHITE);
     }
 
-    // First bitboard matching mask, given colour
-    constexpr board::Bitboard *bitboard_containing(board::Bitboard bit,
-                                                   board::Colour colour) {
-        for (int pieceIdx = 0; pieceIdx < board::n_pieces; pieceIdx++) {
-            board::Bitboard *ret = &m_pieces[(int)colour][pieceIdx];
-            if (*ret & bit) {
-                return ret;
+    // // First piece matching mask
+    constexpr std::optional<board::ColouredPiece> const
+    piece_at(board::Bitboard bit) const {
+        for (int colourIdx = 0; colourIdx <= 1; colourIdx++) {
+            for (int pieceIdx = 0; pieceIdx < board::n_pieces; pieceIdx++) {
+
+                if (!(m_pieces[colourIdx][pieceIdx] & bit).empty()) {
+                    return {{
+                        .colour = (board::Colour)colourIdx,
+                        .piece = (board::Piece)pieceIdx,
+                    }};
+                }
             }
         }
-        return nullptr;
+        return {};
     }
 
-    // First bitboard matching mask
-    // constexpr board::Bitboard *bitboard_containing(board::Bitboard bit) {
-    //     board::Bitboard *ret = bitboard_containing(bit, board::Colour::WHITE);
-    //     return ret ? ret : bitboard_containing(bit, board::Colour::BLACK);
-    // }
-    //
-    // // First piece matching mask
-    // constexpr std::optional<board::ColouredPiece> const
-    // piece_at(board::Bitboard bit) const {
-    //     for (int colourIdx = 0; colourIdx <= 1; colourIdx++) {
-    //         for (int pieceIdx = 0; pieceIdx < board::n_pieces; pieceIdx++) {
-    //
-    //             if (!(m_pieces[colourIdx][pieceIdx] & bit).empty()) {
-    //                 return {{
-    //                     .colour = (board::Colour)colourIdx,
-    //                     .piece = (board::Piece)pieceIdx,
-    //                 }};
-    //             }
-    //         }
-    //     }
-    //     return {};
-    // }
-    //
     // First piece matching mask of given colour
     constexpr std::optional<board::ColouredPiece> const
     piece_at(board::Bitboard bit, board::Colour colour) const {
@@ -304,22 +319,34 @@ struct State {
         }
     };
 
-    //
-    // Satisfy IncrementallyUpdateable
-    //
+    // Incremental updates
 
-    void move(board::Bitboard from_bb, board::Bitboard to_bb,
-              board::ColouredPiece(cp)) {
+    constexpr void move(board::Bitboard from_bb, board::Bitboard to_bb,
+                        board::ColouredPiece(cp)) {
         get_bitboard(cp) ^= (from_bb ^ to_bb);
-    };
-    void toggle(board::Bitboard loc, board::ColouredPiece(cp)) {
+    }
+    constexpr void toggle(board::Bitboard loc, board::ColouredPiece(cp)) {
         get_bitboard(cp) ^= loc;
-    };
-    // void swap_sameside(bb, colour, piece, piece)
-    // void swap(bb, cp, cp)
-    // void capture(bb, cp, cp)
-    // void remove_castling_rights(bb, cp)
-    // void remove_castling_rights(colour)
+    }
+    constexpr void swap(board::Bitboard loc, board::ColouredPiece from,
+                        board::ColouredPiece to) {
+        toggle(loc, from);
+        toggle(loc, to);
+    }
+    constexpr void swap_sameside(board::Bitboard loc, board::Colour player,
+                                 board::Piece from, board::Piece to) {
+        swap(loc, {player, from}, {player, to});
+    }
+    constexpr void swap_oppside(board::Bitboard loc, board::ColouredPiece from,
+                                board::ColouredPiece to) {
+        swap(loc, from, to);
+    }
+    constexpr void remove_castling_rights(board::ColouredPiece cp) {
+        set_castling_rights(cp, false);
+    }
+    constexpr void remove_castling_rights(board::Colour colour) {
+        set_both_castling_rights(colour, false);
+    }
 
   private:
     // Position of all pieces for each player
@@ -334,6 +361,7 @@ struct State {
         return (2 * (int)cp.colour) + CastlingInfo::side_idx(cp.piece);
     }
 };
+static_assert(IncrementallyUpdateable<State>);
 
 std::ostream &operator<<(std::ostream &os, const State s);
 
@@ -359,7 +387,6 @@ struct AugmentedState {
     CastlingInfo castling_info;
 
     // Helper accessor for side_occupancy bitsets
-    // TODO: is there a better way to ensure const correctness like this?
     board::Bitboard &side_occupancy(board::Colour colour) {
         return m_side_occupancy[(int)colour];
     }
@@ -378,10 +405,47 @@ struct AugmentedState {
         return side_occupancy(!state.to_move);
     }
 
+    // Incremental updates
+
+    constexpr void move(board::Bitboard from_bb, board::Bitboard to_bb,
+                        board::ColouredPiece cp) {
+        state.move(from_bb, to_bb, cp);
+        side_occupancy(cp.colour) ^= (from_bb ^ to_bb);
+        total_occupancy ^= (from_bb ^ to_bb);
+    }
+    constexpr void toggle(board::Bitboard loc, board::ColouredPiece cp) {
+        state.toggle(loc, cp);
+        side_occupancy(cp.colour) ^= loc;
+        total_occupancy ^= loc;
+    }
+    constexpr void swap(board::Bitboard loc, board::ColouredPiece from,
+                        board::ColouredPiece to) {
+        state.swap(loc, from, to);
+        if (from.colour != to.colour) {
+            swap_oppside(loc, from, to);
+        }
+    }
+    constexpr void swap_oppside(board::Bitboard loc, board::ColouredPiece from,
+                                board::ColouredPiece to) {
+        state.swap_oppside(loc, from, to);
+        side_occupancy() ^= loc;
+        opponent_occupancy() ^= loc;
+    }
+    constexpr void swap_sameside(board::Bitboard loc, board::Colour player,
+                                 board::Piece from, board::Piece to) {
+        state.swap_sameside(loc, player, from, to);
+    }
+    constexpr void remove_castling_rights(board::ColouredPiece cp) {
+        state.remove_castling_rights(cp);
+    }
+    constexpr void remove_castling_rights(board::Colour colour) {
+        state.remove_castling_rights(colour);
+    }
+
   private:
     board::Bitboard m_side_occupancy[board::n_colours];
 };
-// static_assert(IncrementallyUpdateable<State>);
+static_assert(IncrementallyUpdateable<AugmentedState>);
 }; // namespace state
 
 #endif
