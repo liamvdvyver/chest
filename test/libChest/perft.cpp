@@ -26,7 +26,7 @@ const std::string indent = "    ";
 const uint64_t million = 1000000;
 
 struct AveragePerft {
-    uint64_t million_nodes;
+    uint64_t nodes;
     double seconds;
 };
 
@@ -41,12 +41,14 @@ void do_perft_test(const PerftTest &perft_case, size_t depth_limit) {
 
         std::cout << indent << indent << "perft(" << i << "): " << std::endl;
 
-        state::SearchNode<move::movegen::AllMoveGenerator<in_order>, max_depth_limit> sn(mover, astate, i);
+        state::SearchNode<move::movegen::AllMoveGenerator<in_order>,
+                          max_depth_limit>
+            sn(mover, astate, i);
 
         // Run perft
         auto start = std::chrono::steady_clock::now();
-        state::SearchNode<move::movegen::AllMoveGenerator<in_order>, max_depth_limit>::PerftResult res =
-            sn.perft();
+        state::SearchNode<move::movegen::AllMoveGenerator<in_order>,
+                          max_depth_limit>::PerftResult res = sn.perft();
         auto end = std::chrono::steady_clock::now();
 
         // Timing info
@@ -60,7 +62,7 @@ void do_perft_test(const PerftTest &perft_case, size_t depth_limit) {
                   << std::endl;
 
         // Update average
-        avg.million_nodes += res.nodes / million;
+        avg.nodes += res.nodes;
         avg.seconds += taken.count();
 
         // Run test
@@ -172,8 +174,8 @@ TEST_CASE("Perft tests") {
         do_perft_test(perft_case, max_depth_limit);
     };
 
-    std::cout << indent << "TOTAL (LEGAL) NODES: " << avg.million_nodes
+    std::cout << indent << "TOTAL (LEGAL) NODES: " << avg.nodes / million
               << " million" << std::endl;
-    std::cout << indent << "AVERAGE RATE: " << avg.million_nodes / avg.seconds
+    std::cout << indent << "AVERAGE RATE: " << avg.nodes / avg.seconds / million
               << "Mn/s" << std::endl;
 }
