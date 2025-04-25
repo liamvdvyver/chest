@@ -57,7 +57,7 @@ static_assert(RAStack<svec<int, 5>, int>);
 
 // The type of buffer used for storing search results,
 // must be compatible with interface of std::vector<move::Move>
-#define MoveBuffer svec<move::Move, MaxMoves>
-static_assert(RAStack<MoveBuffer, move::Move>);
+#define MoveBuffer svec<move::FatMove, MaxMoves>
+static_assert(RAStack<MoveBuffer, move::FatMove>);
 
 #endif

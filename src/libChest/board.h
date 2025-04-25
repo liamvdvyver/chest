@@ -183,9 +183,9 @@ struct Bitboard : Wrapper<bitboard_t, Bitboard> {
 
     // Compute cardinality with Kerighan's method
     constexpr uint8_t size() const {
-        # if __has_builtin(__builtin_popcountll)
+#if __has_builtin(__builtin_popcountll)
         return __builtin_popcountll(value);
-        # else
+#else
         uint8_t ret = 0;
         Bitboard b = *this;
         while (b.value) {
@@ -193,7 +193,7 @@ struct Bitboard : Wrapper<bitboard_t, Bitboard> {
             b = b.reset_ls1b();
         }
         return ret;
-        #endif
+#endif
     }
 
     constexpr Bitboard shift(int d_file = 0, int d_rank = 0) const {
@@ -281,11 +281,11 @@ struct Bitboard : Wrapper<bitboard_t, Bitboard> {
 
     // Assumes b is a power of two (i.e. a singly occupied bitboard)
     constexpr Square single_bitscan_forward() const {
-        #if __has_builtin(__builtin_ctzll)
+#if __has_builtin(__builtin_ctzll)
         return __builtin_ctzll(value);
-        #else
+#else
         return de_brujin_map[((value ^ (value - 1)) * debruijn64) >> 58];
-        #endif
+#endif
     }
 
     std::string pretty() const;
@@ -433,7 +433,6 @@ constexpr std::string to_uni(const ColouredPiece cp) {
             return "♚";
         case Piece::QUEEN:
             return "♛";
-
         case Piece::BISHOP:
             return "♝";
         case Piece::KNIGHT:
@@ -442,6 +441,8 @@ constexpr std::string to_uni(const ColouredPiece cp) {
             return "♜";
         case Piece::PAWN:
             return "♟";
+        default:
+            std::unreachable();
         }
     case Colour::BLACK:
         switch (cp.piece) {
@@ -449,7 +450,6 @@ constexpr std::string to_uni(const ColouredPiece cp) {
             return "♔";
         case Piece::QUEEN:
             return "♕";
-
         case Piece::BISHOP:
             return "♗";
         case Piece::KNIGHT:
@@ -458,6 +458,8 @@ constexpr std::string to_uni(const ColouredPiece cp) {
             return "♖";
         case Piece::PAWN:
             return "♙";
+        default:
+            std::unreachable();
         }
     }
 };

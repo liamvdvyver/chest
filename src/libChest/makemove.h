@@ -61,7 +61,8 @@ struct SearchNode {
         const CastlingInfo &castling_info = m_astate.castling_info;
 
         // Get (queen/king)-side
-        const std::optional<board::Piece> side = castling_info.get_side(from, to_move);
+        const std::optional<board::Piece> side =
+            castling_info.get_side(from, to_move);
         board::ColouredPiece cp = {to_move, side.value()};
 
         // Check legality
@@ -120,7 +121,10 @@ struct SearchNode {
     // * Leaves the player who moved in check,
     // * Was a castle starting/passing through check
     // Move is pushed to the stack.
-    constexpr bool make_move(move::Move move) {
+    constexpr bool make_move(const move::FatMove fmove) {
+
+        move::Move move = fmove.get_move();
+        board::Piece moved_p = fmove.get_piece();
 
         // Default values, update as needed
         MadeMove made{.move = move, .info = m_astate.state.irreversible()};
@@ -138,11 +142,7 @@ struct SearchNode {
 
         // Find moved piece (avoid lookup if pawn move)
         board::ColouredPiece moved;
-        if (move::is_pawn_move(move.type())) {
-            moved = {to_move, board::Piece::PAWN};
-        } else {
-            moved = m_astate.state.piece_at(from_bb, to_move).value();
-        }
+        moved = {to_move, moved_p};
 
         // Handle castles
         if (move.type() == move::MoveType::CASTLE) {
@@ -335,7 +335,7 @@ struct SearchNode {
         MoveBuffer &moves = find_moves();
         PerftResult ret = {0, 0};
 
-        for (move::Move m : moves) {
+        for (move::FatMove m : moves) {
 
             bool was_legal = make_move(m);
             if (was_legal) {

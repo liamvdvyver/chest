@@ -182,6 +182,25 @@ struct Move : Wrapper<move_t, Move> {
     static_assert((movetype_t)max <= (1 << (movetype_width)));
 };
 
+// FatMove: store move and piece which was moved
+// except in the case of castling:
+// * Store the side (king/queen) on which castling occurs
+struct FatMove {
+
+  public:
+    constexpr FatMove() {};
+    constexpr FatMove(Move move, board::Piece piece)
+        : m_move(move), m_piece(piece) {};
+    constexpr Move get_move() const { return m_move; }
+
+    constexpr board::Piece get_piece() const { return m_piece; }
+
+  private:
+    // Keep it private so I can squish more shit in here later.
+    Move m_move;
+    board::Piece m_piece;
+};
+
 } // namespace move
 
 #endif

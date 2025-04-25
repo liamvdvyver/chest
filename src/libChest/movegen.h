@@ -95,7 +95,8 @@ concept PseudolegalGenerator =
 //
 
 // Given an Attacker, create a SingletonMoverGenerator
-template <attack::Attacker TAttacker> class SingletonMoverFactory {
+template <attack::Attacker TAttacker, board::Piece Piece>
+class SingletonMoverFactory {
 
   public:
     SingletonMoverFactory(const TAttacker &attacker) : m_attacker(attacker) {};
@@ -109,8 +110,9 @@ template <attack::Attacker TAttacker> class SingletonMoverFactory {
         attacked = attacked.setdiff(astate.total_occupancy);
 
         for (board::Bitboard dest : attacked.singletons()) {
-            moves.push_back(move::Move(from, dest.single_bitscan_forward(),
-                                       MoveType::NORMAL));
+            moves.push_back({move::Move(from, dest.single_bitscan_forward(),
+                                        MoveType::NORMAL),
+                             Piece});
         }
     };
 
@@ -123,8 +125,9 @@ template <attack::Attacker TAttacker> class SingletonMoverFactory {
         attacked &= astate.opponent_occupancy();
 
         for (board::Bitboard dest : attacked.singletons()) {
-            moves.push_back(move::Move(from, dest.single_bitscan_forward(),
-                                       MoveType::CAPTURE));
+            moves.push_back({move::Move(from, dest.single_bitscan_forward(),
+                                        MoveType::CAPTURE),
+                             Piece});
         }
     };
 
@@ -138,11 +141,11 @@ template <attack::Attacker TAttacker> class SingletonMoverFactory {
   private:
     const TAttacker &m_attacker;
 };
-static_assert(
-    SingletonMoveGenerator<SingletonMoverFactory<attack::KingAttacker>>);
+static_assert(SingletonMoveGenerator<
+              SingletonMoverFactory<attack::KingAttacker, board::Piece::KING>>);
 
 // Given a SlidingAttacker, create a SingletonMoveGenerator
-template <attack::SlidingAttacker TAttacker>
+template <attack::SlidingAttacker TAttacker, board::Piece Piece>
 class SlidingSingletonMoverFactory {
 
   public:
@@ -158,8 +161,9 @@ class SlidingSingletonMoverFactory {
         attacked = attacked.setdiff(astate.total_occupancy);
 
         for (board::Bitboard dest : attacked.singletons()) {
-            moves.push_back(move::Move(from, dest.single_bitscan_forward(),
-                                       MoveType::NORMAL));
+            moves.push_back({move::Move(from, dest.single_bitscan_forward(),
+                                        MoveType::NORMAL),
+                             Piece});
         }
     };
 
@@ -172,8 +176,9 @@ class SlidingSingletonMoverFactory {
         attacked &= astate.opponent_occupancy();
 
         for (board::Bitboard dest : attacked.singletons()) {
-            moves.push_back(move::Move(from, dest.single_bitscan_forward(),
-                                       MoveType::CAPTURE));
+            moves.push_back({move::Move(from, dest.single_bitscan_forward(),
+                                        MoveType::CAPTURE),
+                             Piece});
         }
     };
 
@@ -187,8 +192,8 @@ class SlidingSingletonMoverFactory {
   private:
     const TAttacker &m_attacker;
 };
-static_assert(
-    SingletonMoveGenerator<SlidingSingletonMoverFactory<attack::RookAttacker>>);
+static_assert(SingletonMoveGenerator<SlidingSingletonMoverFactory<
+                  attack::RookAttacker, board::Piece::ROOK>>);
 
 // Add attacker() to get all pieces of a type for the player to move
 template <board::Piece piece, SingletonMoveGenerator TMover>
@@ -210,9 +215,10 @@ class SlidingPiecewiseFactory : public TMover {
   public:
     constexpr static board::Bitboard
     attackers(const state::AugmentedState &astate) {
-        return astate.state.copy_bitboard({astate.state.to_move, piece}) |
-               astate.state.copy_bitboard(
-                   {astate.state.to_move, board::Piece::QUEEN});
+        return astate.state.copy_bitboard({astate.state.to_move, piece});
+        //|
+        // astate.state.copy_bitboard(
+        //     {astate.state.to_move, board::Piece::QUEEN});
     }
 };
 
@@ -256,10 +262,12 @@ template <PiecewiseMoveGenerator TMover> class MultiMoverFactory {
 // Jumping
 
 typedef MultiMoverFactory<PiecewiseFactory<
-    board::Piece::KING, SingletonMoverFactory<attack::KingAttacker>>>
+    board::Piece::KING,
+    SingletonMoverFactory<attack::KingAttacker, board::Piece::KING>>>
     KingMover;
 typedef MultiMoverFactory<PiecewiseFactory<
-    board::Piece::KNIGHT, SingletonMoverFactory<attack::KnightAttacker>>>
+    board::Piece::KNIGHT,
+    SingletonMoverFactory<attack::KnightAttacker, board::Piece::KNIGHT>>>
     KnightMover;
 
 static_assert(MultiMoveGenerator<KingMover>);
@@ -268,9 +276,20 @@ static_assert(MultiMoveGenerator<KnightMover>);
 // Sliding
 
 typedef MultiMoverFactory<SlidingPiecewiseFactory<
-    board::Piece::BISHOP, SlidingSingletonMoverFactory<attack::BishopAttacker>>>
+    board::Piece::BISHOP,
+    SlidingSingletonMoverFactory<attack::BishopAttacker, board::Piece::BISHOP>>>
     BishopMover;
 static_assert(MultiMoveGenerator<BishopMover>);
+
+typedef MultiMoverFactory<SlidingPiecewiseFactory<
+    board::Piece::QUEEN,
+    SlidingSingletonMoverFactory<attack::BishopAttacker, board::Piece::QUEEN>>>
+    DiagQueenMover;
+typedef MultiMoverFactory<SlidingPiecewiseFactory<
+    board::Piece::QUEEN,
+    SlidingSingletonMoverFactory<attack::RookAttacker, board::Piece::QUEEN>>>
+    HorizQueenMover;
+static_assert(MultiMoveGenerator<HorizQueenMover>);
 
 //
 // Pawn moves
@@ -339,12 +358,17 @@ class PawnMoveGenerator {
 
         // Promotions/normal push
         if (push_dest & back_rank_mask(to_move)) {
-            moves.push_back(move::Move(from, to, MoveType::PROMOTE_QUEEN));
-            moves.push_back(move::Move(from, to, MoveType::PROMOTE_ROOK));
-            moves.push_back(move::Move(from, to, MoveType::PROMOTE_BISHOP));
-            moves.push_back(move::Move(from, to, MoveType::PROMOTE_KNIGHT));
+            moves.push_back({move::Move(from, to, MoveType::PROMOTE_QUEEN),
+                             board::Piece::PAWN});
+            moves.push_back({move::Move(from, to, MoveType::PROMOTE_ROOK),
+                             board::Piece::PAWN});
+            moves.push_back({move::Move(from, to, MoveType::PROMOTE_BISHOP),
+                             board::Piece::PAWN});
+            moves.push_back({move::Move(from, to, MoveType::PROMOTE_KNIGHT),
+                             board::Piece::PAWN});
         } else {
-            moves.push_back(move::Move(from, to, MoveType::SINGLE_PUSH));
+            moves.push_back({move::Move(from, to, MoveType::SINGLE_PUSH),
+                             board::Piece::PAWN});
         }
     };
 
@@ -359,8 +383,9 @@ class PawnMoveGenerator {
             return;
         }
 
-        moves.push_back(move::Move(from, push_dest.single_bitscan_forward(),
-                                   MoveType::DOUBLE_PUSH));
+        moves.push_back({move::Move(from, push_dest.single_bitscan_forward(),
+                                    MoveType::DOUBLE_PUSH),
+                         board::Piece::PAWN});
     };
 
     constexpr void get_captures(MoveBuffer &moves,
@@ -383,25 +408,30 @@ class PawnMoveGenerator {
 
         if (capture_dests & back_rank_mask(to_move)) {
             for (board::Bitboard target : capture_dests.singletons()) {
-                moves.push_back(move::Move(from,
-                                           target.single_bitscan_forward(),
-                                           MoveType::PROMOTE_CAPTURE_QUEEN));
-                moves.push_back(move::Move(from,
-                                           target.single_bitscan_forward(),
-                                           MoveType::PROMOTE_CAPTURE_ROOK));
-                moves.push_back(move::Move(from,
-                                           target.single_bitscan_forward(),
-                                           MoveType::PROMOTE_CAPTURE_BISHOP));
-                moves.push_back(move::Move(from,
-                                           target.single_bitscan_forward(),
-                                           MoveType::PROMOTE_CAPTURE_KNIGHT));
+                moves.push_back(
+                    {move::Move(from, target.single_bitscan_forward(),
+                                MoveType::PROMOTE_CAPTURE_QUEEN),
+                     board::Piece::PAWN});
+                moves.push_back(
+                    {move::Move(from, target.single_bitscan_forward(),
+                                MoveType::PROMOTE_CAPTURE_ROOK),
+                     board::Piece::PAWN});
+                moves.push_back(
+                    {move::Move(from, target.single_bitscan_forward(),
+                                MoveType::PROMOTE_CAPTURE_BISHOP),
+                     board::Piece::PAWN});
+                moves.push_back(
+                    {move::Move(from, target.single_bitscan_forward(),
+                                MoveType::PROMOTE_CAPTURE_KNIGHT),
+                     board::Piece::PAWN});
             }
         } else {
             for (board::Bitboard target : capture_dests.singletons()) {
                 MoveType type = (target & ep_bb).empty() ? MoveType::CAPTURE
                                                          : MoveType::CAPTURE_EP;
                 moves.push_back(
-                    move::Move(from, target.single_bitscan_forward(), type));
+                    {move::Move(from, target.single_bitscan_forward(), type),
+                     board::Piece::PAWN});
             }
         }
     }
@@ -454,10 +484,11 @@ template <MultiMoveGenerator TMover> class RookMoverFactory : TMover {
                 board::Bitboard ks_blockers = rk_mask & total_occ;
                 if (ks_blockers.empty()) {
                     moves.push_back(
-                        move::Move(astate.castling_info.get_rook_start(cp),
-                                   astate.castling_info.get_king_start(
-                                       astate.state.to_move),
-                                   MoveType::CASTLE));
+                        {move::Move(astate.castling_info.get_rook_start(cp),
+                                    astate.castling_info.get_king_start(
+                                        astate.state.to_move),
+                                    MoveType::CASTLE),
+                         board::Piece::ROOK});
                 }
             }
         }
@@ -465,7 +496,8 @@ template <MultiMoveGenerator TMover> class RookMoverFactory : TMover {
 };
 
 typedef RookMoverFactory<MultiMoverFactory<SlidingPiecewiseFactory<
-    board::Piece::ROOK, SlidingSingletonMoverFactory<attack::RookAttacker>>>>
+    board::Piece::ROOK,
+    SlidingSingletonMoverFactory<attack::RookAttacker, board::Piece::ROOK>>>>
     RookMover;
 static_assert(MultiMoveGenerator<RookMover>);
 
@@ -476,7 +508,7 @@ static_assert(MultiMoveGenerator<RookMover>);
 // Gets all the legal moves in a position,
 // composes all neccessary MultiMoveGenerator specialisers.
 // Also performs check detection.
-template <bool InOrder=false> class AllMoveGenerator {
+template <bool InOrder = false> class AllMoveGenerator {
 
   public:
     constexpr AllMoveGenerator()
@@ -486,7 +518,9 @@ template <bool InOrder=false> class AllMoveGenerator {
           m_pawn_mover(
               {m_pawn_single_pusher, m_pawn_double_pusher, m_pawn_attacker}),
           m_knight_mover(m_knight_attacker), m_bishop_mover(m_bishop_attacker),
-          m_rook_mover(m_rook_attacker), m_king_mover(m_king_attacker) {}
+          m_rook_mover(m_rook_attacker), m_king_mover(m_king_attacker),
+          m_d_queen_mover(m_bishop_attacker), m_h_queen_mover(m_rook_attacker) {
+    }
 
     constexpr void get_quiet_moves(const state::AugmentedState &astate,
                                    MoveBuffer &moves) const {
@@ -547,7 +581,9 @@ template <bool InOrder=false> class AllMoveGenerator {
         m_pawn_mover.get_all_moves(astate, moves);
         m_knight_mover.get_all_moves(astate, moves);
         m_bishop_mover.get_all_moves(astate, moves);
+        m_d_queen_mover.get_all_moves(astate, moves);
         m_rook_mover.get_all_moves(astate, moves);
+        m_h_queen_mover.get_all_moves(astate, moves);
         m_king_mover.get_all_moves(astate, moves);
     };
 
@@ -566,6 +602,8 @@ template <bool InOrder=false> class AllMoveGenerator {
     BishopMover m_bishop_mover;
     RookMover m_rook_mover;
     KingMover m_king_mover;
+    DiagQueenMover m_d_queen_mover;
+    HorizQueenMover m_h_queen_mover;
 };
 
 static_assert(MultiMoveGenerator<AllMoveGenerator<true>>);
