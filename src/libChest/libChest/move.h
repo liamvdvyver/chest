@@ -2,7 +2,11 @@
 #define MOVE_H
 
 #include "board.h"
+#include "state.h"
 #include "wrapper.h"
+#include <cstdlib>
+#include <iostream>
+#include <optional>
 #include <utility>
 
 namespace move {
@@ -199,6 +203,151 @@ struct FatMove {
     // Keep it private so I can squish more shit in here later.
     Move m_move;
     board::Piece m_piece;
+};
+
+// Long algebraic notation
+// Requires state to convert to normal FatMoves
+typedef std::string long_alg_t;
+struct LongAlgMove : Wrapper<long_alg_t, LongAlgMove> {
+  public:
+    using Wrapper::Wrapper;
+    constexpr LongAlgMove(const Wrapper &val) : Wrapper(val) {};
+
+    // Construct from move/state
+    // If castling is contructed differently, could be done without state
+    constexpr LongAlgMove(const FatMove fmove,
+                          const state::AugmentedState &astate) {
+
+        if (fmove.get_move().type() == MoveType::CASTLE) {
+
+            board::Colour to_move = astate.state.to_move;
+            value += board::io::algebraic(
+                astate.castling_info.get_king_start(to_move));
+            value +=
+                board::io::algebraic(astate.castling_info.get_king_destination(
+                    {to_move, fmove.get_piece()}));
+
+        } else {
+
+            value += board::io::algebraic(fmove.get_move().from());
+            value += board::io::algebraic(fmove.get_move().to());
+        }
+
+        if (is_promotion(fmove.get_move().type())) {
+            value +=
+                board::io::to_char(promoted_piece(fmove.get_move().type()));
+        }
+    };
+
+    constexpr std::optional<FatMove>
+    to_fmove(const state::AugmentedState &astate) {
+
+        // Get some info
+        if (value.size() < 4)
+            return {};
+
+        board::Square from = board::io::to_square(value.substr(0, 2));
+        board::Square to = board::io::to_square(value.substr(2, 2));
+
+        // Moved piece
+        std::optional<board::ColouredPiece> moved =
+            astate.state.piece_at(from, astate.state.to_move);
+        if (!moved.has_value())
+            return {};
+
+        // Determine piece type
+
+        // Pawn moves
+        if (moved.value().piece == board::Piece::PAWN) {
+
+            // Promoted piece
+            std::optional<board::Piece> promoted = {};
+            if (value.size() == 5) {
+                promoted = board::io::from_char(value[4]);
+            }
+
+            // Pushes
+            if (from.file() == to.file()) {
+
+                if (std::abs(from.rank() - to.rank()) == 1) {
+                    MoveType type = MoveType::SINGLE_PUSH;
+                    if (promoted.has_value()) {
+                        switch (promoted.value()) {
+                        case board::Piece::KNIGHT:
+                            type = MoveType::PROMOTE_KNIGHT;
+                            break;
+                        case board::Piece::BISHOP:
+                            type = MoveType::PROMOTE_BISHOP;
+                            break;
+                        case board::Piece::ROOK:
+                            type = MoveType::PROMOTE_ROOK;
+                            break;
+                        case board::Piece::QUEEN:
+                            type = MoveType::PROMOTE_QUEEN;
+                            break;
+                        default:
+                            std::unreachable();
+                        }
+                    }
+                    std::cout << pretty(type) << std::endl;
+                    return {{{from, to, type}, board::Piece::PAWN}};
+
+                } else if (std::abs(from.rank() - to.rank()) == 2) {
+                    return {{{from, to, MoveType::DOUBLE_PUSH},
+                             board::Piece::PAWN}};
+                }
+
+                // Captures
+            } else {
+
+                // Nothing at captured square -> en passant
+                if (!(astate.opponent_occupancy() & board::Bitboard(to))) {
+                    return {
+                        {{from, to, MoveType::CAPTURE_EP}, board::Piece::PAWN}};
+                }
+                MoveType type = MoveType::CAPTURE;
+                if (promoted.has_value()) {
+                    switch (promoted.value()) {
+                    case board::Piece::KNIGHT:
+                        type = MoveType::PROMOTE_CAPTURE_KNIGHT;
+                        break;
+                    case board::Piece::BISHOP:
+                        type = MoveType::PROMOTE_CAPTURE_BISHOP;
+                        break;
+                    case board::Piece::ROOK:
+                        type = MoveType::PROMOTE_CAPTURE_ROOK;
+                        break;
+                    case board::Piece::QUEEN:
+                        type = MoveType::PROMOTE_CAPTURE_QUEEN;
+                        break;
+                    default:
+                        std::unreachable();
+                    }
+                }
+                return {{{from, to, type}, board::Piece::PAWN}};
+            }
+        }
+
+        // Castles
+        if (moved.value().piece == board::Piece::KING) {
+            for (board::Piece p : state::CastlingInfo::castling_sides) {
+                board::ColouredPiece cp = {astate.state.to_move, p};
+                if (to == astate.castling_info.get_king_destination(cp)) {
+                    return {{{astate.castling_info.get_rook_start(cp),
+                              astate.castling_info.get_king_destination(cp),
+                              MoveType::CASTLE},
+                             p}};
+                }
+            }
+        }
+
+        // Normal move/capture
+        if (astate.opponent_occupancy() & board::Bitboard(to)) {
+            return {{{from, to, MoveType::CAPTURE}, moved.value().piece}};
+        } else {
+            return {{{from, to, MoveType::NORMAL}, moved.value().piece}};
+        }
+    }
 };
 
 } // namespace move

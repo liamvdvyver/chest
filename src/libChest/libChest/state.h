@@ -4,6 +4,7 @@
 #include "board.h"
 #include "incremental.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <iostream>
 #include <optional>
@@ -376,11 +377,28 @@ std::ostream &operator<<(std::ostream &os, const State s);
 struct AugmentedState {
 
   public:
+    AugmentedState() : state::AugmentedState(state::State()) {};
     AugmentedState(State state)
         : state(state), total_occupancy(state.total_occupancy()),
           castling_info{},
           m_side_occupancy{state.side_occupancy((board::Colour)0),
                            state.side_occupancy((board::Colour)1)} {};
+
+    // Rule of three: no dynamic memory to move
+
+    ~AugmentedState() {}
+
+    AugmentedState(const AugmentedState &other)
+        : state::AugmentedState(other.state) {};
+
+    void operator=(const AugmentedState &other) {
+        state = other.state;
+        total_occupancy = other.total_occupancy;
+        total_occupancy = other.total_occupancy;
+        // Castling info has no non-static members currently
+        m_side_occupancy[0] = other.m_side_occupancy[0];
+        m_side_occupancy[1] = other.m_side_occupancy[1];
+    }
 
     State state;
     board::Bitboard total_occupancy;

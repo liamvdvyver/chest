@@ -22,12 +22,12 @@ namespace state {
 
 // Stores all information needed to unmake move.
 struct MadeMove {
-    move::Move move;
+    move::FatMove fmove;
     State::IrreversibleInfo info;
     // board::Piece moved_piece;
 };
 
-static const MadeMove nullMadeMove{0, State().irreversible()};
+static const MadeMove nullMadeMove{{}, State().irreversible()};
 
 // Stores augmented state, has buffers for made moves, found moves.
 // This is the basic unit for iterative (non-recursive, incrementally updated)
@@ -127,7 +127,7 @@ struct SearchNode {
         board::Piece moved_p = fmove.get_piece();
 
         // Default values, update as needed
-        MadeMove made{.move = move, .info = m_astate.state.irreversible()};
+        MadeMove made{.fmove = fmove, .info = m_astate.state.irreversible()};
 
         // Get some constants
         const board::Colour to_move = m_astate.state.to_move;
@@ -236,9 +236,9 @@ struct SearchNode {
         m_astate.state.reset(unmake.info);
         m_astate.state.fullmove_number -= (int)(!m_astate.state.to_move);
 
-        const board::Square from = unmake.move.from();
-        const board::Square to = unmake.move.to();
-        const move::MoveType type = unmake.move.type();
+        const board::Square from = unmake.fmove.get_move().from();
+        const board::Square to = unmake.fmove.get_move().to();
+        const move::MoveType type = unmake.fmove.get_move().type();
 
         const board::Bitboard from_bb = board::Bitboard(from);
         const board::Bitboard to_bb = board::Bitboard(to);
@@ -274,12 +274,7 @@ struct SearchNode {
         }
         // Move the piece normally
 
-        board::ColouredPiece moved;
-        if (move::is_pawn_move(type)) {
-            moved = {.colour = to_move, .piece = board::Piece::PAWN};
-        } else {
-            moved = m_astate.state.piece_at(to_bb, to_move).value();
-        }
+        board::ColouredPiece moved = {to_move, unmake.fmove.get_piece()};
 
         m_astate.move(from_bb, to_bb, moved);
 
@@ -360,6 +355,19 @@ struct SearchNode {
         m_made_moves.clear();
         m_found_moves.clear();
     };
+
+    std::optional<move::FatMove> get_random_move() {
+        prep_search(1);
+        find_moves();
+        for (move::FatMove m : m_found_moves.at(0)) {
+            bool legal = make_move(m);
+            unmake_move();
+            if (legal) {
+                return m;
+            }
+        }
+        return {};
+    }
 
     AugmentedState &m_astate;
     int m_max_depth;

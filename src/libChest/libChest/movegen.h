@@ -481,14 +481,14 @@ template <MultiMoveGenerator TMover> class RookMoverFactory : TMover {
             if (astate.state.get_castling_rights(cp)) {
                 board::Bitboard rk_mask =
                     astate.castling_info.get_rook_mask(cp);
-                board::Bitboard ks_blockers = rk_mask & total_occ;
-                if (ks_blockers.empty()) {
+                board::Bitboard blockers = rk_mask & total_occ;
+                if (blockers.empty()) {
                     moves.push_back(
                         {move::Move(astate.castling_info.get_rook_start(cp),
                                     astate.castling_info.get_king_start(
                                         astate.state.to_move),
                                     MoveType::CASTLE),
-                         board::Piece::ROOK});
+                         side});
                 }
             }
         }

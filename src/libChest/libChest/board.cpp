@@ -23,7 +23,7 @@ board::Square board::io::to_square(const alg_t &sq) {
 board::io::alg_t board::io::algebraic(const board::Square sq) {
     board::io::alg_t ret = "";
 
-    ret += sq.file() + 'A';
+    ret += sq.file() + 'a';
     ret += sq.rank() + '1';
 
     return ret;

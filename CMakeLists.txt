@@ -7,11 +7,12 @@ add_link_options()
 # Main
 
 add_library(libChest
-    src/libChest/board.cpp
-    src/libChest/state.cpp
+    src/libChest/libChest/board.cpp
+    src/libChest/libChest/state.cpp
 )
+target_include_directories(libChest PUBLIC src/libChest)
 
-add_executable(chest src/chest.cpp)
+add_executable(chest src/chest/chest/chest.cpp)
 target_link_libraries(chest libChest)
 
 # Tests
@@ -24,9 +25,9 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(Catch2)
 
-add_executable(perft_test test/libChest/perft.cpp)
-target_link_libraries(perft_test PRIVATE libChest Catch2::Catch2WithMain)
+add_executable(makemove_test src/libChest/libChest/makemove.test.cpp)
+target_link_libraries(makemove_test PRIVATE libChest Catch2::Catch2WithMain)
 
 include(CTest)
 include(Catch)
-catch_discover_tests(perft_test)
+catch_discover_tests(makemove_test)
