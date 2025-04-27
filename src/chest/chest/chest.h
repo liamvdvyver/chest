@@ -1,8 +1,9 @@
 #ifndef ENGINESTATE_H
 #define ENGINESTATE_H
 
-#include <libChest/makemove.h>
+#include <cmath>
 #include <iostream>
+#include <libChest/makemove.h>
 #include <optional>
 #include <ostream>
 #include <sstream>
@@ -127,6 +128,9 @@ class Engine {
 
     virtual void handle_command(UciCommand command) {
         switch (command.type) {
+        case UciCommand::UciCommandType::UNRECOGNISED:
+            m_globals.log("unrecognised command", Globals::LogLevel::UCI_INFO);
+            break;
         case UciCommand::UciCommandType::UCI:
             identify();
             tell_opts();
@@ -138,7 +142,13 @@ class Engine {
         case UciCommand::UciCommandType::ISREADY:
             m_output << "readyok" << std::endl;
             break;
+        case UciCommand::UciCommandType::SETOPTION:
+            m_globals.log("setoption not supported",
+                          Globals::LogLevel::UCI_INFO);
+            break;
         case UciCommand::UciCommandType::REGISTER:
+            m_globals.log("register not supported",
+                          Globals::LogLevel::UCI_INFO);
             break;
         case UciCommand::UciCommandType::UCINEWGAME:
             break;
@@ -153,6 +163,15 @@ class Engine {
         case UciCommand::UciCommandType::GO:
             go(command);
             break;
+        case UciCommand::UciCommandType::STOP:
+            m_globals.log("stop not supported", Globals::LogLevel::UCI_INFO);
+            break;
+        case UciCommand::UciCommandType::PONDERHIT:
+            m_globals.log("ponderhit not supported",
+                          Globals::LogLevel::UCI_INFO);
+            go(command);
+            break;
+
         case UciCommand::UciCommandType::QUIT:
             exit(0);
             break;
@@ -266,11 +285,16 @@ class Engine {
     }
 
     void go(UciCommand command) {
+        // TODO: implement search options
+        (void)command;
 
-        state::SearchNode<move::movegen::AllMoveGenerator<>, 1> sn(m_globals.mover, m_astate, 1);
+        state::SearchNode<move::movegen::AllMoveGenerator<>, 1> sn(
+            m_globals.mover, m_astate, 1);
         move::FatMove best = sn.get_random_move().value();
-        m_output << "bestmove " << (move::long_alg_t)move::LongAlgMove(best, m_astate) << std::endl;;
-
+        m_output << "bestmove "
+                 << (move::long_alg_t)move::LongAlgMove(best, m_astate)
+                 << std::endl;
+        ;
     }
 };
 

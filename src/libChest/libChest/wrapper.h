@@ -21,10 +21,8 @@ template <typename T, typename WrapperType> struct Wrapper {
     constexpr Wrapper() : value{} {};
 
     // Allow explicit conversion to get base type
-    constexpr explicit operator T() { return value; };
-    constexpr explicit operator const T() const { return value; };
-    constexpr explicit operator bool() { return value; };
-    constexpr explicit operator const bool() const { return value; };
+    constexpr explicit operator T() const { return value; };
+    constexpr explicit operator bool() const { return value; };
 
     // Equality
     constexpr friend bool operator==(const WrapperType &a,

@@ -2,8 +2,9 @@
 #define ATTACK_H
 
 #include "board.h"
-
+#if __has_include(<immintrin.h>)
 #include <immintrin.h>
+#endif
 #include <random>
 
 //
@@ -405,13 +406,19 @@ typedef board::Bitboard magic_t;
 typedef uint16_t magic_key_t;
 
 // Given attack and mask generators, implement plain magic bitboards.
+// Uses PEXT bitboards instead if available.
 // Parameterise key (bit) size for attacks to make array size concrete.
-// TODO: test out fancy (variable shift) bitboards.
+// TODO: write two types (pext/magic) and typedef w/ directive
 template <int max_shift, SlidingAttacker TAttacker, Attacker TMasker>
 class MagicAttacker {
 
   public:
-    constexpr MagicAttacker() : m_masks(), m_attacks(), /* m_magics(), */ m_shifts() {
+    constexpr MagicAttacker()
+        : m_masks(), m_attacks(),
+#if !__has_include(<immintrin.h>)
+          m_magics(),
+#endif
+          m_shifts() {
         init();
     };
 
@@ -460,8 +467,10 @@ class MagicAttacker {
     // Attack maps (per-position, per-key)
     board::Bitboard m_attacks[board::n_squares][n_attack_keys];
 
-    // Magic bitboards (per-position)
-    // magic_t m_magics[board::n_squares];
+// Magic bitboards (per-position)
+#if !__has_include(<immintrin.h>)
+    magic_t m_magics[board::n_squares];
+#endif
 
     // Key sizes
     int m_shifts[board::n_squares];
@@ -537,7 +546,9 @@ class MagicAttacker {
                 magic_num = rand(eng) & rand(eng) & rand(eng);
                 done = init_attacks(magic_num, sq, visited);
             } while (!done);
-            // m_magics[sq] = magic_num;
+#if !__has_include(<immintrin.h>)
+            m_magics[sq] = magic_num;
+#endif
         }
     };
 
@@ -555,9 +566,12 @@ class MagicAttacker {
     // Get the attack map key, given position, blockers (relevant or total)
     constexpr magic_key_t get_magic_key(board::Square sq,
                                         board::Bitboard occ) const {
+#if __has_include(<immintrin.h>)
         board::Bitboard mask = m_masks[sq];
         return _pext_u64((board::bitboard_t)occ, (board::bitboard_t)mask);
-        // return get_magic_key(sq, occ, m_magics[sq]);
+#else
+        return get_magic_key(sq, occ, m_magics[sq]);
+#endif
     };
 
     // Helper
@@ -565,8 +579,6 @@ class MagicAttacker {
     constexpr int shift_width(board::Square sq) const {
         (void)sq;
         return board::n_squares - max_shift;
-        // For fancy bitboards:
-        // return board::n_squares - m_shifts[sq];
     }
 
     // Get the attack map key, given position, blockers (relevant or total), and
@@ -574,8 +586,12 @@ class MagicAttacker {
     constexpr magic_key_t get_magic_key(board::Square sq, board::Bitboard occ,
                                         magic_t magic) const {
         board::Bitboard mask = m_masks[sq];
+#if __has_include(<immintrin.h>)
+        (void)magic;
         return _pext_u64((board::bitboard_t)occ, (board::bitboard_t)mask);
-        // return (board::bitboard_t)((occ & mask) * magic) >> shift_width(sq);
+#else
+        return (board::bitboard_t)((occ & mask) * magic) >> shift_width(sq);
+#endif
     };
 };
 
