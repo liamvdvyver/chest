@@ -52,7 +52,9 @@ template <typename T, size_t N> struct svec {
     constexpr T &at(size_t i) { return data.at(i); }
     constexpr T const &at(size_t i) const { return data.at(i); }
     constexpr auto begin() { return data.begin(); }
+    constexpr auto begin() const { return data.begin(); }
     constexpr auto end() { return &data.at(sp); }
+    constexpr auto end() const { return &data.at(sp); }
     constexpr size_t size() { return sp; }
     constexpr void resize(size_t sz) {
         sp = sz;

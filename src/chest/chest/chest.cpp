@@ -15,7 +15,10 @@ int main() {
     while (true) {
         while (!std::cin.peek()) {
         }
-        eng.handle_command(eng.read_command());
+        UciCommand cmd = eng.read_command();
+        if (!cmd.input.empty()) {
+            eng.handle_command(cmd);
+        }
     }
     return 0;
 }

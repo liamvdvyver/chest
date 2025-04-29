@@ -12,7 +12,7 @@
 //   InOrder = false -> 28.3Mn/s
 // move generation logic decide the fastest way to get moves.
 constexpr bool in_order = false;
-constexpr size_t max_depth_limit = 6;
+constexpr size_t max_depth_limit = 7;
 
 struct PerftTest {
     std::string name;
@@ -41,14 +41,11 @@ void do_perft_test(const PerftTest &perft_case, size_t depth_limit) {
 
         std::cout << indent << indent << "perft(" << i << "): " << std::endl;
 
-        state::SearchNode<move::movegen::AllMoveGenerator<in_order>,
-                          max_depth_limit>
-            sn(mover, astate, i);
+        state::SearchNode<max_depth_limit> sn(mover, astate, i);
 
         // Run perft
         auto start = std::chrono::steady_clock::now();
-        state::SearchNode<move::movegen::AllMoveGenerator<in_order>,
-                          max_depth_limit>::PerftResult res = sn.perft();
+        state::SearchNode<max_depth_limit>::PerftResult res = sn.perft();
         auto end = std::chrono::steady_clock::now();
 
         // Timing info

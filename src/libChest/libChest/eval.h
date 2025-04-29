@@ -57,7 +57,7 @@ class MaterialEval {
         centipawn_t ret = 0;
         for (board::Piece p = (board::Piece)0; p < board::Piece::KING;
              p = (board::Piece)((int)p + 1)) {
-            int bb_sz = m_astate.state.copy_bitboard(p, side).size();
+            int bb_sz = m_astate.state.copy_bitboard({side, p}).size();
             ret += (piece_val(p) * bb_sz);
         }
         return ret;

@@ -1,12 +1,22 @@
 #ifndef ENGINESTATE_H
 #define ENGINESTATE_H
 
+#include "libChest/move.h"
+#include "libChest/movegen.h"
+#include "libChest/state.h"
+#include "libChest/timemanagement.h"
+#include <chrono>
 #include <cmath>
 #include <iostream>
+#include <libChest/eval.h>
 #include <libChest/makemove.h>
+#include <libChest/search.h>
+#include <memory>
 #include <optional>
 #include <ostream>
 #include <sstream>
+#include <string>
+#include <unistd.h>
 #include <vector>
 
 //
@@ -25,8 +35,9 @@ const std::string author = "Liam van der Vyver";
 // kept minimal.
 struct UciCommand {
   public:
-    UciCommand(char *input_buf) : type(UciCommandType::UNRECOGNISED), args() {
-        std::stringstream ss = (std::stringstream)input_buf;
+    UciCommand(std::string input)
+        : type(UciCommandType::UNRECOGNISED), input(input), args() {
+        std::stringstream ss = (std::stringstream)input;
         std::string cur_tkn;
 
         // Find the first token which matches
@@ -56,6 +67,7 @@ struct UciCommand {
         QUIT,
     };
     UciCommandType type;
+    std::string input;
     std::vector<std::string> args;
 
   private:
@@ -88,6 +100,8 @@ struct UciCommand {
     }
 };
 
+constexpr const int MAX_DEPTH = 64;
+
 // Global vars, shared between the io thread and any working threads
 struct Globals {
   public:
@@ -104,7 +118,7 @@ struct Globals {
     // TODO: implement fully
     // For now, just handle uci info always,
     // And log other info to stdout in debug mode.
-    void log(std::string msg, LogLevel level = LogLevel::CHEST_INFO) {
+    void log(std::string msg, LogLevel level = LogLevel::CHEST_INFO) const {
         if (level == LogLevel::UCI_INFO) {
             output << "info " << msg << std::endl;
         } else if (debug) {
@@ -118,18 +132,61 @@ struct Globals {
     std::ostream &output;
 };
 
+// Report reults of partial searches
+// TODO: check that mate report works
+// for now, assume the max eval means mate,
+// and depth gives the number of ply til mate
+struct EngineReporter : search::StatReporter {
+    EngineReporter(const Globals &globals) : m_globals(globals) {};
+    void report(int depth, eval::centipawn_t eval, size_t nodes,
+                std::chrono::duration<double> time,
+                const svec<move::FatMove, 256> &pv,
+                const state::AugmentedState &astate) const override {
+
+        std::string info_string;
+        info_string += "depth ";
+        info_string += std::to_string(depth);
+        info_string += " score ";
+        if (eval == eval::max_eval || eval == -eval::max_eval) {
+            info_string += "mate ";
+            info_string += std::to_string((int)(eval > 0) * depth / 2);
+        } else {
+            info_string += "cp ";
+            info_string += std::to_string(eval);
+        }
+        info_string += " nodes ";
+        info_string += std::to_string(nodes);
+        info_string += " time ";
+        info_string += std::to_string((uint64_t)(time.count() * 1000));
+        info_string += " nps ";
+        info_string += std::to_string((uint64_t)(nodes / time.count()));
+        info_string += " pv";
+
+        for (const move::FatMove fmove : pv) {
+            info_string += " ";
+            info_string += (move::long_alg_t)move::LongAlgMove(fmove, astate);
+        }
+
+        m_globals.log(info_string, Globals::LogLevel::UCI_INFO);
+    };
+
+  private:
+    const Globals &m_globals;
+};
+
 // Abstract classes to handle state machine of UCI engine,
 // i.e. respond to different commands.
 class Engine {
   public:
     Engine(Globals &globals)
         : m_input(std::cin), m_output(std::cout), m_globals(globals),
-          m_astate() {}
+          m_astate(), m_input_buffer(new char[max_input_line_length]) {}
 
     virtual void handle_command(UciCommand command) {
         switch (command.type) {
         case UciCommand::UciCommandType::UNRECOGNISED:
-            m_globals.log("unrecognised command", Globals::LogLevel::UCI_INFO);
+            m_globals.log("unrecognised command: \n" + command.input,
+                          Globals::LogLevel::UCI_INFO);
             break;
         case UciCommand::UciCommandType::UCI:
             identify();
@@ -178,9 +235,8 @@ class Engine {
         };
     }
     UciCommand read_command() {
-        char input_buf[max_input_line_length];
-        m_input.getline(input_buf, max_input_line_length - 1, '\n');
-        return UciCommand{input_buf};
+        m_input.getline(m_input_buffer.get(), max_input_line_length - 1, '\n');
+        return UciCommand{m_input_buffer.get()};
     }
 
   private:
@@ -188,8 +244,9 @@ class Engine {
     std::ostream &m_output;
     Globals &m_globals;
     state::AugmentedState m_astate;
+    std::unique_ptr<char> m_input_buffer;
 
-    static constexpr size_t max_input_line_length = 1024;
+    static constexpr size_t max_input_line_length = 16384;
 
     void bad_args(UciCommand command) {
         std::string msg;
@@ -261,8 +318,7 @@ class Engine {
         }
 
         // Handle state updates
-        state::SearchNode<move::movegen::AllMoveGenerator<>, 1> sn(
-            m_globals.mover, ret, 1);
+        state::SearchNode<1> sn(m_globals.mover, ret, 1);
 
         // Handle moves
         while (i < sz) {
@@ -273,7 +329,7 @@ class Engine {
                 return {};
             }
 
-            m_output << fmove->get_move().pretty() << std::endl;
+            // m_output << fmove->get_move().pretty() << std::endl;
 
             // Make move
             sn.prep_search(1);
@@ -285,12 +341,82 @@ class Engine {
     }
 
     void go(UciCommand command) {
-        // TODO: implement search options
         (void)command;
 
-        state::SearchNode<move::movegen::AllMoveGenerator<>, 1> sn(
-            m_globals.mover, m_astate, 1);
-        move::FatMove best = sn.get_random_move().value();
+        std::optional<int> to_go;
+
+        std::optional<search::ms_t> b_remaining;
+        std::optional<search::ms_t> w_remaining;
+        std::optional<search::ms_t> b_increment = 0;
+        std::optional<search::ms_t> w_increment = 0;
+
+        // TODO: do this better
+        for (size_t i = 0; i < command.args.size(); i++) {
+
+            if (command.args.at(i) == "movestogo") {
+                if (i + 1 == command.args.size()) {
+                    bad_args(command);
+                }
+                to_go = std::stoi(command.args.at(++i));
+            }
+
+            if (command.args.at(i) == "btime") {
+                if (i + 1 == command.args.size()) {
+                    bad_args(command);
+                }
+                b_remaining = std::stoi(command.args.at(++i));
+            }
+
+            if (command.args.at(i) == "wtime") {
+                if (i + 1 == command.args.size()) {
+                    bad_args(command);
+                }
+                w_remaining = std::stoi(command.args.at(++i));
+            }
+
+            if (command.args.at(i) == "binc") {
+                if (i + 1 == command.args.size()) {
+                    bad_args(command);
+                }
+                b_increment = std::stoi(command.args.at(++i));
+            }
+
+            if (command.args.at(i) == "winc") {
+                if (i + 1 == command.args.size()) {
+                    bad_args(command);
+                }
+                w_increment = std::stoi(command.args.at(++i));
+            }
+        }
+
+        if (!(to_go && b_remaining && w_remaining && b_increment &&
+              w_increment)) {
+            bad_args(command);
+        }
+        search::TimeControl time_control(
+            b_remaining.value(), w_remaining.value(), b_increment.value(),
+            w_increment.value(), to_go.value());
+
+        eval::MaterialEval eval(m_astate);
+        search::DLNegaMax<eval::MaterialEval, MAX_DEPTH> nega(eval, m_globals.mover,
+                                                      m_astate, MAX_DEPTH);
+
+        // Create reporter
+        EngineReporter reporter(m_globals);
+
+        // Calculate stop time
+        // search::NullTimeManager time_manager(m_astate);
+        search::DefaultTimeManager time_manager(m_astate);
+        search::ms_t search_time = time_manager(time_control);
+
+        std::chrono::time_point<std::chrono::steady_clock> finish_time =
+            std::chrono::steady_clock::now() +
+            std::chrono::milliseconds(search_time);
+
+        search::IDSearcher<search::DLNegaMax<eval::MaterialEval, MAX_DEPTH>, MAX_DEPTH>
+            idsearcher{m_astate, nega, reporter};
+        move::FatMove best = idsearcher.search(finish_time).best_move;
+
         m_output << "bestmove "
                  << (move::long_alg_t)move::LongAlgMove(best, m_astate)
                  << std::endl;

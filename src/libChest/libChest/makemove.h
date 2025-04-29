@@ -32,11 +32,11 @@ static const MadeMove nullMadeMove{{}, State().irreversible()};
 // Stores augmented state, has buffers for made moves, found moves.
 // This is the basic unit for iterative (non-recursive, incrementally updated)
 // game tree traversal,
-template <move::movegen::PseudolegalGenerator T, size_t MaxDepth>
+template <size_t MaxDepth>
 struct SearchNode {
 
   public:
-    constexpr SearchNode(const T &mover, AugmentedState &astate, int max_depth)
+    constexpr SearchNode(const move::movegen::AllMoveGenerator<> &mover, AugmentedState &astate, int max_depth)
         : m_astate(astate), m_max_depth(max_depth), m_cur_depth(0),
           m_mover(mover) {};
 
@@ -373,7 +373,7 @@ struct SearchNode {
     int m_max_depth;
     int m_cur_depth;
 
-    const T &m_mover;
+    const move::movegen::AllMoveGenerator<> &m_mover;
     svec<MadeMove, MaxDepth> m_made_moves;
     svec<MoveBuffer, MaxDepth> m_found_moves;
 };
