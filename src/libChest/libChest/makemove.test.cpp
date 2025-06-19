@@ -11,7 +11,6 @@
 //   InOrder = true -> 26.8Mn/s
 //   InOrder = false -> 28.3Mn/s
 // move generation logic decide the fastest way to get moves.
-constexpr bool in_order = false;
 constexpr size_t max_depth_limit = 7;
 
 struct PerftTest {
@@ -20,7 +19,7 @@ struct PerftTest {
     std::vector<uint64_t> results;
 };
 
-move::movegen::AllMoveGenerator<in_order> mover{};
+move::movegen::AllMoveGenerator<> mover{};
 
 const std::string indent = "    ";
 const uint64_t million = 1000000;

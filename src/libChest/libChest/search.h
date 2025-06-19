@@ -8,6 +8,7 @@
 #include "libChest/state.h"
 #include "makemove.h"
 #include "movegen.h"
+#include <algorithm>
 #include <chrono>
 #include <concepts>
 #include <cstdlib>
@@ -109,6 +110,36 @@ static_assert(Searcher<RandomSearcher>);
 // Depth-limited negamax
 //
 
+struct Bounds {
+
+  public:
+    Bounds() : alpha(-eval::max_eval), beta(eval::max_eval) {};
+    Bounds(eval::centipawn_t alpha, eval::centipawn_t beta)
+        : alpha(alpha), beta(beta) {};
+
+    eval::centipawn_t alpha;
+    eval::centipawn_t beta;
+};
+
+// TODO: actually return node types, if its useful at some point.
+// I just return NA for now.
+struct ABResult {
+    // Use Knuth's numbering
+    enum class ABNodeType : uint8_t {
+        NA = 0,  // e.g. time cutoff
+        PV = 1,  // didn't fail
+        CUT = 2, // failed high
+        ALL = 3, // failed low
+    };
+    SearchResult result;
+    ABNodeType type;
+    operator SearchResult() const { return result; }
+};
+static_assert(std::convertible_to<ABResult, SearchResult>);
+
+// Time cutoff -> don't worry about result for now
+static const ABResult ab_cutoff_result{cutoff_result, ABResult::ABNodeType::NA};
+
 template <eval::StaticEvaluator TEval, size_t MaxDepth> class DLNegaMax {
 
   public:
@@ -128,8 +159,9 @@ template <eval::StaticEvaluator TEval, size_t MaxDepth> class DLNegaMax {
     // Calling code should ensure set_depth/stop
     // do not race.
     constexpr void stop() { m_stopped = true; }
-    constexpr SearchResult
-    search(std::chrono::time_point<std::chrono::steady_clock> finish_time) {
+    constexpr ABResult
+    search(std::chrono::time_point<std::chrono::steady_clock> finish_time,
+           Bounds bounds) {
 
         // Auto-stop
         if (std::chrono::steady_clock::now() > finish_time) {
@@ -138,15 +170,16 @@ template <eval::StaticEvaluator TEval, size_t MaxDepth> class DLNegaMax {
 
         // Early return
         if (m_stopped) {
-            return cutoff_result;
+            return ab_cutoff_result;
         }
 
-        // Cutoff
+        // Cutoff -> return value
         if (m_node.bottomed_out()) {
-            return {.type = SearchResult::LeafType::CUTOFF,
-                    .best_move = {},
-                    .eval = m_eval.eval(),
-                    .n_nodes = 1};
+            SearchResult search_ret = {.type = SearchResult::LeafType::CUTOFF,
+                                       .best_move = {},
+                                       .eval = m_eval.eval(),
+                                       .n_nodes = 1};
+            return {search_ret, ABResult::ABNodeType::NA};
         }
 
         // Get children
@@ -161,21 +194,33 @@ template <eval::StaticEvaluator TEval, size_t MaxDepth> class DLNegaMax {
 
             // Early return from recursion
             if (m_stopped) {
-                return cutoff_result;
+                return ab_cutoff_result;
             }
 
+            // Check child
             if (m_node.make_move(m)) {
-                SearchResult child_result = search(finish_time);
-                child_result.eval *= -1;
 
+                SearchResult child_result =
+                    search(finish_time, {-bounds.beta, -bounds.alpha});
+
+                // Count nodes
                 n_nodes += child_result.n_nodes;
+                eval::centipawn_t child_eval = -child_result.eval;
 
-                if (!(best_move.has_value()) ||
-                    child_result.eval > best_move.value().eval) {
+                // Update best move if eval improves
+                if (!(best_move.has_value()) || child_eval > best_move->eval) {
                     best_move = {.type = child_result.type,
                                  .best_move = m,
-                                 .eval = child_result.eval,
+                                 .eval = child_eval,
                                  .n_nodes{}}; // count nodes later
+
+                    // Handle pruning
+                    bounds.alpha = std::max(bounds.alpha, child_eval);
+                    if (bounds.alpha >= bounds.beta) {
+                        // Pruned -> return lower bound
+                        m_node.unmake_move();
+                        break;
+                    }
                 }
             }
             m_node.unmake_move();
@@ -190,14 +235,21 @@ template <eval::StaticEvaluator TEval, size_t MaxDepth> class DLNegaMax {
                     .single_bitscan_forward();
             bool checked = m_mover.is_attacked(m_node.m_astate, king_sq,
                                                m_node.m_astate.state.to_move);
-            return {.type = checked ? SearchResult::LeafType::CHECKMATE
-                                    : SearchResult::LeafType::STALEMATE,
-                    .eval = checked ? -eval::max_eval : 0,
-                    .n_nodes = n_nodes};
+            return {{.type = checked ? SearchResult::LeafType::CHECKMATE
+                                     : SearchResult::LeafType::STALEMATE,
+                     .eval = checked ? -eval::max_eval : 0,
+                     .n_nodes = n_nodes},
+                    ABResult::ABNodeType::NA};
         }
 
         best_move->n_nodes = n_nodes;
-        return best_move.value();
+        return {best_move.value(), ABResult::ABNodeType::NA};
+    }
+
+    // Search with default bounds
+    constexpr ABResult
+    search(std::chrono::time_point<std::chrono::steady_clock> finish_time) {
+        return search(finish_time, {});
     }
 
   private:
@@ -212,21 +264,6 @@ static_assert(DLSearcher<DLNegaMax<eval::MaterialEval, 1>>);
 //
 // Alpha
 //
-
-struct ABResult {
-    // Use Knuth's numbering
-    enum class ABNodeType : uint8_t {
-        PV = 1,
-        CUT = 2,
-        ALL = 3,
-    };
-    SearchResult result;
-    ABNodeType type;
-    eval::centipawn_t alpha;
-    eval::centipawn_t beta;
-    operator SearchResult() const { return result; }
-};
-static_assert(std::convertible_to<ABResult, SearchResult>);
 
 //
 // Iterative deepening

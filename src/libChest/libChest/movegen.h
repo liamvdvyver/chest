@@ -529,6 +529,8 @@ template <bool InOrder = false> class AllMoveGenerator {
         m_bishop_mover.get_quiet_moves(astate, moves);
         m_rook_mover.get_quiet_moves(astate, moves);
         m_king_mover.get_quiet_moves(astate, moves);
+        m_h_queen_mover.get_quiet_moves(astate, moves);
+        m_d_queen_mover.get_quiet_moves(astate, moves);
     };
 
     constexpr void get_loud_moves(const state::AugmentedState &astate,
@@ -538,6 +540,8 @@ template <bool InOrder = false> class AllMoveGenerator {
         m_bishop_mover.get_loud_moves(astate, moves);
         m_rook_mover.get_loud_moves(astate, moves);
         m_king_mover.get_loud_moves(astate, moves);
+        m_h_queen_mover.get_loud_moves(astate, moves);
+        m_d_queen_mover.get_loud_moves(astate, moves);
     };
 
     constexpr void get_all_moves(const state::AugmentedState &astate,
