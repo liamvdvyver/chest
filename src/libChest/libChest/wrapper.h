@@ -4,20 +4,19 @@
 // Wrap a base type with a single-member struct, providing:
 //
 // * private "value" field of base type
-// * (implicit) conversion operator to base type is allowed
+// * (explicit) conversion operator to base type or bool is allowed
 // * one arg (value)/no-arg (default initialisation of value field) c'tors
 // * overload operators of a wrapper based on the operators of a wrapper type
 //
-// By inheriting from the Wrapper type, and adding a (constexpr) constructor for
-// the derived WrapperType from the Wrapper type, the derived Wrapper type can
-// be used (mostly) interchangeable with T.
+// By inheriting from the Wrapper type the derived Wrapper type can be used
+// (mostly) interchangeable with T.
 template <typename T, typename WrapperType> struct Wrapper {
 
     // Make value available to derived WrapperType
     friend WrapperType;
 
     // Construct from value, or use default initiliaser
-    constexpr Wrapper(const T board) : value{board} {};
+    constexpr Wrapper(const T value) : value{value} {};
     constexpr Wrapper() : value{} {};
 
     // Allow explicit conversion to get base type
@@ -134,7 +133,7 @@ template <typename T, typename WrapperType> struct Wrapper {
     }
 
   private:
-    [[no_unique_address]] T value;
+    T value;
 };
 
 #endif
