@@ -400,10 +400,10 @@ static_assert(ColouredAttacker<
               PrecomputedColouredMultiAttacker<detail::GenPawnSinglePushes>>);
 
 // Magic numbers
-typedef board::Bitboard magic_t;
+using magic_t = board::Bitboard;
 
 // Attack table keys
-typedef uint16_t magic_key_t;
+using magic_key_t = uint16_t;
 
 // Given attack and mask generators, implement plain magic bitboards.
 // Uses PEXT bitboards instead if available.
@@ -599,20 +599,20 @@ class MagicAttacker {
 // Create concrete instances
 //
 
-typedef PrecomputedMultiAttacker<detail::GenKingAttacks> KingAttacker;
-typedef PrecomputedMultiAttacker<detail::GenKnightAttacks> KnightAttacker;
+using KingAttacker = PrecomputedMultiAttacker<detail::GenKingAttacks>;
+using KnightAttacker = PrecomputedMultiAttacker<detail::GenKnightAttacks>;
 
-typedef PrecomputedColouredMultiAttacker<detail::GenPawnSinglePushes>
-    PawnSinglePusher;
-typedef PrecomputedColouredMultiAttacker<detail::GenPawnDoublePushes>
-    PawnDoublePusher;
-typedef PrecomputedColouredMultiAttacker<detail::GenAllPawnPushes> PawnPusher;
-typedef PrecomputedColouredMultiAttacker<detail::GenPawnAttacks> PawnAttacker;
+using PawnSinglePusher =
+    PrecomputedColouredMultiAttacker<detail::GenPawnSinglePushes>;
+using PawnDoublePusher =
+    PrecomputedColouredMultiAttacker<detail::GenPawnDoublePushes>;
+using PawnPusher = PrecomputedColouredMultiAttacker<detail::GenAllPawnPushes>;
+using PawnAttacker = PrecomputedColouredMultiAttacker<detail::GenPawnAttacks>;
 
-typedef MagicAttacker<9, detail::GenBishopAttacks, detail::GenBishopMask>
-    BishopAttacker;
-typedef MagicAttacker<12, detail::GenRookAttacks, detail::GenRookMask>
-    RookAttacker;
+using BishopAttacker =
+    MagicAttacker<9, detail::GenBishopAttacks, detail::GenBishopMask>;
+using RookAttacker =
+    MagicAttacker<12, detail::GenRookAttacks, detail::GenRookMask>;
 static_assert(SlidingAttacker<BishopAttacker>);
 static_assert(SlidingAttacker<RookAttacker>);
 

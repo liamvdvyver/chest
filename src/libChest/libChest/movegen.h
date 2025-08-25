@@ -261,34 +261,29 @@ template <PiecewiseMoveGenerator TMover> class MultiMoverFactory {
 
 // Jumping
 
-typedef MultiMoverFactory<PiecewiseFactory<
+using KingMover = MultiMoverFactory<PiecewiseFactory<
     board::Piece::KING,
-    SingletonMoverFactory<attack::KingAttacker, board::Piece::KING>>>
-    KingMover;
-typedef MultiMoverFactory<PiecewiseFactory<
+    SingletonMoverFactory<attack::KingAttacker, board::Piece::KING>>>;
+using KnightMover = MultiMoverFactory<PiecewiseFactory<
     board::Piece::KNIGHT,
-    SingletonMoverFactory<attack::KnightAttacker, board::Piece::KNIGHT>>>
-    KnightMover;
+    SingletonMoverFactory<attack::KnightAttacker, board::Piece::KNIGHT>>>;
 
 static_assert(MultiMoveGenerator<KingMover>);
 static_assert(MultiMoveGenerator<KnightMover>);
 
 // Sliding
 
-typedef MultiMoverFactory<SlidingPiecewiseFactory<
-    board::Piece::BISHOP,
-    SlidingSingletonMoverFactory<attack::BishopAttacker, board::Piece::BISHOP>>>
-    BishopMover;
+using BishopMover = MultiMoverFactory<SlidingPiecewiseFactory<
+    board::Piece::BISHOP, SlidingSingletonMoverFactory<attack::BishopAttacker,
+                                                       board::Piece::BISHOP>>>;
 static_assert(MultiMoveGenerator<BishopMover>);
 
-typedef MultiMoverFactory<SlidingPiecewiseFactory<
+using DiagQueenMover = MultiMoverFactory<SlidingPiecewiseFactory<
     board::Piece::QUEEN,
-    SlidingSingletonMoverFactory<attack::BishopAttacker, board::Piece::QUEEN>>>
-    DiagQueenMover;
-typedef MultiMoverFactory<SlidingPiecewiseFactory<
+    SlidingSingletonMoverFactory<attack::BishopAttacker, board::Piece::QUEEN>>>;
+using HorizQueenMover = MultiMoverFactory<SlidingPiecewiseFactory<
     board::Piece::QUEEN,
-    SlidingSingletonMoverFactory<attack::RookAttacker, board::Piece::QUEEN>>>
-    HorizQueenMover;
+    SlidingSingletonMoverFactory<attack::RookAttacker, board::Piece::QUEEN>>>;
 static_assert(MultiMoveGenerator<HorizQueenMover>);
 
 //
@@ -441,11 +436,10 @@ class PawnMoveGenerator {
     }
 };
 
-typedef MultiMoverFactory<PiecewiseFactory<
+using PawnMover = MultiMoverFactory<PiecewiseFactory<
     board::Piece::PAWN,
     PawnMoveGenerator<attack::PawnSinglePusher, attack::PawnDoublePusher,
-                      attack::PawnAttacker>>>
-    PawnMover;
+                      attack::PawnAttacker>>>;
 static_assert(MultiMoveGenerator<PawnMover>);
 
 // Given a MultiMoveGenerator which gets rook moves,
@@ -495,10 +489,9 @@ template <MultiMoveGenerator TMover> class RookMoverFactory : TMover {
     };
 };
 
-typedef RookMoverFactory<MultiMoverFactory<SlidingPiecewiseFactory<
+using RookMover = RookMoverFactory<MultiMoverFactory<SlidingPiecewiseFactory<
     board::Piece::ROOK,
-    SlidingSingletonMoverFactory<attack::RookAttacker, board::Piece::ROOK>>>>
-    RookMover;
+    SlidingSingletonMoverFactory<attack::RookAttacker, board::Piece::ROOK>>>>;
 static_assert(MultiMoveGenerator<RookMover>);
 
 //

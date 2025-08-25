@@ -38,7 +38,7 @@ static constexpr int n_colours = 2;
 //
 
 // LERF enumeration
-typedef uint8_t square_t;
+using square_t = uint8_t;
 
 struct Square : Wrapper<square_t, Square> {
 
@@ -119,7 +119,7 @@ enum class Direction { N, S, E, W, NE, NW, SE, SW };
 //
 
 // LERF bitset
-typedef uint64_t bitboard_t;
+using bitboard_t = uint64_t;
 
 // Thin wrapper around a bitboard_t (uint64_t)
 //
@@ -389,7 +389,7 @@ struct ColouredPiece {
 namespace io {
 
 // Type of algebraic square names
-typedef std::string alg_t;
+using alg_t = std::string;
 
 // Parse (case-insensitive) algebraic notation
 board::Square to_square(const alg_t &sq);

@@ -16,7 +16,7 @@
 
 namespace state {
 
-typedef std::string fen_t; // FEN strings
+using fen_t = std::string; // FEN strings
 
 // Standard game setup
 static const fen_t new_game_fen =

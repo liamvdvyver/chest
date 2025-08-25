@@ -11,7 +11,7 @@
 
 namespace eval {
 
-typedef int64_t centipawn_t;
+using centipawn_t = int64_t;
 constexpr centipawn_t max_eval = INT64_MAX;
 
 // Given a position (augmented state),

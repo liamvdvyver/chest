@@ -73,11 +73,11 @@ static_assert(RAStack<svec<int, 5>, int>);
 // Note: 218 is the limit of legal chess moves
 // since we have psuedolegal moves, this could be insufficient,
 // I just chose 256, then we can index in with a uint8_t.
-#define MaxMoves 256
+constexpr size_t MaxMoves = 256;
 
 // The type of buffer used for storing search results,
 // must be compatible with interface of std::vector<move::Move>
-#define MoveBuffer svec<move::FatMove, MaxMoves>
+using MoveBuffer = svec<move::FatMove, MaxMoves>;
 static_assert(RAStack<MoveBuffer, move::FatMove>);
 
 #endif

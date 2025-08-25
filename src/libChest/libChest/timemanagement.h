@@ -9,7 +9,7 @@
 
 namespace search {
 
-typedef uint64_t ms_t;
+using ms_t = uint64_t;
 
 struct TimeControl {
 
@@ -82,7 +82,7 @@ template <int MovesProp, int IncProp> class EqualTimeManager {
     const state::AugmentedState &m_astate;
 };
 static_assert(StaticTimeManager<EqualTimeManager<20, 2>>);
-typedef EqualTimeManager<20, 2> DefaultTimeManager;
+using DefaultTimeManager = EqualTimeManager<20, 2>;
 } // namespace search
 
 #endif

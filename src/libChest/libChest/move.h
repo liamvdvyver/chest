@@ -12,7 +12,7 @@
 namespace move {
 
 // All information required for minimal move
-typedef uint16_t move_t;
+using move_t = uint16_t;
 
 //
 // Move types
@@ -31,7 +31,7 @@ typedef uint16_t move_t;
 // MoveType != 0 iff move is irreversible (resets halfmove clock)
 // Can just sort by movetype to get a rough move ordering,
 // filter zeros for loud-line generation.
-typedef int movetype_t;
+using movetype_t = uint8_t;
 enum class MoveType : movetype_t {
     // clang-format off
     /*0b0000*/ NORMAL                 = 0b0000,
@@ -207,7 +207,7 @@ struct FatMove {
 
 // Long algebraic notation
 // Requires state to convert to normal FatMoves
-typedef std::string long_alg_t;
+using long_alg_t = std::string;
 struct LongAlgMove : Wrapper<long_alg_t, LongAlgMove> {
   public:
     using Wrapper::Wrapper;
