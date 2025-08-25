@@ -123,6 +123,7 @@ constexpr board::Piece promoted_piece(MoveType type) {
 //
 // Encodes any move, legal or otherwise
 //
+// Hand-rolled bitfields used over C++ bitfields for performance.
 struct Move : Wrapper<move_t, Move> {
 
   public:
