@@ -2,9 +2,14 @@
 #define ATTACK_H
 
 #include "board.h"
+
+// If x86 pext instruction is present,
+// it is used for generating precomputed attack keys.
 #if __has_include(<immintrin.h>)
+#define USE_PEXT
 #include <immintrin.h>
 #endif
+
 #include <random>
 
 //
@@ -415,7 +420,7 @@ class MagicAttacker {
   public:
     constexpr MagicAttacker()
         : m_masks(), m_attacks(),
-#if !__has_include(<immintrin.h>)
+#ifndef USE_PEXT
           m_magics(),
 #endif
           m_shifts() {
@@ -468,7 +473,7 @@ class MagicAttacker {
     board::Bitboard m_attacks[board::n_squares][n_attack_keys];
 
 // Magic bitboards (per-position)
-#if !__has_include(<immintrin.h>)
+#ifndef USE_PEXT
     magic_t m_magics[board::n_squares];
 #endif
 
@@ -546,7 +551,7 @@ class MagicAttacker {
                 magic_num = rand(eng) & rand(eng) & rand(eng);
                 done = init_attacks(magic_num, sq, visited);
             } while (!done);
-#if !__has_include(<immintrin.h>)
+#ifndef USE_PEXT
             m_magics[sq] = magic_num;
 #endif
         }
@@ -566,7 +571,7 @@ class MagicAttacker {
     // Get the attack map key, given position, blockers (relevant or total)
     constexpr magic_key_t get_magic_key(board::Square sq,
                                         board::Bitboard occ) const {
-#if __has_include(<immintrin.h>)
+#ifdef USE_PEXT
         board::Bitboard mask = m_masks[sq];
         return _pext_u64((board::bitboard_t)occ, (board::bitboard_t)mask);
 #else
@@ -586,7 +591,7 @@ class MagicAttacker {
     constexpr magic_key_t get_magic_key(board::Square sq, board::Bitboard occ,
                                         magic_t magic) const {
         board::Bitboard mask = m_masks[sq];
-#if __has_include(<immintrin.h>)
+#ifdef USE_PEXT
         (void)magic;
         return _pext_u64((board::bitboard_t)occ, (board::bitboard_t)mask);
 #else
