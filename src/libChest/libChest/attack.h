@@ -430,14 +430,14 @@ class MagicAttacker {
     constexpr void init() {
         init_masks();
         init_shifts();
-        init_magics();
+        init_all_attacks();
     }
 
     // Get all squares attacked by a piece.
     // May include own pieces.
     constexpr board::Bitboard operator()(board::Square sq,
                                          board::Bitboard occ) const {
-        return m_attacks[sq][get_magic_key(sq, occ)];
+        return m_attacks[sq][attack_map_key(sq, occ)];
     };
 
   private:
@@ -485,9 +485,9 @@ class MagicAttacker {
     //
 
     // Populate attack maps for a position, given a candidate magic number.
-    // Returns whether successful.
-    constexpr bool init_attacks(magic_t magic, board::Square sq,
-                                std::vector<magic_key_t> &visited) {
+    // Returns whether successful, i.e., no collision occurred.
+    constexpr bool init_position_attacks(magic_t magic, board::Square sq,
+                                         std::vector<magic_key_t> &visited) {
         visited.clear();
 
         board::Bitboard *coord_attack_map = m_attacks[sq];
@@ -498,7 +498,7 @@ class MagicAttacker {
         for (board::Bitboard blocker_subset : all_blockers.subsets()) {
 
             board::Bitboard attacked = gen_attacks(sq, blocker_subset);
-            key = get_magic_key(sq, blocker_subset, magic);
+            key = attack_map_key(sq, blocker_subset, magic);
 
             board::Bitboard &cur_elm = coord_attack_map[key];
 
@@ -532,8 +532,8 @@ class MagicAttacker {
         assert(max_shift_found == max_shift);
     };
 
-    // Populate all magic numbers
-    constexpr void init_magics() {
+    // Populate all attacks, and keys if using magic bitboards.
+    constexpr void init_all_attacks() {
 
         magic_t magic_num;
         bool done;
@@ -549,7 +549,7 @@ class MagicAttacker {
             done = false;
             do {
                 magic_num = rand(eng) & rand(eng) & rand(eng);
-                done = init_attacks(magic_num, sq, visited);
+                done = init_position_attacks(magic_num, sq, visited);
             } while (!done);
 #ifndef USE_PEXT
             m_magics[sq] = magic_num;
@@ -569,8 +569,8 @@ class MagicAttacker {
     //
 
     // Get the attack map key, given position, blockers (relevant or total)
-    constexpr magic_key_t get_magic_key(board::Square sq,
-                                        board::Bitboard occ) const {
+    constexpr magic_key_t attack_map_key(board::Square sq,
+                                         board::Bitboard occ) const {
 #ifdef USE_PEXT
         board::Bitboard mask = m_masks[sq];
         return _pext_u64((board::bitboard_t)occ, (board::bitboard_t)mask);
@@ -588,8 +588,8 @@ class MagicAttacker {
 
     // Get the attack map key, given position, blockers (relevant or total), and
     // a magic number
-    constexpr magic_key_t get_magic_key(board::Square sq, board::Bitboard occ,
-                                        magic_t magic) const {
+    constexpr magic_key_t attack_map_key(board::Square sq, board::Bitboard occ,
+                                         magic_t magic) const {
         board::Bitboard mask = m_masks[sq];
 #ifdef USE_PEXT
         (void)magic;
