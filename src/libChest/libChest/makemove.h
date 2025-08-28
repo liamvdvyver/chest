@@ -346,7 +346,7 @@ struct SearchNode {
     };
 
     // Clears move buffers and sets max_depth
-    void prep_search(int depth) {
+    void prep_search(size_t depth) {
 
         assert(depth <= MaxDepth);
 

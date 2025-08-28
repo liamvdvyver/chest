@@ -53,7 +53,7 @@ enum class MoveType : movetype_t {
     // clang-format on
 };
 
-std::string pretty(MoveType m) {
+constexpr std::string pretty(MoveType m) {
     switch (m) {
     case MoveType::NORMAL:
         return "NORMAL";

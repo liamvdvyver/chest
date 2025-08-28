@@ -1,9 +1,7 @@
 #ifndef EVAL_H
 #define EVAL_H
 
-#include "board.h"
 #include "state.h"
-#include <utility>
 
 //
 // Basic evaluation of positions
@@ -12,7 +10,7 @@
 namespace eval {
 
 using centipawn_t = int64_t;
-constexpr centipawn_t max_eval = INT64_MAX;
+constexpr centipawn_t max_eval = std::numeric_limits<centipawn_t>::max();
 
 // Given a position (augmented state),
 // return a static evaluation.
