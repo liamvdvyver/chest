@@ -1,6 +1,7 @@
 #ifndef STATE_H
 #define STATE_H
 
+#include <cassert>
 #include <cstdint>
 #include <iostream>
 #include <optional>
@@ -59,123 +60,133 @@ struct CastlingInfo {
     static constexpr board::Square b_qs_rook_start = board::A8;
 
     // Masks: squares which must be unobstructed to castle
+
     static constexpr board::Bitboard w_ks_rook_mask =
         board::Bitboard(board::Square(board::F1)) ^
         board::Bitboard(board::Square(board::G1));
+
     static constexpr board::Bitboard w_qs_rook_mask =
         board::Bitboard(board::Square(board::B1)) ^
         board::Bitboard(board::Square(board::C1)) ^
         board::Bitboard(board::Square(board::D1));
+
     static constexpr board::Bitboard b_ks_rook_mask =
         w_ks_rook_mask.shift(0, board::board_size - 1);
+
     static constexpr board::Bitboard b_qs_rook_mask =
         w_qs_rook_mask.shift(0, board::board_size - 1);
 
     // Masks: squares which must be unchecked to castle
+
     static constexpr board::Bitboard w_ks_king_mask =
         w_ks_king_dest ^ board::Bitboard(board::Square(board::E1)) ^
         board::Bitboard(board::Square(board::F1));
+
     static constexpr board::Bitboard w_qs_king_mask =
         w_qs_king_dest ^ board::Bitboard(board::Square(board::E1)) ^
         board::Bitboard(board::Square(board::D1));
+
     static constexpr board::Bitboard b_ks_king_mask =
         w_ks_king_mask.shift(0, board::board_size - 1);
+
     static constexpr board::Bitboard b_qs_king_mask =
         w_qs_king_mask.shift(0, board::board_size - 1);
 
-    // Raw arrays
-
-    static constexpr board::Square king_start[board::n_colours]{b_king_start,
-                                                                w_king_start};
-
-    static constexpr board::Square
-        rook_start[board::n_colours][n_castling_sides]{
-            {b_qs_rook_start, b_ks_rook_start},
-            {w_qs_rook_start, w_ks_rook_start}};
-
-    static constexpr board::Bitboard
-        rook_mask[board::n_colours][n_castling_sides]{
-            {b_qs_rook_mask, b_ks_rook_mask}, {w_qs_rook_mask, w_ks_rook_mask}};
-
-    static constexpr board::Bitboard
-        king_mask[board::n_colours][n_castling_sides]{
-            {b_qs_king_mask, b_ks_king_mask}, {w_qs_king_mask, w_ks_king_mask}};
-
     // Find index for layout of queenside/kingside arrays
     static constexpr int side_idx(board::Piece side) {
-        // General layout used for castling-related matters:
-        // {black: {qs, ks}, white: {qs, ks}}
-        assert(side == board::Piece::QUEEN || side == board::Piece::KING);
+        assert(is_castling_side(side));
         return ((int)(side == board::Piece::KING));
     }
 
    public:
     // Given a square of a rook and a colour, find which side (king/queen) the
     // rook belongs to, if any
-    static constexpr std::optional<board::Piece>
-    get_side(board::Square square, board::Colour colour) {
-        for (board::Piece side : castling_sides) {
-            if (square == rook_start[(int)colour][side_idx(side)]) {
-                return {side};
-            }
+    static constexpr std::optional<board::Piece> get_side(
+        board::Square square, board::Colour colour) {
+        switch (colour) {
+            case board::Colour::BLACK:
+                switch (square) {
+                    case b_ks_rook_start:
+                        return board::Piece::KING;
+                    case b_qs_rook_start:
+                        return board::Piece::QUEEN;
+                }
+                break;
+            case board::Colour::WHITE:
+                switch (square) {
+                    case w_ks_rook_start:
+                        return board::Piece::KING;
+                    case w_qs_rook_start:
+                        return board::Piece::QUEEN;
+                }
+                break;
         }
         return {};
     };
 
-    // Given a square of a rook, find which side and colour the piece belongs
-    // to, if any
-    static constexpr std::optional<board::Piece>
-    get_side(board::Square square) {
-        std::optional<board::Piece> w_ret =
-            get_side(square, board::Colour::WHITE);
-        return w_ret.has_value() ? w_ret
-                                 : get_side(square, board::Colour::BLACK);
-    };
-
-    //
-    // Data: public accessos
-    //
-
     // Given colour and castling side, the king's destination
-    static constexpr board::Square
-    get_king_destination(board::ColouredPiece cp) {
-        static constexpr board::Square
-            king_destinations[board::n_colours][n_castling_sides]{
-                {b_qs_king_dest, b_ks_king_dest},
-                {w_qs_king_dest, w_ks_king_dest}};
-        return king_destinations[(int)cp.colour][side_idx(cp.piece)];
+    static constexpr board::Square get_king_destination(
+        board::ColouredPiece cp) {
+        assert(is_castling_side(cp.piece));
+        return (bool)cp.colour
+                   ? (cp.piece == board::Piece::KING ? w_ks_king_dest
+                                                     : w_qs_king_dest)
+                   : (cp.piece == board::Piece::KING ? b_ks_king_dest
+                                                     : b_qs_king_dest);
     }
 
     // Given colour and castling side, the rook's destination
-    static constexpr board::Square
-    get_rook_destination(board::ColouredPiece cp) {
-        static constexpr board::Square
-            rook_destinations[board::n_colours][n_castling_sides]{
-                {b_qs_rook_dest, b_ks_rook_dest},
-                {w_qs_rook_dest, w_ks_rook_dest}};
-        return rook_destinations[(int)cp.colour][side_idx(cp.piece)];
+    static constexpr board::Square get_rook_destination(
+        board::ColouredPiece cp) {
+        assert(is_castling_side(cp.piece));
+        return (bool)cp.colour
+                   ? (cp.piece == board::Piece::KING ? w_ks_rook_dest
+                                                     : w_qs_rook_dest)
+                   : (cp.piece == board::Piece::KING ? b_ks_rook_dest
+                                                     : b_qs_rook_dest);
     }
 
     // Given colour and castling side, the rook's starting position
     static constexpr board::Square get_rook_start(board::ColouredPiece cp) {
-        return rook_start[(int)cp.colour][side_idx(cp.piece)];
+        assert(is_castling_side(cp.piece));
+        return (bool)cp.colour
+                   ? (cp.piece == board::Piece::KING ? w_ks_rook_start
+                                                     : w_qs_rook_start)
+                   : (cp.piece == board::Piece::KING ? b_ks_rook_start
+                                                     : b_qs_rook_start);
     }
 
     // Given colour, the king's starting position
     static constexpr board::Square get_king_start(board::Colour colour) {
-        return king_start[(int)colour];
+        return (bool)colour ? w_king_start : b_king_start;
     }
 
     // Given colour and castling side, which squares must be unobstructed,
     // including the final destination
     static constexpr board::Bitboard get_rook_mask(board::ColouredPiece cp) {
-        return rook_mask[(int)cp.colour][side_idx(cp.piece)];
+        assert(is_castling_side(cp.piece));
+        return (bool)cp.colour
+                   ? (cp.piece == board::Piece::KING ? w_ks_rook_mask
+                                                     : w_qs_rook_mask)
+                   : (cp.piece == board::Piece::KING ? b_ks_rook_mask
+                                                     : b_qs_rook_mask);
     }
 
     // Given colour and castling side, which squares must be unchecked,
     // including the starting and final king squares
     static constexpr board::Bitboard get_king_mask(board::ColouredPiece cp) {
-        return king_mask[(int)cp.colour][side_idx(cp.piece)];
+        assert(is_castling_side(cp.piece));
+        return (bool)cp.colour
+                   ? (cp.piece == board::Piece::KING ? w_ks_king_mask
+                                                     : w_qs_king_mask)
+                   : (cp.piece == board::Piece::KING ? b_ks_king_mask
+                                                     : b_qs_king_mask);
+    }
+
+   private:
+    // Is the piece a valid argument to castling accessors?
+    static constexpr bool is_castling_side(board::Piece p) {
+        return p == board::Piece::KING || p == board::Piece::QUEEN;
     }
 
     friend struct State;
