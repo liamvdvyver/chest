@@ -1,13 +1,14 @@
 #ifndef MOVE_H
 #define MOVE_H
 
-#include "board.h"
-#include "state.h"
-#include "wrapper.h"
 #include <cstdlib>
 #include <iostream>
 #include <optional>
 #include <utility>
+
+#include "board.h"
+#include "state.h"
+#include "wrapper.h"
 
 namespace move {
 
@@ -55,37 +56,37 @@ enum class MoveType : movetype_t {
 
 constexpr std::string pretty(MoveType m) {
     switch (m) {
-    case MoveType::NORMAL:
-        return "NORMAL";
-    case MoveType::CASTLE:
-        return "CASTLE";
-    case MoveType::SINGLE_PUSH:
-        return "SINGLE_PUSH";
-    case MoveType::DOUBLE_PUSH:
-        return "DOUBLE_PUSH";
-    case MoveType::PROMOTE_KNIGHT:
-        return "PROMOTE_KNIGHT";
-    case MoveType::PROMOTE_BISHOP:
-        return "PROMOTE_BISHOP";
-    case MoveType::PROMOTE_ROOK:
-        return "PROMOTE_ROOK";
-    case MoveType::PROMOTE_QUEEN:
-        return "PROMOTE_QUEEN";
-    case MoveType::CAPTURE:
-        return "CAPTURE";
-    case MoveType::CAPTURE_EP:
-        return "CAPTURE_EP";
+        case MoveType::NORMAL:
+            return "NORMAL";
+        case MoveType::CASTLE:
+            return "CASTLE";
+        case MoveType::SINGLE_PUSH:
+            return "SINGLE_PUSH";
+        case MoveType::DOUBLE_PUSH:
+            return "DOUBLE_PUSH";
+        case MoveType::PROMOTE_KNIGHT:
+            return "PROMOTE_KNIGHT";
+        case MoveType::PROMOTE_BISHOP:
+            return "PROMOTE_BISHOP";
+        case MoveType::PROMOTE_ROOK:
+            return "PROMOTE_ROOK";
+        case MoveType::PROMOTE_QUEEN:
+            return "PROMOTE_QUEEN";
+        case MoveType::CAPTURE:
+            return "CAPTURE";
+        case MoveType::CAPTURE_EP:
+            return "CAPTURE_EP";
 
-    case MoveType::PROMOTE_CAPTURE_KNIGHT:
-        return "PROMOTE_CAPTURE_KNIGHT";
-    case MoveType::PROMOTE_CAPTURE_BISHOP:
-        return "PROMOTE_CAPTURE_BISHOP";
-    case MoveType::PROMOTE_CAPTURE_ROOK:
-        return "PROMOTE_CAPTURE_ROOK";
-    case MoveType::PROMOTE_CAPTURE_QUEEN:
-        return "PROMOTE_CAPTURE_QUEEN";
-    default:
-        std::unreachable();
+        case MoveType::PROMOTE_CAPTURE_KNIGHT:
+            return "PROMOTE_CAPTURE_KNIGHT";
+        case MoveType::PROMOTE_CAPTURE_BISHOP:
+            return "PROMOTE_CAPTURE_BISHOP";
+        case MoveType::PROMOTE_CAPTURE_ROOK:
+            return "PROMOTE_CAPTURE_ROOK";
+        case MoveType::PROMOTE_CAPTURE_QUEEN:
+            return "PROMOTE_CAPTURE_QUEEN";
+        default:
+            std::unreachable();
     }
 }
 
@@ -125,8 +126,7 @@ constexpr board::Piece promoted_piece(MoveType type) {
 //
 // Hand-rolled bitfields used over C++ bitfields for performance.
 struct Move : Wrapper<move_t, Move> {
-
-  public:
+   public:
     using Wrapper::Wrapper;
     constexpr Move(const Wrapper &val) : Wrapper(val) {};
 
@@ -158,14 +158,14 @@ struct Move : Wrapper<move_t, Move> {
         return ret;
     }
 
-  private:
+   private:
     //
     // Size checking
     //
 
-    static constexpr int move_width = 16;    // Bits in a move
-    static constexpr int square_width = 6;   // Bits needed to encode a square
-    static constexpr int movetype_width = 4; // Remaining bits for MoveType
+    static constexpr int move_width = 16;     // Bits in a move
+    static constexpr int square_width = 6;    // Bits needed to encode a square
+    static constexpr int movetype_width = 4;  // Remaining bits for MoveType
 
     // LSB of MoveType
     static constexpr int movetype_offset = move_width - movetype_width;
@@ -191,8 +191,7 @@ struct Move : Wrapper<move_t, Move> {
 // except in the case of castling:
 // * Store the side (king/queen) on which castling occurs
 struct FatMove {
-
-  public:
+   public:
     constexpr FatMove() {};
     constexpr FatMove(Move move, board::Piece piece)
         : m_move(move), m_piece(piece) {};
@@ -200,7 +199,7 @@ struct FatMove {
 
     constexpr board::Piece get_piece() const { return m_piece; }
 
-  private:
+   private:
     // Keep it private so I can squish more shit in here later.
     Move m_move;
     board::Piece m_piece;
@@ -210,7 +209,7 @@ struct FatMove {
 // Requires state to convert to normal FatMoves
 using long_alg_t = std::string;
 struct LongAlgMove : Wrapper<long_alg_t, LongAlgMove> {
-  public:
+   public:
     using Wrapper::Wrapper;
     constexpr LongAlgMove(const Wrapper &val) : Wrapper(val) {};
 
@@ -218,9 +217,7 @@ struct LongAlgMove : Wrapper<long_alg_t, LongAlgMove> {
     // If castling is contructed differently, could be done without state
     constexpr LongAlgMove(const FatMove fmove,
                           const state::AugmentedState &astate) {
-
         if (fmove.get_move().type() == MoveType::CASTLE) {
-
             board::Colour to_move = astate.state.to_move;
             value += board::io::algebraic(
                 astate.castling_info.get_king_start(to_move));
@@ -229,7 +226,6 @@ struct LongAlgMove : Wrapper<long_alg_t, LongAlgMove> {
                     {to_move, fmove.get_piece()}));
 
         } else {
-
             value += board::io::algebraic(fmove.get_move().from());
             value += board::io::algebraic(fmove.get_move().to());
         }
@@ -240,12 +236,10 @@ struct LongAlgMove : Wrapper<long_alg_t, LongAlgMove> {
         }
     };
 
-    constexpr std::optional<FatMove>
-    to_fmove(const state::AugmentedState &astate) {
-
+    constexpr std::optional<FatMove> to_fmove(
+        const state::AugmentedState &astate) {
         // Get some info
-        if (value.size() < 4)
-            return {};
+        if (value.size() < 4) return {};
 
         board::Square from = board::io::to_square(value.substr(0, 2));
         board::Square to = board::io::to_square(value.substr(2, 2));
@@ -253,14 +247,12 @@ struct LongAlgMove : Wrapper<long_alg_t, LongAlgMove> {
         // Moved piece
         std::optional<board::ColouredPiece> moved =
             astate.state.piece_at(from, astate.state.to_move);
-        if (!moved.has_value())
-            return {};
+        if (!moved.has_value()) return {};
 
         // Determine piece type
 
         // Pawn moves
         if (moved.value().piece == board::Piece::PAWN) {
-
             // Promoted piece
             std::optional<board::Piece> promoted = {};
             if (value.size() == 5) {
@@ -269,25 +261,24 @@ struct LongAlgMove : Wrapper<long_alg_t, LongAlgMove> {
 
             // Pushes
             if (from.file() == to.file()) {
-
                 if (std::abs(from.rank() - to.rank()) == 1) {
                     MoveType type = MoveType::SINGLE_PUSH;
                     if (promoted.has_value()) {
                         switch (promoted.value()) {
-                        case board::Piece::KNIGHT:
-                            type = MoveType::PROMOTE_KNIGHT;
-                            break;
-                        case board::Piece::BISHOP:
-                            type = MoveType::PROMOTE_BISHOP;
-                            break;
-                        case board::Piece::ROOK:
-                            type = MoveType::PROMOTE_ROOK;
-                            break;
-                        case board::Piece::QUEEN:
-                            type = MoveType::PROMOTE_QUEEN;
-                            break;
-                        default:
-                            std::unreachable();
+                            case board::Piece::KNIGHT:
+                                type = MoveType::PROMOTE_KNIGHT;
+                                break;
+                            case board::Piece::BISHOP:
+                                type = MoveType::PROMOTE_BISHOP;
+                                break;
+                            case board::Piece::ROOK:
+                                type = MoveType::PROMOTE_ROOK;
+                                break;
+                            case board::Piece::QUEEN:
+                                type = MoveType::PROMOTE_QUEEN;
+                                break;
+                            default:
+                                std::unreachable();
                         }
                     }
                     std::cout << pretty(type) << std::endl;
@@ -300,7 +291,6 @@ struct LongAlgMove : Wrapper<long_alg_t, LongAlgMove> {
 
                 // Captures
             } else {
-
                 // Nothing at captured square -> en passant
                 if (!(astate.opponent_occupancy() & board::Bitboard(to))) {
                     return {
@@ -309,20 +299,20 @@ struct LongAlgMove : Wrapper<long_alg_t, LongAlgMove> {
                 MoveType type = MoveType::CAPTURE;
                 if (promoted.has_value()) {
                     switch (promoted.value()) {
-                    case board::Piece::KNIGHT:
-                        type = MoveType::PROMOTE_CAPTURE_KNIGHT;
-                        break;
-                    case board::Piece::BISHOP:
-                        type = MoveType::PROMOTE_CAPTURE_BISHOP;
-                        break;
-                    case board::Piece::ROOK:
-                        type = MoveType::PROMOTE_CAPTURE_ROOK;
-                        break;
-                    case board::Piece::QUEEN:
-                        type = MoveType::PROMOTE_CAPTURE_QUEEN;
-                        break;
-                    default:
-                        std::unreachable();
+                        case board::Piece::KNIGHT:
+                            type = MoveType::PROMOTE_CAPTURE_KNIGHT;
+                            break;
+                        case board::Piece::BISHOP:
+                            type = MoveType::PROMOTE_CAPTURE_BISHOP;
+                            break;
+                        case board::Piece::ROOK:
+                            type = MoveType::PROMOTE_CAPTURE_ROOK;
+                            break;
+                        case board::Piece::QUEEN:
+                            type = MoveType::PROMOTE_CAPTURE_QUEEN;
+                            break;
+                        default:
+                            std::unreachable();
                     }
                 }
                 return {{{from, to, type}, board::Piece::PAWN}};
@@ -330,7 +320,8 @@ struct LongAlgMove : Wrapper<long_alg_t, LongAlgMove> {
         }
 
         // Castles
-        board::Square king_start = astate.castling_info.get_king_start(astate.state.to_move);
+        board::Square king_start =
+            astate.castling_info.get_king_start(astate.state.to_move);
         if (moved.value().piece == board::Piece::KING && from == king_start) {
             for (board::Piece p : state::CastlingInfo::castling_sides) {
                 board::ColouredPiece cp = {astate.state.to_move, p};
@@ -352,6 +343,6 @@ struct LongAlgMove : Wrapper<long_alg_t, LongAlgMove> {
     }
 };
 
-} // namespace move
+}  // namespace move
 
 #endif

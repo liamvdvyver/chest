@@ -62,7 +62,6 @@ namespace detail {
 struct GenBishopAttacks {
     constexpr static board::Bitboard operator()(board::Square sq,
                                                 board::Bitboard blk) {
-
         board::Bitboard ret = 0;
         int f = sq.file();
         int r = sq.rank();
@@ -117,7 +116,6 @@ static_assert(SlidingAttacker<GenBishopAttacks>);
 struct GenRookAttacks {
     constexpr board::Bitboard static operator()(board::Square sq,
                                                 board::Bitboard blk) {
-
         board::Bitboard ret = 0;
         int f = sq.file();
         int r = sq.rank();
@@ -224,7 +222,6 @@ constexpr board::Direction forward_direction(board::Colour to_move) {
 struct GenPawnSinglePushes {
     constexpr static board::Bitboard operator()(board::Bitboard starting,
                                                 board::Colour to_move) {
-
         const board::Bitboard back_rank = (bool)to_move
                                               ? board::Bitboard::rank_mask(7)
                                               : board::Bitboard::rank_mask(0);
@@ -237,7 +234,6 @@ static_assert(ColouredMultiAttacker<GenPawnSinglePushes>);
 struct GenPawnDoublePushes {
     constexpr static board::Bitboard operator()(board::Bitboard starting,
                                                 board::Colour to_move) {
-
         const board::Bitboard starting_rank =
             (bool)to_move ? board::Bitboard::rank_mask(1)
                           : board::Bitboard::rank_mask(6);
@@ -259,7 +255,6 @@ static_assert(ColouredMultiAttacker<GenAllPawnPushes>);
 struct GenPawnAttacks {
     constexpr board::Bitboard operator()(board::Bitboard starting,
                                          board::Colour to_move) {
-
         board::Bitboard single_push = GenPawnSinglePushes()(starting, to_move);
         return single_push.shift_no_wrap(board::Direction::E) |
                single_push.shift_no_wrap(board::Direction::W);
@@ -280,20 +275,16 @@ struct GenRookMask {
 
         // Assign along rank
         for (int f_cur = 1; f_cur < board::board_size - 1; f_cur++) {
-
             // Skip on same file
-            if (f_cur == f)
-                continue;
+            if (f_cur == f) continue;
 
             ret |= board::Bitboard(board::Square(f_cur, r));
         }
 
         // Assign along file
         for (int r_cur = 1; r_cur < board::board_size - 1; r_cur++) {
-
             // Skip on same rank
-            if (r_cur == r)
-                continue;
+            if (r_cur == r) continue;
 
             ret |= board::Bitboard(board::Square(f, r_cur));
         }
@@ -349,7 +340,7 @@ struct GenBishopMask {
 };
 static_assert(Attacker<GenBishopMask>);
 
-} // namespace detail
+}  // namespace detail
 
 //
 // Simple attack generators
@@ -362,14 +353,15 @@ static_assert(Attacker<GenBishopMask>);
 // * ColouredMultiAttacker -> GenPawnSinglePushes
 
 // Given a MultiAttacker, create an attacker which stores precomputed moves.
-template <MultiAttacker T> class PrecomputedMultiAttacker {
-  public:
+template <MultiAttacker T>
+class PrecomputedMultiAttacker {
+   public:
     constexpr board::Bitboard operator()(board::Square starting) const {
         return m_attack_sets[starting];
     };
     constexpr PrecomputedMultiAttacker() { init_attack_sets(); };
 
-  private:
+   private:
     board::Bitboard m_attack_sets[board::n_squares];
     T m_attack_generator;
     constexpr void init_attack_sets() {
@@ -381,15 +373,16 @@ template <MultiAttacker T> class PrecomputedMultiAttacker {
 static_assert(Attacker<PrecomputedMultiAttacker<detail::GenKnightAttacks>>);
 
 // Precompute moves, allow lookup by square and colour.
-template <ColouredMultiAttacker T> class PrecomputedColouredMultiAttacker {
-  public:
+template <ColouredMultiAttacker T>
+class PrecomputedColouredMultiAttacker {
+   public:
     constexpr board::Bitboard operator()(board::Square starting,
                                          board::Colour colour) const {
         return m_attack_sets[(int)colour][starting];
     };
     constexpr PrecomputedColouredMultiAttacker() { init_attack_sets(); };
 
-  private:
+   private:
     board::Bitboard m_attack_sets[board::n_colours][board::n_squares];
     T m_attack_generator;
     constexpr void init_attack_sets() {
@@ -416,10 +409,10 @@ using magic_key_t = uint16_t;
 // TODO: write two types (pext/magic) and typedef w/ directive
 template <int max_shift, SlidingAttacker TAttacker, Attacker TMasker>
 class MagicAttacker {
-
-  public:
+   public:
     constexpr MagicAttacker()
-        : m_masks(), m_attacks(),
+        : m_masks(),
+          m_attacks(),
 #ifndef USE_PEXT
           m_magics(),
 #endif
@@ -440,7 +433,7 @@ class MagicAttacker {
         return m_attacks[sq][attack_map_key(sq, occ)];
     };
 
-  private:
+   private:
     //
     // Piece-specific.
     //
@@ -496,7 +489,6 @@ class MagicAttacker {
         magic_key_t key = 0;
 
         for (board::Bitboard blocker_subset : all_blockers.subsets()) {
-
             board::Bitboard attacked = gen_attacks(sq, blocker_subset);
             key = attack_map_key(sq, blocker_subset, magic);
 
@@ -504,7 +496,6 @@ class MagicAttacker {
 
             // Collision with different val
             if (!cur_elm.empty() && cur_elm != attacked) {
-
                 for (const magic_key_t visited_key : visited) {
                     coord_attack_map[visited_key] = 0;
                 }
@@ -526,15 +517,13 @@ class MagicAttacker {
             board::Bitboard mask = gen_mask(sq);
             m_masks[sq] = mask;
 
-            if (mask.size() > max_shift_found)
-                max_shift_found = mask.size();
+            if (mask.size() > max_shift_found) max_shift_found = mask.size();
         }
         assert(max_shift_found == max_shift);
     };
 
     // Populate all attacks, and keys if using magic bitboards.
     constexpr void init_all_attacks() {
-
         magic_t magic_num;
         bool done;
 
@@ -621,6 +610,6 @@ using RookAttacker =
 static_assert(SlidingAttacker<BishopAttacker>);
 static_assert(SlidingAttacker<RookAttacker>);
 
-} // namespace move::attack
+}  // namespace move::attack
 
 #endif

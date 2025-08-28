@@ -41,7 +41,6 @@ static constexpr int n_colours = 2;
 using square_t = uint8_t;
 
 struct Square : Wrapper<square_t, Square> {
-
     using Wrapper::Wrapper;
     constexpr Square(const Wrapper &w) : Wrapper(w) {};
 
@@ -69,7 +68,7 @@ struct Square : Wrapper<square_t, Square> {
 
     struct AllSquareIterator;
 
-}; // namespace board
+};  // namespace board
 
 struct Square::AllSquareIterator {
     constexpr Square::AllSquareIterator begin() { return *this; }
@@ -88,7 +87,7 @@ struct Square::AllSquareIterator {
     }
     constexpr AllSquareIterator() {};
 
-  private:
+   private:
     constexpr AllSquareIterator(Square sq) : sq{sq} {};
     Square sq{0};
 };
@@ -126,11 +125,10 @@ using bitboard_t = uint64_t;
 // All methods are contexpr,
 // everything is immutable
 struct Bitboard : Wrapper<bitboard_t, Bitboard> {
-
     using Wrapper::Wrapper;
     constexpr Bitboard(const Wrapper &v) : Wrapper(v) {};
 
-  public:
+   public:
     // Construction
     constexpr Bitboard(const Square sq) : Bitboard((bitboard_t)1 << sq) {
         assert(sq.is_legal());
@@ -205,22 +203,22 @@ struct Bitboard : Wrapper<bitboard_t, Bitboard> {
 
     constexpr Bitboard shift(Direction d) const {
         switch (d) {
-        case Direction::N:
-            return value << board_size;
-        case Direction::S:
-            return value >> board_size;
-        case Direction::E:
-            return value << 1;
-        case Direction::W:
-            return value >> 1;
-        case Direction::NE:
-            return value << (board_size + 1);
-        case Direction::NW:
-            return value << (board_size - 1);
-        case Direction::SE:
-            return value >> (board_size - 1);
-        case Direction::SW:
-            return value >> (board_size + 1);
+            case Direction::N:
+                return value << board_size;
+            case Direction::S:
+                return value >> board_size;
+            case Direction::E:
+                return value << 1;
+            case Direction::W:
+                return value >> 1;
+            case Direction::NE:
+                return value << (board_size + 1);
+            case Direction::NW:
+                return value << (board_size - 1);
+            case Direction::SE:
+                return value >> (board_size - 1);
+            case Direction::SW:
+                return value >> (board_size + 1);
         }
         std::unreachable();
     }
@@ -233,24 +231,24 @@ struct Bitboard : Wrapper<bitboard_t, Bitboard> {
 
     constexpr Bitboard shift_mask(Direction d) const {
         switch (d) {
-        case Direction::N:
-            return rank_mask(board_size - 1);
-        case Direction::S:
-            return rank_mask(0);
-        case Direction::E:
-            return file_mask(board_size - 1);
-        case Direction::W:
-            return file_mask(0);
-        case Direction::NE:
-            return rank_mask(board_size - 1) | file_mask(board_size - 1);
-        case Direction::NW:
-            return rank_mask(board_size - 1) | file_mask(0);
-        case Direction::SE:
-            return rank_mask(0) | file_mask(board_size - 1);
-        case Direction::SW:
-            return rank_mask(0) | file_mask(0);
-        default:
-            std::unreachable();
+            case Direction::N:
+                return rank_mask(board_size - 1);
+            case Direction::S:
+                return rank_mask(0);
+            case Direction::E:
+                return file_mask(board_size - 1);
+            case Direction::W:
+                return file_mask(0);
+            case Direction::NE:
+                return rank_mask(board_size - 1) | file_mask(board_size - 1);
+            case Direction::NW:
+                return rank_mask(board_size - 1) | file_mask(0);
+            case Direction::SE:
+                return rank_mask(0) | file_mask(board_size - 1);
+            case Direction::SW:
+                return rank_mask(0) | file_mask(0);
+            default:
+                std::unreachable();
         }
     }
 
@@ -298,7 +296,7 @@ struct Bitboard : Wrapper<bitboard_t, Bitboard> {
 
     // bitboard_t board;
 
-  private:
+   private:
     static const bitboard_t debruijn64 = 0x03f79d71b4cb0a89;
     static constexpr int de_brujin_map[64] = {
         0,  47, 1,  56, 48, 27, 2,  60, 57, 49, 41, 37, 28, 16, 3,  61,
@@ -321,7 +319,7 @@ struct Bitboard::SubsetIterator {
     // Not semantically correct, only used for ranges
     // No need to perform comparison to determine if == end()
     constexpr bool operator!=(SubsetIterator const &other) {
-        (void)other; // unused
+        (void)other;  // unused
         return !done || !val.empty();
     }
     constexpr const SubsetIterator begin() { return *this; }
@@ -335,12 +333,12 @@ struct Bitboard::SubsetIterator {
         return *this;
     }
 
-  private:
+   private:
     constexpr SubsetIterator(Bitboard val, Bitboard b, bool done)
         : val(val), b(b), done(done) {};
     Bitboard val;
     Bitboard b;
-    bool done; // When we see the empty set, is it for the first time?
+    bool done;  // When we see the empty set, is it for the first time?
 };
 
 constexpr Bitboard::SubsetIterator Bitboard::subsets() const {
@@ -361,7 +359,7 @@ struct Bitboard::ElementIterator {
     constexpr Bitboard operator*() const { return val.ls1b(); }
     constexpr Bitboard operator++() { return val.pop_ls1b(); }
 
-  private:
+   private:
     Bitboard val;
 };
 
@@ -377,7 +375,7 @@ constexpr Bitboard::ElementIterator Bitboard::singletons() const {
 // King must be last, as in eval.h
 enum class Piece : uint8_t { KNIGHT, BISHOP, ROOK, QUEEN, PAWN, KING };
 
-static constexpr int n_pieces = 6; // For array sizing
+static constexpr int n_pieces = 6;  // For array sizing
 
 // Container for piece of a certain colour
 struct ColouredPiece {
@@ -402,96 +400,96 @@ alg_t algebraic(const Square sq);
 // TODO: lookup into array
 constexpr char to_char(const Piece p) {
     switch (p) {
-    case Piece::KING:
-        return 'k';
-        break;
-    case Piece::QUEEN:
-        return 'q';
-        break;
-    case Piece::BISHOP:
-        return 'b';
-        break;
-    case Piece::KNIGHT:
-        return 'n';
-        break;
-    case Piece::ROOK:
-        return 'r';
-        break;
-    case Piece::PAWN:
-        return 'p';
-        break;
+        case Piece::KING:
+            return 'k';
+            break;
+        case Piece::QUEEN:
+            return 'q';
+            break;
+        case Piece::BISHOP:
+            return 'b';
+            break;
+        case Piece::KNIGHT:
+            return 'n';
+            break;
+        case Piece::ROOK:
+            return 'r';
+            break;
+        case Piece::PAWN:
+            return 'p';
+            break;
     }
 
-    return (0); // silence warnings
+    return (0);  // silence warnings
 }
 
 constexpr std::string to_uni(const ColouredPiece cp) {
     switch (cp.colour) {
-    case Colour::WHITE:
-        switch (cp.piece) {
-        case Piece::KING:
-            return "♚";
-        case Piece::QUEEN:
-            return "♛";
-        case Piece::BISHOP:
-            return "♝";
-        case Piece::KNIGHT:
-            return "♞";
-        case Piece::ROOK:
-            return "♜";
-        case Piece::PAWN:
-            return "♟";
-        default:
-            std::unreachable();
-        }
-    case Colour::BLACK:
-        switch (cp.piece) {
-        case Piece::KING:
-            return "♔";
-        case Piece::QUEEN:
-            return "♕";
-        case Piece::BISHOP:
-            return "♗";
-        case Piece::KNIGHT:
-            return "♘";
-        case Piece::ROOK:
-            return "♖";
-        case Piece::PAWN:
-            return "♙";
-        default:
-            std::unreachable();
-        }
+        case Colour::WHITE:
+            switch (cp.piece) {
+                case Piece::KING:
+                    return "♚";
+                case Piece::QUEEN:
+                    return "♛";
+                case Piece::BISHOP:
+                    return "♝";
+                case Piece::KNIGHT:
+                    return "♞";
+                case Piece::ROOK:
+                    return "♜";
+                case Piece::PAWN:
+                    return "♟";
+                default:
+                    std::unreachable();
+            }
+        case Colour::BLACK:
+            switch (cp.piece) {
+                case Piece::KING:
+                    return "♔";
+                case Piece::QUEEN:
+                    return "♕";
+                case Piece::BISHOP:
+                    return "♗";
+                case Piece::KNIGHT:
+                    return "♘";
+                case Piece::ROOK:
+                    return "♖";
+                case Piece::PAWN:
+                    return "♙";
+                default:
+                    std::unreachable();
+            }
     }
 };
 
 // Parse algebraic piece name (case insensitive)
 constexpr Piece from_char(const char c) {
     switch (tolower(c)) {
-    case 'k':
-        return Piece::KING;
-        break;
-    case 'q':
-        return Piece::QUEEN;
-        break;
-    case 'b':
-        return Piece::BISHOP;
-        break;
-    case 'n':
-        return Piece::KNIGHT;
-        break;
-    case 'r':
-        return Piece::ROOK;
-        break;
-    case 'p':
-        return Piece::PAWN;
-        break;
-    default:
-        throw std::invalid_argument(std::to_string(c) +
-                                    " is not a valid piece name");
+        case 'k':
+            return Piece::KING;
+            break;
+        case 'q':
+            return Piece::QUEEN;
+            break;
+        case 'b':
+            return Piece::BISHOP;
+            break;
+        case 'n':
+            return Piece::KNIGHT;
+            break;
+        case 'r':
+            return Piece::ROOK;
+            break;
+        case 'p':
+            return Piece::PAWN;
+            break;
+        default:
+            throw std::invalid_argument(std::to_string(c) +
+                                        " is not a valid piece name");
     }
 }
 
-} // namespace io
+}  // namespace io
 
 //
 // Rank constants: for convinience
@@ -504,6 +502,6 @@ constexpr uint8_t double_push_rank[n_colours]{board_size - 4, 3};
 constexpr uint8_t pre_promote_rank[n_colours]{1, board_size - 2};
 constexpr uint8_t back_rank[n_colours]{0, board_size - 1};
 
-} // namespace board
+}  // namespace board
 
 #endif

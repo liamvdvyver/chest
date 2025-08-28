@@ -10,8 +10,8 @@
 //
 // By inheriting from the Wrapper type the derived Wrapper type can be used
 // (mostly) interchangeable with T.
-template <typename T, typename WrapperType> struct Wrapper {
-
+template <typename T, typename WrapperType>
+struct Wrapper {
     // Make value available to derived WrapperType
     friend WrapperType;
 
@@ -132,7 +132,7 @@ template <typename T, typename WrapperType> struct Wrapper {
         return a.value ^= b.value;
     }
 
-  private:
+   private:
     T value;
 };
 

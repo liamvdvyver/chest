@@ -21,7 +21,7 @@ concept StaticEvaluator = requires(const state::AugmentedState &astate) {
 
 // Returns the standard material evaluation
 class MaterialEval {
-  public:
+   public:
     constexpr MaterialEval(const state::AugmentedState &astate)
         : m_astate(astate) {};
     constexpr centipawn_t eval() const {
@@ -30,24 +30,24 @@ class MaterialEval {
     }
     static constexpr centipawn_t piece_val(const board::Piece piece) {
         switch (piece) {
-        case (board::Piece::KNIGHT):
-            return 300;
-        case (board::Piece::BISHOP):
-            return 300;
-        case (board::Piece::ROOK):
-            return 500;
-        case (board::Piece::QUEEN):
-            return 900;
-        case (board::Piece::PAWN):
-            return 100;
-        case (board::Piece::KING):
-            return 0;
-        default:
-            std::unreachable();
+            case (board::Piece::KNIGHT):
+                return 300;
+            case (board::Piece::BISHOP):
+                return 300;
+            case (board::Piece::ROOK):
+                return 500;
+            case (board::Piece::QUEEN):
+                return 900;
+            case (board::Piece::PAWN):
+                return 100;
+            case (board::Piece::KING):
+                return 0;
+            default:
+                std::unreachable();
         }
     }
 
-  private:
+   private:
     const state::AugmentedState &m_astate;
 
     // Helper: one sides's material evaluation
@@ -63,6 +63,6 @@ class MaterialEval {
 };
 static_assert(StaticEvaluator<MaterialEval>);
 
-} // namespace eval
+}  // namespace eval
 
 #endif

@@ -1,21 +1,22 @@
 #ifndef TIMEMANAGEMENT_H
 #define TIMEMANAGEMENT_H
 
-#include "libChest/board.h"
-#include "libChest/state.h"
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
+
+#include "libChest/board.h"
+#include "libChest/state.h"
 
 namespace search {
 
 using ms_t = uint64_t;
 
 struct TimeControl {
-
     constexpr TimeControl(ms_t b_remaining, ms_t w_remaining, ms_t b_increment,
                           ms_t w_increment, size_t to_go = 0)
-        : to_go(to_go), m_remaining{w_remaining, b_remaining},
+        : to_go(to_go),
+          m_remaining{w_remaining, b_remaining},
           m_increment{b_increment, w_increment} {};
 
     size_t to_go;
@@ -32,7 +33,7 @@ struct TimeControl {
         return m_increment[(int)colour];
     };
 
-  private:
+   private:
     ms_t m_remaining[board::n_colours];
     ms_t m_increment[board::n_colours];
 };
@@ -50,8 +51,7 @@ concept StaticTimeManager = requires(T t, const TimeControl &tc) {
 
 // Return a constant, max ms
 class NullTimeManager {
-
-  public:
+   public:
     NullTimeManager(const state::AugmentedState &astate) : m_astate(astate) {};
 
     constexpr ms_t operator()(const TimeControl &tc) const {
@@ -60,16 +60,16 @@ class NullTimeManager {
         return remaining < buffer ? remaining : remaining - buffer;
     };
 
-  private:
+   private:
     const state::AugmentedState &m_astate;
-    const ms_t buffer = 50; // Buffer around remaining to avoid loss.
+    const ms_t buffer = 50;  // Buffer around remaining to avoid loss.
 };
 static_assert(StaticTimeManager<NullTimeManager>);
 
 // Given a static estimate for moves remaining
-template <int MovesProp, int IncProp> class EqualTimeManager {
-
-  public:
+template <int MovesProp, int IncProp>
+class EqualTimeManager {
+   public:
     EqualTimeManager(const state::AugmentedState &astate) : m_astate(astate) {};
 
     constexpr ms_t operator()(const TimeControl &tc) const {
@@ -78,11 +78,11 @@ template <int MovesProp, int IncProp> class EqualTimeManager {
         return to_move / MovesProp + increment / IncProp;
     };
 
-  private:
+   private:
     const state::AugmentedState &m_astate;
 };
 static_assert(StaticTimeManager<EqualTimeManager<20, 2>>);
 using DefaultTimeManager = EqualTimeManager<20, 2>;
-} // namespace search
+}  // namespace search
 
 #endif

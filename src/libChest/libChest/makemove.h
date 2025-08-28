@@ -1,12 +1,13 @@
 #ifndef MAKEMOVE_H
 #define MAKEMOVE_H
 
+#include <cstdio>
+#include <optional>
+
 #include "board.h"
 #include "move.h"
 #include "movegen.h"
 #include "state.h"
-#include <cstdio>
-#include <optional>
 
 //
 // A basic class which composes:
@@ -34,16 +35,17 @@ static const MadeMove nullMadeMove{{}, State().irreversible()};
 // game tree traversal,
 template <size_t MaxDepth>
 struct SearchNode {
-
-  public:
-    constexpr SearchNode(const move::movegen::AllMoveGenerator<> &mover, AugmentedState &astate, int max_depth)
-        : m_astate(astate), m_max_depth(max_depth), m_cur_depth(0),
+   public:
+    constexpr SearchNode(const move::movegen::AllMoveGenerator<> &mover,
+                         AugmentedState &astate, int max_depth)
+        : m_astate(astate),
+          m_max_depth(max_depth),
+          m_cur_depth(0),
           m_mover(mover) {};
 
     // All state changes which do not depend on current move
     // Called before processing board state
     void tick() {
-
         // increment on black move
         m_astate.state.fullmove_number += (int)(!m_astate.state.to_move);
         m_astate.state.halfmove_clock++;
@@ -54,7 +56,6 @@ struct SearchNode {
     // Assumes move is pseudo-legal, returns whether it was legal.
     // If legal, moves the king and the bishop and removes castling rights.
     constexpr bool castle(board::Square from, board::Colour to_move) {
-
         bool legal = true;
 
         // Constants for convinience
@@ -93,8 +94,8 @@ struct SearchNode {
     // Given the colour/location of a (potential) rook which is moved/captured,
     // update castling rights for the corresponding player.
     // Returns which side (queen/kingside) had rights removed for the player
-    constexpr std::optional<board::Piece>
-    update_rk_castling_rights(board::Square loc, board::Colour player) {
+    constexpr std::optional<board::Piece> update_rk_castling_rights(
+        board::Square loc, board::Colour player) {
         std::optional<board::Piece> ret =
             m_astate.castling_info.get_side(loc, player);
         if (ret.has_value()) {
@@ -122,7 +123,6 @@ struct SearchNode {
     // * Was a castle starting/passing through check
     // Move is pushed to the stack.
     constexpr bool make_move(const move::FatMove fmove) {
-
         move::Move move = fmove.get_move();
         board::Piece moved_p = fmove.get_piece();
 
@@ -150,18 +150,15 @@ struct SearchNode {
             m_made_moves.push_back(made);
             return castle(move.from(), to_move);
         } else {
-
             // Move
             m_astate.move(from_bb, to_bb, moved);
 
             // Handle capture
             if (move::is_capture(move.type())) {
-
                 // En-passant: first move piece back to the target square
                 // TODO: is it faster to use the en-passant info from state?
                 board::ColouredPiece captured;
                 if (move.type() == move::MoveType::CAPTURE_EP) {
-
                     captured = {!to_move, board::Piece::PAWN};
 
                     // Find the square of the double-pushed pawn
@@ -171,7 +168,6 @@ struct SearchNode {
 
                     // Otherwise, find the piece
                 } else {
-
                     captured = m_astate.state.piece_at(to_bb, !to_move).value();
 
                     // Update rights if a rook was taken
@@ -189,7 +185,6 @@ struct SearchNode {
             // know it is not a pawn move
             // TODO: is it quicker to just use the switch?
             if (moved.piece == board::Piece::PAWN) {
-
                 m_astate.state.halfmove_clock = 0;
 
                 // Set the en-passant square
@@ -206,7 +201,6 @@ struct SearchNode {
                 }
 
             } else {
-
                 // If the piece wasn't a PAWN,
                 // update castling rights for moved piece
                 update_rk_castling_rights(move.from(), to_move);
@@ -227,7 +221,6 @@ struct SearchNode {
     };
 
     constexpr void unmake_move() {
-
         MadeMove unmake = m_made_moves.back();
         m_made_moves.pop_back();
         m_cur_depth--;
@@ -254,7 +247,6 @@ struct SearchNode {
         // Undo captures
         // Handle castling
         if (type == move::MoveType::CASTLE) {
-
             // Get info
             const CastlingInfo &castling_info = m_astate.castling_info;
             const board::Piece side =
@@ -310,7 +302,6 @@ struct SearchNode {
     // Find moves at the current depth
     // Returns a reference to the vector containing the found moves
     constexpr MoveBuffer &find_moves() {
-
         m_found_moves.at(m_cur_depth).clear();
         m_mover.get_all_moves(m_astate, m_found_moves.at(m_cur_depth));
         return m_found_moves.at(m_cur_depth);
@@ -319,7 +310,6 @@ struct SearchNode {
     // Count the number of leaves at a certain depth, and (non-root) interior
     // nodes
     constexpr PerftResult perft() {
-
         // std::cout << m_astate.state.pretty() << std::endl;
 
         // Cutoff
@@ -331,7 +321,6 @@ struct SearchNode {
         PerftResult ret = {0, 0};
 
         for (move::FatMove m : moves) {
-
             bool was_legal = make_move(m);
             if (was_legal) {
                 PerftResult subtree_result = perft();
@@ -347,7 +336,6 @@ struct SearchNode {
 
     // Clears move buffers and sets max_depth
     void prep_search(size_t depth) {
-
         assert(depth <= MaxDepth);
 
         m_max_depth = depth;
@@ -377,5 +365,5 @@ struct SearchNode {
     svec<MadeMove, MaxDepth> m_made_moves;
     svec<MoveBuffer, MaxDepth> m_found_moves;
 };
-} // namespace state
+}  // namespace state
 #endif

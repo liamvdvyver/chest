@@ -1,13 +1,13 @@
 #ifndef STATE_H
 #define STATE_H
 
-#include "board.h"
-#include "incremental.h"
-
 #include <cstdint>
 #include <iostream>
 #include <optional>
 #include <string>
+
+#include "board.h"
+#include "incremental.h"
 
 //
 // Defines representations of full, partial, or augemnted game state
@@ -15,7 +15,7 @@
 
 namespace state {
 
-using fen_t = std::string; // FEN strings
+using fen_t = std::string;  // FEN strings
 
 // Standard game setup
 static const fen_t new_game_fen =
@@ -23,15 +23,14 @@ static const fen_t new_game_fen =
 
 // Precompute masks/squares for castling
 struct CastlingInfo {
-
-  public:
+   public:
     // For array sizing
     static constexpr int n_castling_sides = 2;
     // Easy iteration through castles
     static constexpr board::Piece castling_sides[n_castling_sides]{
         board::Piece::QUEEN, board::Piece::KING};
 
-  private:
+   private:
     // The following final destinations are the same for classical and 960, and
     // will remain const:
 
@@ -110,7 +109,7 @@ struct CastlingInfo {
         return ((int)(side == board::Piece::KING));
     }
 
-  public:
+   public:
     // Given a square of a rook and a colour, find which side (king/queen) the
     // rook belongs to, if any
     static constexpr std::optional<board::Piece>
@@ -192,8 +191,7 @@ struct CastlingInfo {
 //
 // which have implementations subject to change.
 struct State {
-
-  public:
+   public:
     // Blank state
     constexpr State() : m_pieces{}, m_castling_rights{} {}
 
@@ -261,11 +259,10 @@ struct State {
     }
 
     // // First piece matching mask
-    constexpr std::optional<board::ColouredPiece> const
-    piece_at(board::Bitboard bit) const {
+    constexpr std::optional<board::ColouredPiece> const piece_at(
+        board::Bitboard bit) const {
         for (int colourIdx = 0; colourIdx <= 1; colourIdx++) {
             for (int pieceIdx = 0; pieceIdx < board::n_pieces; pieceIdx++) {
-
                 if (!(m_pieces[colourIdx][pieceIdx] & bit).empty()) {
                     return {{
                         .colour = (board::Colour)colourIdx,
@@ -278,10 +275,9 @@ struct State {
     }
 
     // First piece matching mask of given colour
-    constexpr std::optional<board::ColouredPiece> const
-    piece_at(board::Bitboard bit, board::Colour colour) const {
+    constexpr std::optional<board::ColouredPiece> const piece_at(
+        board::Bitboard bit, board::Colour colour) const {
         for (int pieceIdx = 0; pieceIdx < board::n_pieces; pieceIdx++) {
-
             if (!(m_pieces[(int)colour][pieceIdx] & bit).empty()) {
                 return {{colour, (board::Piece)pieceIdx}};
             }
@@ -299,12 +295,12 @@ struct State {
         board::Piece captured_piece;
         uint8_t halfmove_clock;
         uint8_t castling_rights;
-        int8_t ep_file; // set to negative if no square, TODO: maybe just store
-                        // ep like this?
+        int8_t ep_file;  // set to negative if no square, TODO: maybe just store
+                         // ep like this?
     };
 
-    constexpr IrreversibleInfo
-    irreversible(board::Piece captured = (board::Piece)0) const {
+    constexpr IrreversibleInfo irreversible(
+        board::Piece captured = (board::Piece)0) const {
         return {.captured_piece = captured,
                 .halfmove_clock = halfmove_clock,
                 .castling_rights = m_castling_rights,
@@ -354,7 +350,7 @@ struct State {
         set_both_castling_rights(colour, false);
     }
 
-  private:
+   private:
     // Position of all pieces for each player
     board::Bitboard m_pieces[board::n_colours][board::n_pieces];
 
@@ -363,7 +359,6 @@ struct State {
 
     // Helper: defines layout of castling rights bitset
     constexpr int castling_rights_offset(board::ColouredPiece cp) const {
-
         return (2 * (int)cp.colour) + CastlingInfo::side_idx(cp.piece);
     }
 };
@@ -380,11 +375,11 @@ std::ostream &operator<<(std::ostream &os, const State s);
 // member of this struct (e.g. occupancy) is guaranteed not to require
 // recomputation within the same search node.
 struct AugmentedState {
-
-  public:
+   public:
     AugmentedState() : state::AugmentedState(state::State()) {};
     AugmentedState(State state)
-        : state(state), total_occupancy(state.total_occupancy()),
+        : state(state),
+          total_occupancy(state.total_occupancy()),
           castling_info{},
           m_side_occupancy{state.side_occupancy((board::Colour)0),
                            state.side_occupancy((board::Colour)1)} {};
@@ -417,8 +412,8 @@ struct AugmentedState {
     board::Bitboard &opponent_occupancy() {
         return side_occupancy(!state.to_move);
     }
-    constexpr const board::Bitboard &
-    side_occupancy(board::Colour colour) const {
+    constexpr const board::Bitboard &side_occupancy(
+        board::Colour colour) const {
         return m_side_occupancy[(int)colour];
     }
     constexpr const board::Bitboard &side_occupancy() const {
@@ -465,10 +460,10 @@ struct AugmentedState {
         state.remove_castling_rights(colour);
     }
 
-  private:
+   private:
     board::Bitboard m_side_occupancy[board::n_colours];
 };
 static_assert(IncrementallyUpdateable<AugmentedState>);
-}; // namespace state
+};  // namespace state
 
 #endif

@@ -1,8 +1,9 @@
 #ifndef INCREMENTAL_H
 #define INCREMENTAL_H
 
-#include "board.h"
 #include <concepts>
+
+#include "board.h"
 
 //
 // Types which support incremental updates.
@@ -27,17 +28,19 @@ concept IncrementallyUpdateable =
         // Swap a piece from one bitboard to another (general case)
         { t.swap(bb, cp, cp) } -> std::same_as<void>;
 
-        // Swap a piece from one bitboard to another (belonging to the other player)
+        // Swap a piece from one bitboard to another (belonging to the other
+        // player)
         { t.swap_oppside(bb, cp, cp) } -> std::same_as<void>;
 
-        // Swap a piece from one bitboard to another (belonging to the same player)
+        // Swap a piece from one bitboard to another (belonging to the same
+        // player)
         { t.swap_sameside(bb, colour, piece, piece) } -> std::same_as<void>;
 
         // Remove a piece from a bitboard and move another to its location
         // { t.capture(bb, cp, cp) } -> std::same_as<void>;
 
-        // Perform other actions whenever a piece is moved from its origin square
-        // (e.g. update castling rights)
+        // Perform other actions whenever a piece is moved from its origin
+        // square (e.g. update castling rights)
         //
         // I'll see if I actually use this one
         { t.remove_castling_rights(cp) } -> std::same_as<void>;

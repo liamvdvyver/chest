@@ -1,6 +1,12 @@
 #ifndef SEARCH_H
 #define SEARCH_H
 
+#include <algorithm>
+#include <chrono>
+#include <concepts>
+#include <cstdlib>
+#include <mutex>
+
 #include "board.h"
 #include "eval.h"
 #include "libChest/move.h"
@@ -8,11 +14,6 @@
 #include "libChest/state.h"
 #include "makemove.h"
 #include "movegen.h"
-#include <algorithm>
-#include <chrono>
-#include <concepts>
-#include <cstdlib>
-#include <mutex>
 
 //
 // Basic search
@@ -31,7 +32,7 @@ struct SearchResult {
     LeafType type;
     move::FatMove best_move{};
     eval::centipawn_t eval;
-    size_t n_nodes; // Count of legal nodes
+    size_t n_nodes;  // Count of legal nodes
 };
 
 static const SearchResult cutoff_result{.type = SearchResult::LeafType::TIMEOUT,
@@ -70,7 +71,7 @@ concept DLSearcher = requires(T t, int max_depth) {
 //
 
 class RandomSearcher {
-  public:
+   public:
     RandomSearcher(const move::movegen::AllMoveGenerator<> &mover,
                    state::AugmentedState &astate)
         : m_mover(mover), m_astate(astate), m_node(m_mover, m_astate, 1) {}
@@ -95,7 +96,7 @@ class RandomSearcher {
         return {SearchResult::LeafType::CUTOFF, m, 0, n_nodes};
     }
 
-  private:
+   private:
     const move::movegen::AllMoveGenerator<> &m_mover;
     state::AugmentedState &m_astate;
     state::SearchNode<1> m_node;
@@ -111,8 +112,7 @@ static_assert(Searcher<RandomSearcher>);
 //
 
 struct Bounds {
-
-  public:
+   public:
     Bounds() : alpha(-eval::max_eval), beta(eval::max_eval) {};
     Bounds(eval::centipawn_t alpha, eval::centipawn_t beta)
         : alpha(alpha), beta(beta) {};
@@ -126,10 +126,10 @@ struct Bounds {
 struct ABResult {
     // Use Knuth's numbering
     enum class ABNodeType : uint8_t {
-        NA = 0,  // e.g. time cutoff
-        PV = 1,  // didn't fail
-        CUT = 2, // failed high
-        ALL = 3, // failed low
+        NA = 0,   // e.g. time cutoff
+        PV = 1,   // didn't fail
+        CUT = 2,  // failed high
+        ALL = 3,  // failed low
     };
     SearchResult result;
     ABNodeType type;
@@ -140,14 +140,17 @@ static_assert(std::convertible_to<ABResult, SearchResult>);
 // Time cutoff -> don't worry about result for now
 static const ABResult ab_cutoff_result{cutoff_result, ABResult::ABNodeType::NA};
 
-template <eval::StaticEvaluator TEval, size_t MaxDepth> class DLNegaMax {
-
-  public:
+template <eval::StaticEvaluator TEval, size_t MaxDepth>
+class DLNegaMax {
+   public:
     constexpr DLNegaMax(const TEval &eval,
                         const move::movegen::AllMoveGenerator<> &mover,
                         state::AugmentedState &astate, int max_depth)
-        : m_eval(eval), m_mover(mover), m_node(mover, astate, max_depth),
-          m_max_depth(max_depth), m_stopped(false) {};
+        : m_eval(eval),
+          m_mover(mover),
+          m_node(mover, astate, max_depth),
+          m_max_depth(max_depth),
+          m_stopped(false) {};
 
     constexpr void set_depth(int max_depth) {
         m_node.prep_search(max_depth);
@@ -159,10 +162,9 @@ template <eval::StaticEvaluator TEval, size_t MaxDepth> class DLNegaMax {
     // Calling code should ensure set_depth/stop
     // do not race.
     constexpr void stop() { m_stopped = true; }
-    constexpr ABResult
-    search(std::chrono::time_point<std::chrono::steady_clock> finish_time,
-           Bounds bounds) {
-
+    constexpr ABResult search(
+        std::chrono::time_point<std::chrono::steady_clock> finish_time,
+        Bounds bounds) {
         // Auto-stop
         if (std::chrono::steady_clock::now() > finish_time) {
             stop();
@@ -191,7 +193,6 @@ template <eval::StaticEvaluator TEval, size_t MaxDepth> class DLNegaMax {
 
         // Recurse
         for (move::FatMove m : moves) {
-
             // Early return from recursion
             if (m_stopped) {
                 return ab_cutoff_result;
@@ -199,7 +200,6 @@ template <eval::StaticEvaluator TEval, size_t MaxDepth> class DLNegaMax {
 
             // Check child
             if (m_node.make_move(m)) {
-
                 SearchResult child_result =
                     search(finish_time, {-bounds.beta, -bounds.alpha});
 
@@ -212,7 +212,7 @@ template <eval::StaticEvaluator TEval, size_t MaxDepth> class DLNegaMax {
                     best_move = {.type = child_result.type,
                                  .best_move = m,
                                  .eval = child_eval,
-                                 .n_nodes{}}; // count nodes later
+                                 .n_nodes{}};  // count nodes later
 
                     // Handle pruning
                     bounds.alpha = std::max(bounds.alpha, child_eval);
@@ -247,12 +247,12 @@ template <eval::StaticEvaluator TEval, size_t MaxDepth> class DLNegaMax {
     }
 
     // Search with default bounds
-    constexpr ABResult
-    search(std::chrono::time_point<std::chrono::steady_clock> finish_time) {
+    constexpr ABResult search(
+        std::chrono::time_point<std::chrono::steady_clock> finish_time) {
         return search(finish_time, {});
     }
 
-  private:
+   private:
     const TEval &m_eval;
     const move::movegen::AllMoveGenerator<> &m_mover;
     state::SearchNode<MaxDepth> m_node;
@@ -273,7 +273,6 @@ static_assert(DLSearcher<DLNegaMax<eval::MaterialEval, 1>>);
 // These will be called in a blocking manner once search has completed
 // to a depth, so should not be too slow.
 struct StatReporter {
-
     virtual void report(int depth, eval::centipawn_t eval, size_t nodes,
                         std::chrono::duration<double> time,
                         const MoveBuffer &pv,
@@ -283,12 +282,14 @@ struct StatReporter {
 // Given a depth-limited searcher, implement iterative deepening
 // No special move ordering
 // Synchronises stop/search w/ mutex.
-template <DLSearcher TSearcher, int MaxDepth> class IDSearcher {
-
-  public:
+template <DLSearcher TSearcher, int MaxDepth>
+class IDSearcher {
+   public:
     IDSearcher(state::AugmentedState &astate, TSearcher &searcher,
                const StatReporter &reporter)
-        : m_searcher(searcher), m_astate(astate), m_reporter(reporter),
+        : m_searcher(searcher),
+          m_astate(astate),
+          m_reporter(reporter),
           m_stopped(false) {}
 
     // Stops the search as soon as possible, will return to the (other) thread
@@ -302,9 +303,8 @@ template <DLSearcher TSearcher, int MaxDepth> class IDSearcher {
 
     // Infer return type from searcher,
     // Always searches at least to depth 1 so a legal move is returned.
-    constexpr auto
-    search(std::chrono::time_point<std::chrono::steady_clock> finish_time) {
-
+    constexpr auto search(
+        std::chrono::time_point<std::chrono::steady_clock> finish_time) {
         m_stoplock.lock();
         m_stopped = false;
         m_stoplock.unlock();
@@ -314,7 +314,6 @@ template <DLSearcher TSearcher, int MaxDepth> class IDSearcher {
         // Loop over all possible levels
         for (int max_depth = 1; max_depth <= MaxDepth && !m_stopped;
              max_depth++) {
-
             // Time/node count for reporting
             auto start_time = std::chrono::steady_clock::now();
 
@@ -323,7 +322,6 @@ template <DLSearcher TSearcher, int MaxDepth> class IDSearcher {
             if (!m_stopped || max_depth == 1) {
                 m_searcher.set_depth(max_depth);
             } else {
-
                 // Will be reached if search was aborted before first ply,
                 // after forcing that search to conclude
                 break;
@@ -370,7 +368,7 @@ template <DLSearcher TSearcher, int MaxDepth> class IDSearcher {
         return search_result.value();
     };
 
-  private:
+   private:
     TSearcher &m_searcher;
     state::AugmentedState &m_astate;
     const StatReporter &m_reporter;
@@ -382,6 +380,6 @@ template <DLSearcher TSearcher, int MaxDepth> class IDSearcher {
 static_assert(
     StoppableSearcher<IDSearcher<DLNegaMax<eval::MaterialEval, 5>, 5>>);
 
-} // namespace search
+}  // namespace search
 
 #endif

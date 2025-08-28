@@ -37,8 +37,8 @@ concept RAStack =
     };
 static_assert(RAStack<std::vector<int>, int>);
 
-template <typename T, size_t N> struct svec {
-
+template <typename T, size_t N>
+struct svec {
     constexpr T &back() { return data[sp - 1]; }
     constexpr void push_back(T val) {
         data[sp++] = val;
@@ -61,8 +61,8 @@ template <typename T, size_t N> struct svec {
         check_sz();
     }
 
-  private:
-    size_t sp = 0; // pointer to element after last
+   private:
+    size_t sp = 0;  // pointer to element after last
     std::array<T, N> data;
     void check_sz() { assert(sp <= N); };
     void check_nonempty() { assert(sp); }

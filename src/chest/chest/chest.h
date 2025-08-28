@@ -1,23 +1,25 @@
 #ifndef ENGINESTATE_H
 #define ENGINESTATE_H
 
-#include "libChest/move.h"
-#include "libChest/movegen.h"
-#include "libChest/state.h"
-#include "libChest/timemanagement.h"
-#include <chrono>
-#include <cmath>
-#include <iostream>
 #include <libChest/eval.h>
 #include <libChest/makemove.h>
 #include <libChest/search.h>
+#include <unistd.h>
+
+#include <chrono>
+#include <cmath>
+#include <iostream>
 #include <memory>
 #include <optional>
 #include <ostream>
 #include <sstream>
 #include <string>
-#include <unistd.h>
 #include <vector>
+
+#include "libChest/move.h"
+#include "libChest/movegen.h"
+#include "libChest/state.h"
+#include "libChest/timemanagement.h"
 
 //
 // Engine state, using the state pattern.
@@ -28,13 +30,13 @@
 namespace id {
 const std::string name = "Chest";
 const std::string author = "Liam van der Vyver";
-} // namespace id
+}  // namespace id
 
 // Communications from the gui to the engine.
 // In general, parsing, etc. is handled by the engine state struct, so this is
 // kept minimal.
 struct UciCommand {
-  public:
+   public:
     UciCommand(std::string input)
         : type(UciCommandType::UNRECOGNISED), input(input), args() {
         std::stringstream ss = (std::stringstream)input;
@@ -53,7 +55,7 @@ struct UciCommand {
         return;
     }
     enum class UciCommandType : uint8_t {
-        UNRECOGNISED = 0, // generally should be ignored.
+        UNRECOGNISED = 0,  // generally should be ignored.
         UCI,
         DEBUG,
         ISREADY,
@@ -70,7 +72,7 @@ struct UciCommand {
     std::string input;
     std::vector<std::string> args;
 
-  private:
+   private:
     std::string content;
     UciCommandType parse_command(const std::string &tkn) {
         if (tkn == "uci") {
@@ -104,7 +106,7 @@ constexpr const int MAX_DEPTH = 64;
 
 // Global vars, shared between the io thread and any working threads
 struct Globals {
-  public:
+   public:
     Globals() : mover(), output(std::cout) {};
     move::movegen::AllMoveGenerator<> mover;
 
@@ -142,7 +144,6 @@ struct EngineReporter : search::StatReporter {
                 std::chrono::duration<double> time,
                 const svec<move::FatMove, 256> &pv,
                 const state::AugmentedState &astate) const override {
-
         std::string info_string;
         info_string += "depth ";
         info_string += std::to_string(depth);
@@ -170,68 +171,72 @@ struct EngineReporter : search::StatReporter {
         m_globals.log(info_string, Globals::LogLevel::UCI_INFO);
     };
 
-  private:
+   private:
     const Globals &m_globals;
 };
 
 // Abstract classes to handle state machine of UCI engine,
 // i.e. respond to different commands.
 class Engine {
-  public:
+   public:
     Engine(Globals &globals)
-        : m_input(std::cin), m_output(std::cout), m_globals(globals),
-          m_astate(), m_input_buffer(new char[max_input_line_length]) {}
+        : m_input(std::cin),
+          m_output(std::cout),
+          m_globals(globals),
+          m_astate(),
+          m_input_buffer(new char[max_input_line_length]) {}
 
     virtual void handle_command(UciCommand command) {
         switch (command.type) {
-        case UciCommand::UciCommandType::UNRECOGNISED:
-            m_globals.log("unrecognised command: \n" + command.input,
-                          Globals::LogLevel::UCI_INFO);
-            break;
-        case UciCommand::UciCommandType::UCI:
-            identify();
-            tell_opts();
-            m_output << "uciok" << std::endl;
-            break;
-        case UciCommand::UciCommandType::DEBUG:
-            handle_debug(command);
-            break;
-        case UciCommand::UciCommandType::ISREADY:
-            m_output << "readyok" << std::endl;
-            break;
-        case UciCommand::UciCommandType::SETOPTION:
-            m_globals.log("setoption not supported",
-                          Globals::LogLevel::UCI_INFO);
-            break;
-        case UciCommand::UciCommandType::REGISTER:
-            m_globals.log("register not supported",
-                          Globals::LogLevel::UCI_INFO);
-            break;
-        case UciCommand::UciCommandType::UCINEWGAME:
-            break;
-        case UciCommand::UciCommandType::POSITION: {
-            std::optional<state::AugmentedState> new_state =
-                handle_position(command);
-            if (new_state) {
-                m_astate = new_state.value();
-            };
-            break;
-        }
-        case UciCommand::UciCommandType::GO:
-            go(command);
-            break;
-        case UciCommand::UciCommandType::STOP:
-            m_globals.log("stop not supported", Globals::LogLevel::UCI_INFO);
-            break;
-        case UciCommand::UciCommandType::PONDERHIT:
-            m_globals.log("ponderhit not supported",
-                          Globals::LogLevel::UCI_INFO);
-            go(command);
-            break;
+            case UciCommand::UciCommandType::UNRECOGNISED:
+                m_globals.log("unrecognised command: \n" + command.input,
+                              Globals::LogLevel::UCI_INFO);
+                break;
+            case UciCommand::UciCommandType::UCI:
+                identify();
+                tell_opts();
+                m_output << "uciok" << std::endl;
+                break;
+            case UciCommand::UciCommandType::DEBUG:
+                handle_debug(command);
+                break;
+            case UciCommand::UciCommandType::ISREADY:
+                m_output << "readyok" << std::endl;
+                break;
+            case UciCommand::UciCommandType::SETOPTION:
+                m_globals.log("setoption not supported",
+                              Globals::LogLevel::UCI_INFO);
+                break;
+            case UciCommand::UciCommandType::REGISTER:
+                m_globals.log("register not supported",
+                              Globals::LogLevel::UCI_INFO);
+                break;
+            case UciCommand::UciCommandType::UCINEWGAME:
+                break;
+            case UciCommand::UciCommandType::POSITION: {
+                std::optional<state::AugmentedState> new_state =
+                    handle_position(command);
+                if (new_state) {
+                    m_astate = new_state.value();
+                };
+                break;
+            }
+            case UciCommand::UciCommandType::GO:
+                go(command);
+                break;
+            case UciCommand::UciCommandType::STOP:
+                m_globals.log("stop not supported",
+                              Globals::LogLevel::UCI_INFO);
+                break;
+            case UciCommand::UciCommandType::PONDERHIT:
+                m_globals.log("ponderhit not supported",
+                              Globals::LogLevel::UCI_INFO);
+                go(command);
+                break;
 
-        case UciCommand::UciCommandType::QUIT:
-            exit(0);
-            break;
+            case UciCommand::UciCommandType::QUIT:
+                exit(0);
+                break;
         };
     }
     UciCommand read_command() {
@@ -239,7 +244,7 @@ class Engine {
         return UciCommand{m_input_buffer.get()};
     }
 
-  private:
+   private:
     std::istream &m_input;
     std::ostream &m_output;
     Globals &m_globals;
@@ -282,7 +287,6 @@ class Engine {
     };
 
     std::optional<state::AugmentedState> handle_position(UciCommand command) {
-
         size_t i = 0;
         size_t sz = command.args.size();
         const int fen_len = 6;
@@ -352,7 +356,6 @@ class Engine {
 
         // TODO: do this better
         for (size_t i = 0; i < command.args.size(); i++) {
-
             if (command.args.at(i) == "movestogo") {
                 if (i + 1 == command.args.size()) {
                     bad_args(command);
@@ -398,8 +401,8 @@ class Engine {
             w_increment.value(), to_go.value());
 
         eval::MaterialEval eval(m_astate);
-        search::DLNegaMax<eval::MaterialEval, MAX_DEPTH> nega(eval, m_globals.mover,
-                                                      m_astate, MAX_DEPTH);
+        search::DLNegaMax<eval::MaterialEval, MAX_DEPTH> nega(
+            eval, m_globals.mover, m_astate, MAX_DEPTH);
 
         // Create reporter
         EngineReporter reporter(m_globals);
@@ -413,7 +416,8 @@ class Engine {
             std::chrono::steady_clock::now() +
             std::chrono::milliseconds(search_time);
 
-        search::IDSearcher<search::DLNegaMax<eval::MaterialEval, MAX_DEPTH>, MAX_DEPTH>
+        search::IDSearcher<search::DLNegaMax<eval::MaterialEval, MAX_DEPTH>,
+                           MAX_DEPTH>
             idsearcher{m_astate, nega, reporter};
         move::FatMove best = idsearcher.search(finish_time).best_move;
 
