@@ -35,7 +35,7 @@ namespace move::movegen {
 // Staged move generation for multiple attackers in a set.
 // The primary level-interface used for move generation.
 template <typename T>
-concept MultiMoveGenerator =
+concept MultiPieceMoveGenerator =
     requires(T t, const state::AugmentedState &astate, MoveBuffer &moves) {
         { t.get_quiet_moves(astate, moves) } -> std::same_as<void>;
         { t.get_loud_moves(astate, moves) } -> std::same_as<void>;
@@ -59,7 +59,7 @@ concept OneshotMoveGenerator =
 
 // Find (loud/quiet) moves for a single attacker
 template <typename T>
-concept SingletonMoveGenerator =
+concept OnePieceMoveGenerator =
     requires(T t, const state::AugmentedState &astate, MoveBuffer &moves,
              board::Bitboard singleton) {
         { t.get_quiet_moves(astate, moves, singleton) } -> std::same_as<void>;
@@ -76,7 +76,7 @@ concept HasAttackers = requires(T t, const state::AugmentedState &astate) {
 // Find the attackers given state, and moves given attacker
 template <typename T>
 concept PiecewiseMoveGenerator =
-    requires { requires SingletonMoveGenerator<T> && HasAttackers<T>; };
+    requires { requires OnePieceMoveGenerator<T> && HasAttackers<T>; };
 
 // Is a square (belonging to a player) attacked by their opponent?
 template <typename T>
@@ -91,15 +91,15 @@ concept PseudolegalGenerator =
     requires { requires OneshotMoveGenerator<T> && AttackDetector<T>; };
 
 //
-// Template factories provided to create concrete MultiMoveGenerators
+// Template adaptors provided to create concrete MultiMoveGenerators
 //
 
 // Given an Attacker, create a SingletonMoverGenerator
 template <attack::Attacker TAttacker, board::Piece Piece>
-class SingletonMoverFactory {
+class SingletonMoverAdaptor {
 
   public:
-    SingletonMoverFactory(const TAttacker &attacker) : m_attacker(attacker) {};
+    SingletonMoverAdaptor(const TAttacker &attacker) : m_attacker(attacker) {};
 
     constexpr void get_quiet_moves(const state::AugmentedState &astate,
                                    MoveBuffer &moves,
@@ -141,15 +141,15 @@ class SingletonMoverFactory {
   private:
     const TAttacker &m_attacker;
 };
-static_assert(SingletonMoveGenerator<
-              SingletonMoverFactory<attack::KingAttacker, board::Piece::KING>>);
+static_assert(OnePieceMoveGenerator<
+              SingletonMoverAdaptor<attack::KingAttacker, board::Piece::KING>>);
 
 // Given a SlidingAttacker, create a SingletonMoveGenerator
 template <attack::SlidingAttacker TAttacker, board::Piece Piece>
-class SlidingSingletonMoverFactory {
+class SlidingSingletonMoverAdaptor {
 
   public:
-    SlidingSingletonMoverFactory(const TAttacker &attacker)
+    SlidingSingletonMoverAdaptor(const TAttacker &attacker)
         : m_attacker(attacker) {};
 
     constexpr void get_quiet_moves(const state::AugmentedState &astate,
@@ -192,12 +192,12 @@ class SlidingSingletonMoverFactory {
   private:
     const TAttacker &m_attacker;
 };
-static_assert(SingletonMoveGenerator<SlidingSingletonMoverFactory<
+static_assert(OnePieceMoveGenerator<SlidingSingletonMoverAdaptor<
                   attack::RookAttacker, board::Piece::ROOK>>);
 
 // Add attacker() to get all pieces of a type for the player to move
-template <board::Piece piece, SingletonMoveGenerator TMover>
-class PiecewiseFactory : public TMover {
+template <board::Piece piece, OnePieceMoveGenerator TMover>
+class PiecewiseAdaptor : public TMover {
     using TMover::TMover;
 
   public:
@@ -208,8 +208,8 @@ class PiecewiseFactory : public TMover {
 };
 
 // Add attacker() to get all pieces of a type and queens for the player to move
-template <board::Piece piece, SingletonMoveGenerator TMover>
-class SlidingPiecewiseFactory : public TMover {
+template <board::Piece piece, OnePieceMoveGenerator TMover>
+class SlidingPiecewiseAdaptor : public TMover {
     using TMover::TMover;
 
   public:
@@ -225,10 +225,10 @@ class SlidingPiecewiseFactory : public TMover {
 // Given a piece, and SingletonMoverGenerator for the piece, create a
 // PiecewiseMoveGenerator, which loops over all pieces of the same type for the
 // active player.
-template <PiecewiseMoveGenerator TMover> class MultiMoverFactory {
+template <PiecewiseMoveGenerator TMover> class MultiMoverAdaptor {
 
   public:
-    MultiMoverFactory(TMover mover) : m_mover(mover) {};
+    MultiMoverAdaptor(TMover mover) : m_mover(mover) {};
 
     // Add quiet moves to the moves list
     constexpr void get_quiet_moves(const state::AugmentedState &astate,
@@ -261,30 +261,30 @@ template <PiecewiseMoveGenerator TMover> class MultiMoverFactory {
 
 // Jumping
 
-using KingMover = MultiMoverFactory<PiecewiseFactory<
+using KingMover = MultiMoverAdaptor<PiecewiseAdaptor<
     board::Piece::KING,
-    SingletonMoverFactory<attack::KingAttacker, board::Piece::KING>>>;
-using KnightMover = MultiMoverFactory<PiecewiseFactory<
+    SingletonMoverAdaptor<attack::KingAttacker, board::Piece::KING>>>;
+using KnightMover = MultiMoverAdaptor<PiecewiseAdaptor<
     board::Piece::KNIGHT,
-    SingletonMoverFactory<attack::KnightAttacker, board::Piece::KNIGHT>>>;
+    SingletonMoverAdaptor<attack::KnightAttacker, board::Piece::KNIGHT>>>;
 
-static_assert(MultiMoveGenerator<KingMover>);
-static_assert(MultiMoveGenerator<KnightMover>);
+static_assert(MultiPieceMoveGenerator<KingMover>);
+static_assert(MultiPieceMoveGenerator<KnightMover>);
 
 // Sliding
 
-using BishopMover = MultiMoverFactory<SlidingPiecewiseFactory<
-    board::Piece::BISHOP, SlidingSingletonMoverFactory<attack::BishopAttacker,
+using BishopMover = MultiMoverAdaptor<SlidingPiecewiseAdaptor<
+    board::Piece::BISHOP, SlidingSingletonMoverAdaptor<attack::BishopAttacker,
                                                        board::Piece::BISHOP>>>;
-static_assert(MultiMoveGenerator<BishopMover>);
+static_assert(MultiPieceMoveGenerator<BishopMover>);
 
-using DiagQueenMover = MultiMoverFactory<SlidingPiecewiseFactory<
+using DiagQueenMover = MultiMoverAdaptor<SlidingPiecewiseAdaptor<
     board::Piece::QUEEN,
-    SlidingSingletonMoverFactory<attack::BishopAttacker, board::Piece::QUEEN>>>;
-using HorizQueenMover = MultiMoverFactory<SlidingPiecewiseFactory<
+    SlidingSingletonMoverAdaptor<attack::BishopAttacker, board::Piece::QUEEN>>>;
+using HorizQueenMover = MultiMoverAdaptor<SlidingPiecewiseAdaptor<
     board::Piece::QUEEN,
-    SlidingSingletonMoverFactory<attack::RookAttacker, board::Piece::QUEEN>>>;
-static_assert(MultiMoveGenerator<HorizQueenMover>);
+    SlidingSingletonMoverAdaptor<attack::RookAttacker, board::Piece::QUEEN>>>;
+static_assert(MultiPieceMoveGenerator<HorizQueenMover>);
 
 //
 // Pawn moves
@@ -436,15 +436,15 @@ class PawnMoveGenerator {
     }
 };
 
-using PawnMover = MultiMoverFactory<PiecewiseFactory<
+using PawnMover = MultiMoverAdaptor<PiecewiseAdaptor<
     board::Piece::PAWN,
     PawnMoveGenerator<attack::PawnSinglePusher, attack::PawnDoublePusher,
                       attack::PawnAttacker>>>;
-static_assert(MultiMoveGenerator<PawnMover>);
+static_assert(MultiPieceMoveGenerator<PawnMover>);
 
 // Given a MultiMoveGenerator which gets rook moves,
 // add castling to quiet move generation move generation
-template <MultiMoveGenerator TMover> class RookMoverFactory : TMover {
+template <MultiPieceMoveGenerator TMover> class RookMoverFactory : TMover {
 
   public:
     using TMover::get_all_moves;
@@ -489,10 +489,10 @@ template <MultiMoveGenerator TMover> class RookMoverFactory : TMover {
     };
 };
 
-using RookMover = RookMoverFactory<MultiMoverFactory<SlidingPiecewiseFactory<
+using RookMover = RookMoverFactory<MultiMoverAdaptor<SlidingPiecewiseAdaptor<
     board::Piece::ROOK,
-    SlidingSingletonMoverFactory<attack::RookAttacker, board::Piece::ROOK>>>>;
-static_assert(MultiMoveGenerator<RookMover>);
+    SlidingSingletonMoverAdaptor<attack::RookAttacker, board::Piece::ROOK>>>>;
+static_assert(MultiPieceMoveGenerator<RookMover>);
 
 //
 // All move generation
@@ -603,7 +603,7 @@ template <bool InOrder = false> class AllMoveGenerator {
     HorizQueenMover m_h_queen_mover;
 };
 
-static_assert(MultiMoveGenerator<AllMoveGenerator<true>>);
+static_assert(MultiPieceMoveGenerator<AllMoveGenerator<true>>);
 static_assert(OneshotMoveGenerator<AllMoveGenerator<true>>);
 static_assert(AttackDetector<AllMoveGenerator<true>>);
 
