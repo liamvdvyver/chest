@@ -179,7 +179,7 @@ class DLNegaMax {
         if (m_node.bottomed_out()) {
             SearchResult search_ret = {.type = SearchResult::LeafType::CUTOFF,
                                        .best_move = {},
-                                       .eval = m_eval.eval(),
+                                       .eval = m_eval.eval(m_node.m_astate),
                                        .n_nodes = 1};
             return {search_ret, ABResult::ABNodeType::NA};
         }
@@ -259,7 +259,7 @@ class DLNegaMax {
     const int m_max_depth;
     bool m_stopped;
 };
-static_assert(DLSearcher<DLNegaMax<eval::MaterialEval, 1>>);
+static_assert(DLSearcher<DLNegaMax<eval::StdEval, 1>>);
 
 //
 // Alpha
@@ -378,7 +378,7 @@ class IDSearcher {
     MoveBuffer m_pv;
 };
 static_assert(
-    StoppableSearcher<IDSearcher<DLNegaMax<eval::MaterialEval, 5>, 5>>);
+    StoppableSearcher<IDSearcher<DLNegaMax<eval::StdEval, 5>, 5>>);
 
 }  // namespace search
 

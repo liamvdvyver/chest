@@ -399,25 +399,27 @@ class Engine {
             b_remaining.value(), w_remaining.value(), b_increment.value(),
             w_increment.value(), to_go.value());
 
-        eval::MaterialEval eval(m_astate);
-        search::DLNegaMax<eval::MaterialEval, MAX_DEPTH> nega(
-            eval, m_globals.mover, m_astate, MAX_DEPTH);
+        using EvalTp = eval::MichniewskiMaterial;
+        using DlSearcherTp = search::DLNegaMax<EvalTp, MAX_DEPTH>;
+        using SearcherTp = search::IDSearcher<DlSearcherTp, MAX_DEPTH>;
+        using TimeManagerTp = search::DefaultTimeManager;
+
+        EvalTp eval;
+        DlSearcherTp nega(eval, m_globals.mover, m_astate, MAX_DEPTH);
 
         // Create reporter
         EngineReporter reporter(m_globals);
 
         // Calculate stop time
         // search::NullTimeManager time_manager(m_astate);
-        search::DefaultTimeManager time_manager(m_astate);
+        TimeManagerTp time_manager(m_astate);
         search::ms_t search_time = time_manager(time_control);
 
         std::chrono::time_point<std::chrono::steady_clock> finish_time =
             std::chrono::steady_clock::now() +
             std::chrono::milliseconds(search_time);
 
-        search::IDSearcher<search::DLNegaMax<eval::MaterialEval, MAX_DEPTH>,
-                           MAX_DEPTH>
-            idsearcher{m_astate, nega, reporter};
+        SearcherTp idsearcher{m_astate, nega, reporter};
         move::FatMove best = idsearcher.search(finish_time).best_move;
 
         m_globals.output << "bestmove "
