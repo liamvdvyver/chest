@@ -377,8 +377,7 @@ class IDSearcher {
     // For now, just report one move from pv
     MoveBuffer m_pv;
 };
-static_assert(
-    StoppableSearcher<IDSearcher<DLNegaMax<eval::StdEval, 5>, 5>>);
+static_assert(StoppableSearcher<IDSearcher<DLNegaMax<eval::StdEval, 5>, 5>>);
 
 }  // namespace search
 
