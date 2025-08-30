@@ -13,8 +13,6 @@ int main() {
     Globals g;
     Engine eng(g);
     while (true) {
-        while (!std::cin.peek()) {
-        }
         UciCommand cmd = eng.read_command();
         if (!cmd.input.empty()) {
             eng.handle_command(cmd);

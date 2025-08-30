@@ -281,7 +281,6 @@ struct LongAlgMove : Wrapper<long_alg_t, LongAlgMove> {
                                 std::unreachable();
                         }
                     }
-                    std::cout << pretty(type) << std::endl;
                     return {{{from, to, type}, board::Piece::PAWN}};
 
                 } else if (std::abs(from.rank() - to.rank()) == 2) {

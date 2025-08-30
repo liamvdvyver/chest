@@ -7,7 +7,6 @@
 #include <unistd.h>
 
 #include <chrono>
-#include <cmath>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -107,7 +106,6 @@ constexpr const int MAX_DEPTH = 64;
 // Global vars, shared between the io thread and any working threads
 struct Globals {
    public:
-    Globals() : mover(), output(std::cout) {};
     move::movegen::AllMoveGenerator<> mover;
 
     // debugging
@@ -130,8 +128,13 @@ struct Globals {
 
     // When debug is true, send extra debug info to output
     static constexpr std::string debug_str = "debug ";
-    bool debug;
-    std::ostream &output;
+#ifdef NDEBUG
+    bool debug = false
+#else
+    bool debug = true
+#endif
+        ;
+    std::ostream &output = std::cout;
 };
 
 // Report reults of partial searches
@@ -181,7 +184,6 @@ class Engine {
    public:
     Engine(Globals &globals)
         : m_input(std::cin),
-          m_output(std::cout),
           m_globals(globals),
           m_astate(),
           m_input_buffer(new char[max_input_line_length]) {}
@@ -195,13 +197,13 @@ class Engine {
             case UciCommand::UciCommandType::UCI:
                 identify();
                 tell_opts();
-                m_output << "uciok" << std::endl;
+                m_globals.output << "uciok" << std::endl;
                 break;
             case UciCommand::UciCommandType::DEBUG:
                 handle_debug(command);
                 break;
             case UciCommand::UciCommandType::ISREADY:
-                m_output << "readyok" << std::endl;
+                m_globals.output << "readyok" << std::endl;
                 break;
             case UciCommand::UciCommandType::SETOPTION:
                 m_globals.log("setoption not supported",
@@ -246,7 +248,6 @@ class Engine {
 
    private:
     std::istream &m_input;
-    std::ostream &m_output;
     Globals &m_globals;
     state::AugmentedState m_astate;
     std::unique_ptr<char> m_input_buffer;
@@ -264,8 +265,8 @@ class Engine {
     };
 
     void identify() {
-        m_output << "id name " << id::name << std::endl;
-        m_output << "id author " << id::author << std::endl;
+        m_globals.output << "id name " << id::name << std::endl;
+        m_globals.output << "id author " << id::author << std::endl;
     }
 
     void tell_opts() {
@@ -333,13 +334,11 @@ class Engine {
                 return {};
             }
 
-            // m_output << fmove->get_move().pretty() << std::endl;
-
             // Make move
             sn.prep_search(1);
             sn.make_move(fmove.value());
         }
-        m_output << ret.state.pretty() << std::endl;
+        m_globals.log(m_astate.state.pretty(), Globals::LogLevel::CHEST_INFO);
 
         return {sn.m_astate};
     }
@@ -421,9 +420,9 @@ class Engine {
             idsearcher{m_astate, nega, reporter};
         move::FatMove best = idsearcher.search(finish_time).best_move;
 
-        m_output << "bestmove "
-                 << (move::long_alg_t)move::LongAlgMove(best, m_astate)
-                 << std::endl;
+        m_globals.output << "bestmove "
+                         << (move::long_alg_t)move::LongAlgMove(best, m_astate)
+                         << std::endl;
         ;
     }
 };

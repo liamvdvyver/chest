@@ -310,8 +310,6 @@ struct SearchNode {
     // Count the number of leaves at a certain depth, and (non-root) interior
     // nodes
     constexpr PerftResult perft() {
-        // std::cout << m_astate.state.pretty() << std::endl;
-
         // Cutoff
         if (bottomed_out()) {
             return {.perft = 1, .nodes = 0};
