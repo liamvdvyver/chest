@@ -399,7 +399,7 @@ class Engine {
             b_remaining.value(), w_remaining.value(), b_increment.value(),
             w_increment.value(), to_go.value());
 
-        using EvalTp = eval::MichniewskiMaterial;
+        using EvalTp = eval::MichniewskiEval;
         using DlSearcherTp = search::DLNegaMax<EvalTp, MAX_DEPTH>;
         using SearcherTp = search::IDSearcher<DlSearcherTp, MAX_DEPTH>;
         using TimeManagerTp = search::DefaultTimeManager;

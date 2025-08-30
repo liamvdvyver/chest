@@ -66,6 +66,9 @@ struct Square : Wrapper<square_t, Square> {
     // Bounds check square number
     constexpr bool is_legal() const { return (value < n_squares); }
 
+    // Flip over horizonal midpoints, i.e. flip perspective.
+    constexpr Square flip() { return value ^ 56; }
+
     struct AllSquareIterator;
 
 };  // namespace board
