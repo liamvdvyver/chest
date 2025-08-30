@@ -49,10 +49,7 @@ class MaterialEval : public NetEvaluator<T> {
     static constexpr centipawn_t side_eval(const state::AugmentedState &astate,
                                            const board::Colour side) {
         centipawn_t ret = 0;
-        // TODO: write an iterator for this
-        for (board::Piece p = static_cast<board::Piece>(0);
-             p < board::Piece::KING;
-             p = static_cast<board::Piece>(static_cast<int>(p) + 1)) {
+        for (board::Piece p : board::PieceTypesIterator()) {
             int bb_sz = astate.state.copy_bitboard({side, p}).size();
             ret += (T::piece_val(p) * bb_sz);
         }
@@ -71,9 +68,7 @@ class PSTEval : public NetEvaluator<PSTEval<T>> {
                                            const board::Colour side) {
         centipawn_t ret = 0;
 
-        for (board::Piece p = static_cast<board::Piece>(0);
-             p < board::Piece::KING;
-             p = static_cast<board::Piece>(static_cast<int>(p) + 1)) {
+        for (board::Piece p : board::PieceTypesIterator()) {
             for (board::Bitboard b :
                  astate.state.copy_bitboard({side, p}).singletons()) {
                 ret += T::pst_val({side, p}, b.single_bitscan_forward());
@@ -134,7 +129,8 @@ static_assert(StaticEvaluator<MichniewskiMaterial>);
 
 class MichniewskiPST : public PSTEval<MichniewskiPST> {
    public:
-    static constexpr centipawn_t pst_val(board::ColouredPiece cp, board::Square sq) {
+    static constexpr centipawn_t pst_val(board::ColouredPiece cp,
+                                         board::Square sq) {
         board::Square offset =
             cp.colour == board::Colour::WHITE ? sq.flip() : sq;
         switch (cp.piece) {

@@ -386,6 +386,28 @@ struct ColouredPiece {
     board::Piece piece;
 };
 
+struct PieceTypesIterator {
+    constexpr PieceTypesIterator begin() { return *this; }
+    constexpr PieceTypesIterator end() const {
+        return PieceTypesIterator(static_cast<Piece>(n_pieces));
+    }
+    constexpr operator Piece() const { return p; }
+    constexpr operator Piece &() { return p; }
+    constexpr Piece operator*() const { return p; }
+    constexpr bool operator!=(const PieceTypesIterator &other) {
+        return p != other.p;
+    }
+    constexpr PieceTypesIterator operator++() {
+        p = static_cast<Piece>(static_cast<uint8_t>(p) + 1);
+        return *this;
+    }
+    constexpr PieceTypesIterator() {};
+
+   private:
+    constexpr PieceTypesIterator(Piece p) : p{p} {};
+    Piece p{0};
+};
+
 // IO in implementation
 namespace io {
 
