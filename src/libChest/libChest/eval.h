@@ -3,7 +3,8 @@
 
 #include <concepts>
 
-#include "libChest/board.h"
+#include "board.h"
+#include "incremental.h"
 #include "state.h"
 
 //
@@ -22,35 +23,71 @@ constexpr centipawn_t max_eval = std::numeric_limits<centipawn_t>::max();
 
 // Templates
 
-// Given a position (augmented state),
-// return a static evaluation for the side to move.
+// Initialised with position (augmented state),
+// returns a static evaluation for the side to move,
+// i.e., a better black position, black to move, yields higher eval.
 template <typename T>
 concept StaticEvaluator =
     requires(const T t, const state::AugmentedState &astate) {
-        { t.eval(astate) } -> std::same_as<centipawn_t>;
+        std::constructible_from<T, const state::AugmentedState &>;
+        { t.eval() } -> std::same_as<centipawn_t>;
     };
+
+// Initialised with position (augmented state),
+// returns a static evaluation for the side to move.
+// A valid  should return the same evaluation as fresh initialisation.
+template <typename T>
+concept IncrementallyUpdateableEvaluator = requires() {
+    StaticEvaluator<T>;
+    IncrementallyUpdateable<T>;
+};
+
+// Assigns values per-piece, e.g. standard evaluation.
+template <typename T>
+concept PieceEvaluator = requires(const board::Piece p) {
+    { T::piece_val(p) } -> std::same_as<centipawn_t>;
+};
+
+// Assigns values per-square, per-piece.
+template <typename T>
+concept PieceSquareEvaluator =
+    requires(const board::ColouredPiece cp, const board::Square sq) {
+        { T::pst_val(cp, sq) } -> std::same_as<centipawn_t>;
+    };
+
+template <typename T>
+concept SideEvaluator = requires(const T t, const board::Colour c) {
+    { t.side_eval(c) } -> std::same_as<centipawn_t>;
+};
 
 // Net off each side's evaluations.
 template <typename T>
-class NetEvaluator {
+class NetEval {
    public:
-    constexpr centipawn_t eval(const state::AugmentedState &astate) const {
-        return static_cast<const T *>(this)->side_eval(astate,
-                                                       astate.state.to_move) -
-               static_cast<const T *>(this)->side_eval(astate,
-                                                       !astate.state.to_move);
+    constexpr centipawn_t eval() const {
+        static_assert(SideEvaluator<T>);
+        return static_cast<const T *>(this)->side_eval(m_astate.state.to_move) -
+               static_cast<const T *>(this)->side_eval(!m_astate.state.to_move);
     }
+
+   protected:
+    NetEval(const state::AugmentedState &astate) : m_astate(astate) {}
+    const state::AugmentedState &m_astate;
 };
 
 // Sum per-piece-type evaluations for a side.
 template <typename T>
-class MaterialEval : public NetEvaluator<T> {
+class MaterialEval : public NetEval<MaterialEval<T>> {
    public:
-    static constexpr centipawn_t side_eval(const state::AugmentedState &astate,
-                                           const board::Colour side) {
+    MaterialEval(const state::AugmentedState &astate)
+        : NetEval<MaterialEval<T>>::NetEvaluator(astate) {};
+    constexpr centipawn_t side_eval(const board::Colour side) const {
+        static_assert(PieceEvaluator<T>);
         centipawn_t ret = 0;
         for (board::Piece p : board::PieceTypesIterator()) {
-            int bb_sz = astate.state.copy_bitboard({side, p}).size();
+            int bb_sz = static_cast<const T *>(this)
+                            ->m_astate.state.copy_bitboard({side, p})
+                            .size();
             ret += (T::piece_val(p) * bb_sz);
         }
         return ret;
@@ -62,15 +99,19 @@ using PST = std::array<centipawn_t, board::n_squares>;
 
 // Sum per-piece-per-square evaluations for a side.
 template <typename T>
-class PSTEval : public NetEvaluator<PSTEval<T>> {
+class PSTEval : public NetEval<PSTEval<T>> {
    public:
-    static constexpr centipawn_t side_eval(const state::AugmentedState &astate,
-                                           const board::Colour side) {
+    PSTEval(const state::AugmentedState &astate)
+        : NetEval<PSTEval<T>>::NetEval(astate) {};
+    constexpr centipawn_t side_eval(const board::Colour side) const {
+        static_assert(PieceSquareEvaluator<T>);
         centipawn_t ret = 0;
 
         for (board::Piece p : board::PieceTypesIterator()) {
             for (board::Bitboard b :
-                 astate.state.copy_bitboard({side, p}).singletons()) {
+                 static_cast<const T *>(this)
+                     ->m_astate.state.copy_bitboard({side, p})
+                     .singletons()) {
                 ret += T::pst_val({side, p}, b.single_bitscan_forward());
             }
         }
@@ -78,9 +119,95 @@ class PSTEval : public NetEvaluator<PSTEval<T>> {
     }
 };
 
+// Given piece values and extra piece-square values for placement,
+// return piece-square values which account for both.
+template <PieceEvaluator TPEval, PieceSquareEvaluator TPSEval>
+class CombinedEval : public PSTEval<CombinedEval<TPEval, TPSEval>> {
+    using PSTEval<CombinedEval<TPEval, TPSEval>>::PSTEval;
+
+   public:
+    // TODO: recompute pst values at initialisation time.
+    static constexpr centipawn_t pst_val(const board::ColouredPiece cp,
+                                         const board::Square sq) {
+        return TPEval::piece_val(cp.piece) + TPSEval::pst_val(cp, sq);
+    }
+};
+
+// Given a SideEvaluator, compute eval per-side on initialisation
+// and incrementally update.
+template <SideEvaluator TEval>
+class IncrementalNetEval : public NetEval<IncrementalNetEval<TEval>> {
+   public:
+    // Must initialise with state.
+    constexpr IncrementalNetEval() = delete;
+
+    // Initialises with evaluation.
+    constexpr IncrementalNetEval(const state::AugmentedState &astate)
+        : NetEval<IncrementalNetEval<TEval>>::NetEval(astate) {
+        init_eval(astate);
+    };
+
+    // Side evaluation
+
+    constexpr centipawn_t side_eval(board::Colour side) const {
+        return m_evaluation[static_cast<size_t>(side)];
+    }
+
+    constexpr void init_eval(const state::AugmentedState &astate) {
+        m_evaluation[0] =
+            PSTEval<TEval>(astate).side_eval(static_cast<board::Colour>(0));
+        m_evaluation[1] =
+            PSTEval<TEval>(astate).side_eval(static_cast<board::Colour>(1));
+    }
+
+    // Incremental updates.
+
+    constexpr void add(board::Bitboard loc, board::ColouredPiece cp) {
+        m_evaluation[static_cast<size_t>(cp.colour)] +=
+            TEval::pst_val(cp, loc.single_bitscan_forward());
+    };
+
+    constexpr void remove(board::Bitboard loc, board::ColouredPiece cp) {
+        m_evaluation[static_cast<size_t>(cp.colour)] -=
+            TEval::pst_val(cp, loc.single_bitscan_forward());
+    };
+
+    constexpr void move(board::Bitboard from, board::Bitboard to,
+                        board::ColouredPiece cp) {
+        remove(from, cp);
+        add(to, cp);
+    };
+
+    constexpr void swap(board::Bitboard loc, board::ColouredPiece from,
+                        board::ColouredPiece to) {
+        remove(loc, from);
+        add(loc, to);
+    };
+    constexpr void swap_oppside(board::Bitboard loc, board::ColouredPiece from,
+                                board::ColouredPiece to) {
+        swap(loc, from, to);
+    };
+    constexpr void swap_sameside(board::Bitboard loc, board::Colour side,
+                                 board::Piece from, board::Piece to) {
+        swap(loc, {side, from}, {side, to});
+    };
+
+    // Castling rights do not affect eval
+
+    constexpr void remove_castling_rights(board::ColouredPiece cp) const {
+        (void)cp;
+    };
+    constexpr void remove_castling_rights(board::Colour colour) const {
+        (void)colour;
+    };
+
+   private:
+    std::array<centipawn_t, board::n_colours> m_evaluation;
+};
+
 // Evaluators
 
-// Uses the standard material evaluation.
+// Standard material evaluation.
 class StdEval : public MaterialEval<StdEval> {
    public:
     static constexpr centipawn_t piece_val(const board::Piece piece) {
@@ -104,7 +231,12 @@ class StdEval : public MaterialEval<StdEval> {
 };
 static_assert(StaticEvaluator<StdEval>);
 
-class MichniewskiMaterial : public MaterialEval<StdEval> {
+// Evaluation functions from Tomasz Michniewski's Unified Evaluation test
+// tournament. https://www.chessprogramming.org/Simplified_Evaluation_Function
+
+// Material scores only
+// from Tomasz Michniewski's Unified Evaluation test tournament.
+class MichniewskiMaterialEval : public MaterialEval<StdEval> {
    public:
     static constexpr centipawn_t piece_val(const board::Piece piece) {
         switch (piece) {
@@ -125,9 +257,11 @@ class MichniewskiMaterial : public MaterialEval<StdEval> {
         }
     }
 };
-static_assert(StaticEvaluator<MichniewskiMaterial>);
+static_assert(StaticEvaluator<MichniewskiMaterialEval>);
 
-class MichniewskiPST : public PSTEval<MichniewskiPST> {
+// Position scores only
+// from Tomasz Michniewski's Unified Evaluation test tournament.
+class MichniewskiPSTEval : public PSTEval<MichniewskiPSTEval> {
    public:
     static constexpr centipawn_t pst_val(board::ColouredPiece cp,
                                          board::Square sq) {
@@ -239,17 +373,30 @@ class MichniewskiPST : public PSTEval<MichniewskiPST> {
         // clang-format on
     };
 };
-static_assert(StaticEvaluator<MichniewskiPST>);
 
-class MichniewskiEval : public NetEvaluator<MichniewskiEval> {
+// Returns 0, ignores updates.
+// Used for tree traversal without eval, e.g. for perft.
+class NullEval : public IgnoreUpdates<NullEval> {
    public:
-    static constexpr centipawn_t side_eval(const state::AugmentedState &astate,
-                                           const board::Colour side) {
-        return MichniewskiMaterial::side_eval(astate, side) +
-               MichniewskiPST::side_eval(astate, side);
-    }
+    constexpr NullEval(const state::AugmentedState &astate) { (void)astate; }
+    static constexpr centipawn_t eval() { return 0; }
 };
+
+// Full evaluation function
+// from Tomasz Michniewski's Unified Evaluation test tournament.
+using MichniewskiEval =
+    CombinedEval<MichniewskiMaterialEval, MichniewskiPSTEval>;
+
+// Full evaluation function, incrementally updateable,
+// from Tomasz Michniewski's Unified Evaluation test tournament.
+using MichniewskiIncrementalEval = IncrementalNetEval<MichniewskiEval>;
+
+// Current recommended evaluation function.
+using DefaultEval = MichniewskiIncrementalEval;
+
 static_assert(StaticEvaluator<MichniewskiEval>);
+static_assert(IncrementallyUpdateableEvaluator<MichniewskiIncrementalEval>);
+static_assert(IncrementallyUpdateableEvaluator<NullEval>);
 
 }  // namespace eval
 

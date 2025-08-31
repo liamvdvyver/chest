@@ -338,8 +338,13 @@ struct State {
                         board::ColouredPiece(cp)) {
         get_bitboard(cp) ^= (from_bb ^ to_bb);
     }
-    constexpr void toggle(board::Bitboard loc, board::ColouredPiece(cp)) {
-        get_bitboard(cp) ^= loc;
+    constexpr void add(board::Bitboard loc, board::ColouredPiece cp) {
+        assert(!(get_bitboard(cp) & loc));
+        toggle(loc, cp);
+    }
+    constexpr void remove(board::Bitboard loc, board::ColouredPiece cp) {
+        assert(get_bitboard(cp) & loc);
+        toggle(loc, cp);
     }
     constexpr void swap(board::Bitboard loc, board::ColouredPiece from,
                         board::ColouredPiece to) {
@@ -362,6 +367,9 @@ struct State {
     }
 
    private:
+    constexpr void toggle(board::Bitboard loc, board::ColouredPiece cp) {
+        get_bitboard(cp) ^= loc;
+    }
     // Position of all pieces for each player
     board::Bitboard m_pieces[board::n_colours][board::n_pieces];
 
@@ -442,8 +450,13 @@ struct AugmentedState {
         side_occupancy(cp.colour) ^= (from_bb ^ to_bb);
         total_occupancy ^= (from_bb ^ to_bb);
     }
-    constexpr void toggle(board::Bitboard loc, board::ColouredPiece cp) {
-        state.toggle(loc, cp);
+    constexpr void add(board::Bitboard loc, board::ColouredPiece cp) {
+        state.add(loc, cp);
+        side_occupancy(cp.colour) ^= loc;
+        total_occupancy ^= loc;
+    }
+    constexpr void remove(board::Bitboard loc, board::ColouredPiece cp) {
+        state.remove(loc, cp);
         side_occupancy(cp.colour) ^= loc;
         total_occupancy ^= loc;
     }

@@ -56,6 +56,16 @@ concept StoppableSearcher = requires(
     { t.search(finish_time) } -> std::convertible_to<SearchResult>;
 };
 
+// Call backs to report search statistics a the top of each loop
+// These will be called in a blocking manner once search has completed
+// to a depth, so should not be too slow.
+struct StatReporter {
+    virtual void report(int depth, eval::centipawn_t eval, size_t nodes,
+                        std::chrono::duration<double> time,
+                        const MoveBuffer &pv,
+                        const state::AugmentedState &astate) const = 0;
+};
+
 // Depth-limited searches:
 // * can set depth (which unstops the search)
 // * can search
@@ -65,47 +75,6 @@ template <typename T>
 concept DLSearcher = requires(T t, int max_depth) {
     { t.set_depth(max_depth) };
 } && StoppableSearcher<T>;
-
-//
-// Random search
-//
-
-class RandomSearcher {
-   public:
-    RandomSearcher(const move::movegen::AllMoveGenerator<> &mover,
-                   state::AugmentedState &astate)
-        : m_mover(mover), m_astate(astate), m_node(m_mover, m_astate, 1) {}
-    constexpr SearchResult search() {
-        m_node.prep_search(1);
-        MoveBuffer &moves = m_node.find_moves();
-        size_t n_moves = moves.size();
-
-        // TODO: make this less hacky
-        // find random legal move (assume one exists)
-        // does not evaluate
-        bool legal = false;
-        size_t n_nodes = 0;
-        move::FatMove m;
-        while (!legal) {
-            int i = std::rand() % n_moves;
-            m = moves.at(i);
-            legal = m_node.make_move(m);
-            m_node.unmake_move();
-            n_nodes++;
-        }
-        return {SearchResult::LeafType::CUTOFF, m, 0, n_nodes};
-    }
-
-   private:
-    const move::movegen::AllMoveGenerator<> &m_mover;
-    state::AugmentedState &m_astate;
-    state::SearchNode<1> m_node;
-};
-static_assert(Searcher<RandomSearcher>);
-
-//
-// Depth-limited
-//
 
 //
 // Depth-limited negamax
@@ -140,14 +109,12 @@ static_assert(std::convertible_to<ABResult, SearchResult>);
 // Time cutoff -> don't worry about result for now
 static const ABResult ab_cutoff_result{cutoff_result, ABResult::ABNodeType::NA};
 
-template <eval::StaticEvaluator TEval, size_t MaxDepth>
+template <eval::IncrementallyUpdateableEvaluator TEval, size_t MaxDepth>
 class DLNegaMax {
    public:
-    constexpr DLNegaMax(const TEval &eval,
-                        const move::movegen::AllMoveGenerator<> &mover,
+    constexpr DLNegaMax(const move::movegen::AllMoveGenerator<> &mover,
                         state::AugmentedState &astate, int max_depth)
-        : m_eval(eval),
-          m_mover(mover),
+        : m_mover(mover),
           m_node(mover, astate, max_depth),
           m_max_depth(max_depth),
           m_stopped(false) {};
@@ -179,7 +146,7 @@ class DLNegaMax {
         if (m_node.bottomed_out()) {
             SearchResult search_ret = {.type = SearchResult::LeafType::CUTOFF,
                                        .best_move = {},
-                                       .eval = m_eval.eval(m_node.m_astate),
+                                       .eval = m_node.eval(),
                                        .n_nodes = 1};
             return {search_ret, ABResult::ABNodeType::NA};
         }
@@ -253,31 +220,16 @@ class DLNegaMax {
     }
 
    private:
-    const TEval &m_eval;
     const move::movegen::AllMoveGenerator<> &m_mover;
-    state::SearchNode<MaxDepth> m_node;
+    state::SearchNode<MaxDepth, TEval> m_node;
     const int m_max_depth;
     bool m_stopped;
 };
 static_assert(DLSearcher<DLNegaMax<eval::StdEval, 1>>);
 
 //
-// Alpha
-//
-
-//
 // Iterative deepening
 //
-
-// Call backs to report search statistics a the top of each loop
-// These will be called in a blocking manner once search has completed
-// to a depth, so should not be too slow.
-struct StatReporter {
-    virtual void report(int depth, eval::centipawn_t eval, size_t nodes,
-                        std::chrono::duration<double> time,
-                        const MoveBuffer &pv,
-                        const state::AugmentedState &astate) const = 0;
-};
 
 // Given a depth-limited searcher, implement iterative deepening
 // No special move ordering
@@ -377,7 +329,8 @@ class IDSearcher {
     // For now, just report one move from pv
     MoveBuffer m_pv;
 };
-static_assert(StoppableSearcher<IDSearcher<DLNegaMax<eval::StdEval, 5>, 5>>);
+static_assert(
+    StoppableSearcher<IDSearcher<DLNegaMax<eval::DefaultEval, 5>, 5>>);
 
 }  // namespace search
 

@@ -323,7 +323,7 @@ class Engine {
         }
 
         // Handle state updates
-        state::SearchNode<1> sn(m_globals.mover, ret, 1);
+        state::SearchNode<1, eval::NullEval> sn(m_globals.mover, ret, 1);
 
         // Handle moves
         while (i < sz) {
@@ -399,13 +399,12 @@ class Engine {
             b_remaining.value(), w_remaining.value(), b_increment.value(),
             w_increment.value(), to_go.value());
 
-        using EvalTp = eval::MichniewskiEval;
+        using EvalTp = eval::DefaultEval;
         using DlSearcherTp = search::DLNegaMax<EvalTp, MAX_DEPTH>;
         using SearcherTp = search::IDSearcher<DlSearcherTp, MAX_DEPTH>;
         using TimeManagerTp = search::DefaultTimeManager;
 
-        EvalTp eval;
-        DlSearcherTp nega(eval, m_globals.mover, m_astate, MAX_DEPTH);
+        DlSearcherTp nega(m_globals.mover, m_astate, MAX_DEPTH);
 
         // Create reporter
         EngineReporter reporter(m_globals);

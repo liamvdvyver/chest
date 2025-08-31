@@ -5,6 +5,7 @@
 #include <optional>
 
 #include "board.h"
+#include "eval.h"
 #include "move.h"
 #include "movegen.h"
 #include "state.h"
@@ -33,12 +34,13 @@ static const MadeMove nullMadeMove{{}, State().irreversible()};
 // Stores augmented state, has buffers for made moves, found moves.
 // This is the basic unit for iterative (non-recursive, incrementally updated)
 // game tree traversal,
-template <size_t MaxDepth>
+template <size_t MaxDepth, eval::StaticEvaluator TEval>
 struct SearchNode {
    public:
     constexpr SearchNode(const move::movegen::AllMoveGenerator<> &mover,
                          AugmentedState &astate, int max_depth)
         : m_astate(astate),
+          m_eval(astate),
           m_max_depth(max_depth),
           m_cur_depth(0),
           m_mover(mover) {};
@@ -76,17 +78,17 @@ struct SearchNode {
         }
 
         // Move the king
-        m_astate.move(board::Bitboard(castling_info.get_king_start(to_move)),
-                      board::Bitboard(castling_info.get_king_destination(cp)),
-                      {to_move, board::Piece::KING});
+        move(board::Bitboard(castling_info.get_king_start(to_move)),
+             board::Bitboard(castling_info.get_king_destination(cp)),
+             {to_move, board::Piece::KING});
 
         // Move the rook
-        m_astate.move(board::Bitboard(castling_info.get_rook_start(cp)),
-                      board::Bitboard(castling_info.get_rook_destination(cp)),
-                      {to_move, board::Piece::ROOK});
+        move(board::Bitboard(castling_info.get_rook_start(cp)),
+             board::Bitboard(castling_info.get_rook_destination(cp)),
+             {to_move, board::Piece::ROOK});
 
         // Update rights
-        m_astate.state.remove_castling_rights(to_move);
+        remove_castling_rights(to_move);
 
         return legal;
     }
@@ -99,7 +101,7 @@ struct SearchNode {
         std::optional<board::Piece> ret =
             m_astate.castling_info.get_side(loc, player);
         if (ret.has_value()) {
-            m_astate.remove_castling_rights({player, ret.value()});
+            remove_castling_rights({player, ret.value()});
         }
         return ret;
     }
@@ -110,7 +112,7 @@ struct SearchNode {
     constexpr bool update_kg_castling_rights(board::Square loc,
                                              board::Colour player) {
         if (m_astate.castling_info.get_king_start(player) == loc) {
-            m_astate.state.remove_castling_rights(player);
+            remove_castling_rights(player);
             return true;
         }
         return false;
@@ -123,7 +125,7 @@ struct SearchNode {
     // * Was a castle starting/passing through check
     // Move is pushed to the stack.
     constexpr bool make_move(const move::FatMove fmove) {
-        move::Move move = fmove.get_move();
+        move::Move mv = fmove.get_move();
         board::Piece moved_p = fmove.get_piece();
 
         // Default values, update as needed
@@ -131,8 +133,8 @@ struct SearchNode {
 
         // Get some constants
         const board::Colour to_move = m_astate.state.to_move;
-        const board::Bitboard from_bb = board::Bitboard(move.from());
-        const board::Bitboard to_bb = board::Bitboard(move.to());
+        const board::Bitboard from_bb = board::Bitboard(mv.from());
+        const board::Bitboard to_bb = board::Bitboard(mv.to());
 
         // Prepare for next move
         // Early returns still need to push the made move
@@ -145,37 +147,37 @@ struct SearchNode {
         moved = {to_move, moved_p};
 
         // Handle castles
-        if (move.type() == move::MoveType::CASTLE) {
+        if (mv.type() == move::MoveType::CASTLE) {
             m_astate.state.to_move = !m_astate.state.to_move;
             m_made_moves.push_back(made);
-            return castle(move.from(), to_move);
+            return castle(mv.from(), to_move);
         } else {
             // Move
-            m_astate.move(from_bb, to_bb, moved);
+            move(from_bb, to_bb, moved);
 
             // Handle capture
-            if (move::is_capture(move.type())) {
+            if (move::is_capture(mv.type())) {
                 // En-passant: first move piece back to the target square
                 // TODO: is it faster to use the en-passant info from state?
                 board::ColouredPiece captured;
-                if (move.type() == move::MoveType::CAPTURE_EP) {
+                if (mv.type() == move::MoveType::CAPTURE_EP) {
                     captured = {!to_move, board::Piece::PAWN};
 
                     // Find the square of the double-pushed pawn
                     uint8_t dp_rank = board::double_push_rank[(int)!to_move];
-                    board::Square dp_square{move.to().file(), dp_rank};
-                    m_astate.move(board::Bitboard(dp_square), to_bb, captured);
+                    board::Square dp_square{mv.to().file(), dp_rank};
+                    move(board::Bitboard(dp_square), to_bb, captured);
 
                     // Otherwise, find the piece
                 } else {
                     captured = m_astate.state.piece_at(to_bb, !to_move).value();
 
                     // Update rights if a rook was taken
-                    update_rk_castling_rights(move.to(), !to_move);
+                    update_rk_castling_rights(mv.to(), !to_move);
                 }
 
                 // Remove the captured piece
-                m_astate.toggle(to_bb, captured);
+                remove(to_bb, captured);
 
                 // Update the made move
                 made.info.captured_piece = captured.piece;
@@ -188,23 +190,22 @@ struct SearchNode {
                 m_astate.state.halfmove_clock = 0;
 
                 // Set the en-passant square
-                if (move.type() == move::MoveType::DOUBLE_PUSH) {
+                if (mv.type() == move::MoveType::DOUBLE_PUSH) {
                     m_astate.state.ep_square = board::Square(
-                        move.to().file(), board::push_rank[(int)to_move]);
+                        mv.to().file(), board::push_rank[(int)to_move]);
                 }
 
                 // Promote
-                else if (move::is_promotion(move.type())) {
-                    board::Piece promoted = move::promoted_piece(move.type());
-                    m_astate.swap_sameside(to_bb, to_move, board::Piece::PAWN,
-                                           promoted);
+                else if (move::is_promotion(mv.type())) {
+                    board::Piece promoted = move::promoted_piece(mv.type());
+                    swap_sameside(to_bb, to_move, board::Piece::PAWN, promoted);
                 }
 
             } else {
                 // If the piece wasn't a PAWN,
                 // update castling rights for moved piece
-                update_rk_castling_rights(move.from(), to_move);
-                update_kg_castling_rights(move.from(), to_move);
+                update_rk_castling_rights(mv.from(), to_move);
+                update_kg_castling_rights(mv.from(), to_move);
             }
         }
 
@@ -240,8 +241,8 @@ struct SearchNode {
 
         // Undo promotions
         if (move::is_promotion(type)) {
-            m_astate.swap_sameside(to_bb, to_move, move::promoted_piece(type),
-                                   board::Piece::PAWN);
+            swap_sameside(to_bb, to_move, move::promoted_piece(type),
+                          board::Piece::PAWN);
         }
 
         // Undo captures
@@ -257,10 +258,10 @@ struct SearchNode {
             board::ColouredPiece rook = {to_move, board::Piece::ROOK};
 
             // Move the king back
-            m_astate.move(castling_info.get_king_destination(cp), to, king);
+            move(castling_info.get_king_destination(cp), to, king);
 
             // Move the rook back
-            m_astate.move(castling_info.get_rook_destination(cp), from, rook);
+            move(castling_info.get_rook_destination(cp), from, rook);
 
             return;
         }
@@ -268,7 +269,7 @@ struct SearchNode {
 
         board::ColouredPiece moved = {to_move, unmake.fmove.get_piece()};
 
-        m_astate.move(from_bb, to_bb, moved);
+        move(to_bb, from_bb, moved);
 
         if (move::is_capture(type)) {
             board::ColouredPiece removed = {!to_move,
@@ -279,7 +280,7 @@ struct SearchNode {
                     ? board::Square(to.file(),
                                     board::double_push_rank[(int)!to_move])
                     : to;
-            m_astate.toggle(board::Bitboard(captured), removed);
+            add(board::Bitboard(captured), removed);
         }
 
         return;
@@ -315,6 +316,16 @@ struct SearchNode {
             return {.perft = 1, .nodes = 0};
         }
 
+// Check state/eval are same before/after make-unmake
+#ifndef NDEBUG
+        std::string fen;
+        eval::centipawn_t eval;
+        if (m_cur_depth == 0) {
+            fen = m_astate.state.to_fen();
+            eval = m_eval.eval();
+        }
+#endif
+
         MoveBuffer &moves = find_moves();
         PerftResult ret = {0, 0};
 
@@ -327,6 +338,19 @@ struct SearchNode {
             }
 
             unmake_move();
+
+#ifndef NDEBUG
+            // Check incremental updates were reversed in unmake
+            if (m_cur_depth == 0) {
+                assert(m_astate.state.to_fen() == fen);
+                assert(eval == m_eval.eval());
+                assert(eval == TEval(m_astate).eval());
+
+                // If above below, check fresh evaluation is the same
+            } else {
+                assert(m_eval.eval() == TEval(m_astate).eval());
+            }
+#endif
         }
 
         return ret;
@@ -355,7 +379,50 @@ struct SearchNode {
         return {};
     }
 
+    // Incrementally updateable.
+    constexpr void add(board::Bitboard loc, board::ColouredPiece cp) {
+        m_astate.add(loc, cp);
+        m_eval.add(loc, cp);
+    };
+    constexpr void remove(board::Bitboard loc, board::ColouredPiece cp) {
+        m_astate.remove(loc, cp);
+        m_eval.remove(loc, cp);
+    };
+    constexpr void move(board::Bitboard from, board::Bitboard to,
+                        board::ColouredPiece cp) {
+        m_astate.move(from, to, cp);
+        m_eval.move(from, to, cp);
+    };
+    constexpr void swap(board::Bitboard loc, board::ColouredPiece from,
+                        board::ColouredPiece to) {
+        m_astate.swap(loc, from, to);
+        m_eval.swap(loc, from, to);
+    };
+    constexpr void swap_oppside(board::Bitboard loc, board::ColouredPiece from,
+                                board::ColouredPiece to) {
+        m_astate.swap_oppside(loc, from, to);
+        m_eval.swap_oppside(loc, from, to);
+    };
+    constexpr void swap_sameside(board::Bitboard loc, board::Colour side,
+                                 board::Piece from, board::Piece to) {
+        m_astate.swap_sameside(loc, side, from, to);
+        m_eval.swap_sameside(loc, side, from, to);
+    };
+    constexpr void remove_castling_rights(board::ColouredPiece cp) const {
+        m_astate.remove_castling_rights(cp);
+        m_eval.remove_castling_rights(cp);
+    };
+    constexpr void remove_castling_rights(board::Colour colour) const {
+        m_astate.remove_castling_rights(colour);
+        m_eval.remove_castling_rights(colour);
+    };
+
+    // Get evaluatiion
+
+    eval::centipawn_t eval() const { return m_eval.eval(); }
+
     AugmentedState &m_astate;
+    TEval m_eval{m_astate.state};
     int m_max_depth;
     int m_cur_depth;
 
@@ -363,5 +430,7 @@ struct SearchNode {
     svec<MadeMove, MaxDepth> m_made_moves;
     svec<MoveBuffer, MaxDepth> m_found_moves;
 };
+
+static_assert(IncrementallyUpdateable<SearchNode<1, eval::DefaultEval>>);
 }  // namespace state
 #endif
