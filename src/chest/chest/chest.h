@@ -348,8 +348,8 @@ class Engine {
 
         std::optional<int> to_go{0};
 
-        std::optional<search::ms_t> b_remaining;
-        std::optional<search::ms_t> w_remaining;
+        std::optional<search::ms_t> b_remaining{1};
+        std::optional<search::ms_t> w_remaining{1};
         std::optional<search::ms_t> b_increment{0};
         std::optional<search::ms_t> w_increment{0};
 
@@ -409,9 +409,8 @@ class Engine {
         EngineReporter reporter(m_globals);
 
         // Calculate stop time
-        // search::NullTimeManager time_manager(m_astate);
-        TimeManagerTp time_manager(m_astate);
-        search::ms_t search_time = time_manager(time_control);
+        TimeManagerTp time_manager{};
+        search::ms_t search_time = time_manager(time_control, m_astate.state.to_move);
 
         std::chrono::time_point<std::chrono::steady_clock> finish_time =
             std::chrono::steady_clock::now() +

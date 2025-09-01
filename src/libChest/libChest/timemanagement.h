@@ -16,7 +16,7 @@ struct TimeControl {
     constexpr TimeControl(ms_t b_remaining, ms_t w_remaining, ms_t b_increment,
                           ms_t w_increment, size_t to_go = 0)
         : to_go(to_go),
-          m_remaining{w_remaining, b_remaining},
+          m_remaining{b_remaining, w_remaining},
           m_increment{b_increment, w_increment} {};
 
     size_t to_go;
@@ -42,10 +42,11 @@ struct TimeControl {
 // based on time control remaining and current state.
 // State is passed at construction, allowing incremental updates, etc.
 template <typename T>
-concept StaticTimeManager = requires(T t, const TimeControl &tc) {
-    std::constructible_from<const state::AugmentedState &>;
-    { t(tc) } -> std::same_as<ms_t>;
-};
+concept StaticTimeManager =
+    requires(T t, const TimeControl &tc, const board::Colour to_move) {
+        std::constructible_from<const state::AugmentedState &>;
+        { t(tc, to_move) } -> std::same_as<ms_t>;
+    };
 
 //
 // Default time manager
@@ -55,17 +56,12 @@ concept StaticTimeManager = requires(T t, const TimeControl &tc) {
 template <ms_t MovesProp, ms_t IncProp>
 class EqualTimeManager {
    public:
-    EqualTimeManager(const state::AugmentedState &astate)
-        : m_astate(&astate) {};
-
-    constexpr ms_t operator()(const TimeControl &tc) const {
-        ms_t to_move = tc.copy_remaining(m_astate->state.to_move);
-        ms_t increment = tc.copy_increment(m_astate->state.to_move);
-        return to_move / MovesProp + increment / IncProp;
+    constexpr ms_t operator()(const TimeControl &tc,
+                              const board::Colour to_move) const {
+        const ms_t remaining = tc.copy_remaining(to_move);
+        const ms_t increment = tc.copy_increment(to_move);
+        return remaining / MovesProp + increment / IncProp;
     };
-
-   private:
-    const state::AugmentedState *m_astate;
 };
 
 // Choose between two EqualTimeManagers, depending on whether there is another
@@ -74,16 +70,15 @@ template <StaticTimeManager TNormalTimeManager,
           StaticTimeManager TSuddenDeathTimeManager>
 class SuddenDeathTimeManager {
    public:
-    SuddenDeathTimeManager(const state::AugmentedState &astate)
-        : m_astate(&astate) {};
-    constexpr ms_t operator()(const TimeControl &tc) const {
-        return tc.to_go ? m_normal_mgr(tc) : m_death_mgr(tc);
+    constexpr ms_t operator()(const TimeControl &tc,
+                              const board::Colour to_move) const {
+        return tc.to_go ? m_normal_mgr(tc, to_move)
+                        : m_suddendeath_mgr(tc, to_move);
     }
 
    private:
-    const state::AugmentedState *m_astate;
-    TNormalTimeManager m_normal_mgr{*m_astate};
-    TSuddenDeathTimeManager m_death_mgr{*m_astate};
+    TNormalTimeManager m_normal_mgr{};
+    TSuddenDeathTimeManager m_suddendeath_mgr{};
 };
 
 static constexpr ms_t DefaultRemainingProp = 20;
