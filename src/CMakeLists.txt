@@ -30,6 +30,14 @@ add_custom_target(
     ${ALL_SOURCE_FILES}
 )
 
+# Linting
+
+add_custom_target(
+    lint
+    COMMAND /usr/bin/clang-tidy
+    ${ALL_SOURCE_FILES}
+)
+
 # Tests
 
 include(FetchContent)

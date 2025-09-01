@@ -61,7 +61,7 @@ struct Square : Wrapper<square_t, Square> {
     constexpr uint8_t file() const { return value % board_size; }
 
     // Extract rank (y-coord) from LERF enumerated squre
-    constexpr int8_t rank() const { return value / board_size; }
+    constexpr uint8_t rank() const { return value / board_size; }
 
     // Bounds check file and rank
     static constexpr bool is_legal(const uint f, const uint r) {
@@ -72,7 +72,10 @@ struct Square : Wrapper<square_t, Square> {
     constexpr bool is_legal() const { return (value < n_squares); }
 
     // Flip over horizonal midpoints, i.e. flip perspective.
-    constexpr Square flip() { return value ^ 56; }
+    constexpr Square flip() {
+        static constexpr square_t A1_flipped{56};
+        return value ^ A1_flipped;
+    }
 
     struct AllSquareIterator;
 
@@ -81,7 +84,7 @@ struct Square : Wrapper<square_t, Square> {
 struct Square::AllSquareIterator {
     constexpr Square::AllSquareIterator begin() { return *this; }
     constexpr Square::AllSquareIterator end() const {
-        return AllSquareIterator(Square(n_squares));
+        return {Square(n_squares)};
     }
     constexpr operator Square() const { return sq; }
     constexpr operator Square &() { return sq; }
@@ -93,7 +96,7 @@ struct Square::AllSquareIterator {
         sq.value++;
         return *this;
     }
-    constexpr AllSquareIterator() {};
+    constexpr AllSquareIterator() = default;
 
    private:
     constexpr AllSquareIterator(Square sq) : sq{sq} {};
@@ -119,7 +122,7 @@ enum algebraic : square_t {
 //
 //
 
-enum class Direction { N, S, E, W, NE, NW, SE, SW };
+enum class Direction : uint8_t { N, S, E, W, NE, NW, SE, SW };
 
 //
 // Bitboards
@@ -306,7 +309,7 @@ struct Bitboard : Wrapper<bitboard_t, Bitboard> {
 
    private:
     static constexpr bitboard_t debruijn64 = 0x03f79d71b4cb0a89;
-    static constexpr int de_brujin_map[64] = {
+    static constexpr std::array<int, n_squares> de_brujin_map{
         0,  47, 1,  56, 48, 27, 2,  60, 57, 49, 41, 37, 28, 16, 3,  61,
         54, 58, 35, 52, 50, 42, 21, 44, 38, 32, 29, 23, 17, 11, 4,  62,
         46, 55, 26, 59, 40, 36, 15, 53, 34, 51, 20, 43, 31, 22, 10, 45,
@@ -349,9 +352,7 @@ struct Bitboard::SubsetIterator {
     bool done;  // When we see the empty set, is it for the first time?
 };
 
-constexpr Bitboard::SubsetIterator Bitboard::subsets() const {
-    return Bitboard::SubsetIterator(*this);
-}
+constexpr Bitboard::SubsetIterator Bitboard::subsets() const { return {*this}; }
 
 //
 // Element iteration
@@ -372,7 +373,7 @@ struct Bitboard::ElementIterator {
 };
 
 constexpr Bitboard::ElementIterator Bitboard::singletons() const {
-    return Bitboard::ElementIterator(*this);
+    return {*this};
 }
 
 //
@@ -394,7 +395,7 @@ struct ColouredPiece {
 struct PieceTypesIterator {
     constexpr PieceTypesIterator begin() { return *this; }
     constexpr PieceTypesIterator end() const {
-        return PieceTypesIterator(static_cast<Piece>(n_pieces));
+        return {static_cast<Piece>(n_pieces)};
     }
     constexpr operator Piece() const { return p; }
     constexpr operator Piece &() { return p; }
@@ -406,7 +407,8 @@ struct PieceTypesIterator {
         p = static_cast<Piece>(static_cast<uint8_t>(p) + 1);
         return *this;
     }
-    constexpr PieceTypesIterator() {};
+
+    constexpr PieceTypesIterator() = default;
 
    private:
     constexpr PieceTypesIterator(Piece p) : p{p} {};
@@ -525,12 +527,12 @@ constexpr Piece from_char(const char c) {
 // Rank constants: for convinience
 //
 
-constexpr uint8_t home_rank[n_colours]{board_size - 1, 0};
-constexpr uint8_t pawn_rank[n_colours]{board_size - 2, 1};
-constexpr uint8_t push_rank[n_colours]{board_size - 3, 2};
-constexpr uint8_t double_push_rank[n_colours]{board_size - 4, 3};
-constexpr uint8_t pre_promote_rank[n_colours]{1, board_size - 2};
-constexpr uint8_t back_rank[n_colours]{0, board_size - 1};
+constexpr std::array<uint8_t, n_colours> home_rank{board_size - 1, 0};
+constexpr std::array<uint8_t, n_colours> pawn_rank{board_size - 2, 1};
+constexpr std::array<uint8_t, n_colours> push_rank{board_size - 3, 2};
+constexpr std::array<uint8_t, n_colours> double_push_rank{board_size - 4, 3};
+constexpr std::array<uint8_t, n_colours> pre_promote_rank{1, board_size - 2};
+constexpr std::array<uint8_t, n_colours> back_rank{0, board_size - 1};
 
 }  // namespace board
 

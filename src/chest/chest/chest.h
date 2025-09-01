@@ -15,7 +15,9 @@
 #include <string>
 #include <vector>
 
+#include "libChest/incremental.h"
 #include "libChest/move.h"
+#include "libChest/movebuffer.h"
 #include "libChest/movegen.h"
 #include "libChest/state.h"
 #include "libChest/timemanagement.h"
@@ -120,9 +122,9 @@ struct Globals {
     // And log other info to stdout in debug mode.
     void log(std::string msg, LogLevel level = LogLevel::CHEST_INFO) const {
         if (level == LogLevel::UCI_INFO) {
-            output << "info " << msg << std::endl;
+            output << "info " << msg << '\n';
         } else if (debug) {
-            output << "info string " << msg << std::endl;
+            output << "info string " << msg << '\n';
         };
     }
 
@@ -145,7 +147,7 @@ struct EngineReporter : search::StatReporter {
     EngineReporter(const Globals &globals) : m_globals(globals) {};
     void report(int depth, eval::centipawn_t eval, size_t nodes,
                 std::chrono::duration<double> time,
-                const svec<move::FatMove, 256> &pv,
+                const svec<move::FatMove, MaxMoves> &pv,
                 const state::AugmentedState &astate) const override {
         std::string info_string;
         info_string += "depth ";
@@ -410,7 +412,8 @@ class Engine {
 
         // Calculate stop time
         TimeManagerTp time_manager{};
-        search::ms_t search_time = time_manager(time_control, m_astate.state.to_move);
+        search::ms_t search_time =
+            time_manager(time_control, m_astate.state.to_move);
 
         std::chrono::time_point<std::chrono::steady_clock> finish_time =
             std::chrono::steady_clock::now() +

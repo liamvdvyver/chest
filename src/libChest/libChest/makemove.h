@@ -1,8 +1,6 @@
 #ifndef MAKEMOVE_H
 #define MAKEMOVE_H
 
-#include <cstdio>
-#include <iostream>
 #include <optional>
 
 #include "board.h"
@@ -40,7 +38,7 @@ struct MadeMove {
     // board::Piece moved_piece;
 };
 
-static const MadeMove nullMadeMove{{}, {}};
+static const MadeMove nullMadeMove{};
 
 // Stores augmented state, has buffers for made moves, found moves.
 // This is the basic unit for iterative (non-recursive, incrementally updated)
@@ -71,17 +69,14 @@ struct SearchNode {
     constexpr bool castle(board::Square from, board::Colour to_move) {
         bool legal = true;
 
-        // Constants for convinience
-        const CastlingInfo &castling_info = m_astate.castling_info;
-
         // Get (queen/king)-side
         const std::optional<board::Piece> side =
-            castling_info.get_side(from, to_move);
+            state::CastlingInfo::get_side(from, to_move);
         board::ColouredPiece cp = {to_move, side.value()};
 
         // Check legality
         for (board::Bitboard sq :
-             castling_info.get_king_mask(cp).singletons()) {
+             state::CastlingInfo::get_king_mask(cp).singletons()) {
             if (m_mover.is_attacked(m_astate, sq.single_bitscan_forward(),
                                     to_move)) {
                 legal = false;
@@ -89,13 +84,13 @@ struct SearchNode {
         }
 
         // Move the king
-        move(board::Bitboard(castling_info.get_king_start(to_move)),
-             board::Bitboard(castling_info.get_king_destination(cp)),
+        move(board::Bitboard(state::CastlingInfo::get_king_start(to_move)),
+             board::Bitboard(state::CastlingInfo::get_king_destination(cp)),
              {to_move, board::Piece::KING});
 
         // Move the rook
-        move(board::Bitboard(castling_info.get_rook_start(cp)),
-             board::Bitboard(castling_info.get_rook_destination(cp)),
+        move(board::Bitboard(state::CastlingInfo::get_rook_start(cp)),
+             board::Bitboard(state::CastlingInfo::get_rook_destination(cp)),
              {to_move, board::Piece::ROOK});
 
         // Update rights
@@ -110,7 +105,7 @@ struct SearchNode {
     constexpr std::optional<board::Piece> update_rk_castling_rights(
         board::Square loc, board::Colour player) {
         std::optional<board::Piece> ret =
-            m_astate.castling_info.get_side(loc, player);
+            state::CastlingInfo::get_side(loc, player);
         if (ret.has_value()) {
             remove_castling_rights({player, ret.value()});
         }
@@ -122,7 +117,7 @@ struct SearchNode {
     // at this square, false otherwise.
     constexpr bool update_kg_castling_rights(board::Square loc,
                                              board::Colour player) {
-        if (m_astate.castling_info.get_king_start(player) == loc) {
+        if (state::CastlingInfo::get_king_start(player) == loc) {
             remove_castling_rights(player);
             return true;
         }
@@ -303,19 +298,18 @@ struct SearchNode {
         // Handle castling
         if (type == move::MoveType::CASTLE) {
             // Get info
-            const CastlingInfo &castling_info = m_astate.castling_info;
             const board::Piece side =
-                castling_info.get_side(from, to_move).value();
+                state::CastlingInfo::get_side(from, to_move).value();
             const board::ColouredPiece cp = {to_move, side};
 
             board::ColouredPiece king = {to_move, board::Piece::KING};
             board::ColouredPiece rook = {to_move, board::Piece::ROOK};
 
             // Move the king back
-            move(castling_info.get_king_destination(cp), to, king);
+            move(state::CastlingInfo::get_king_destination(cp), to, king);
 
             // Move the rook back
-            move(castling_info.get_rook_destination(cp), from, rook);
+            move(state::CastlingInfo::get_rook_destination(cp), from, rook);
 
             return;
         }

@@ -26,10 +26,18 @@ static const fen_t new_game_fen =
 struct CastlingInfo {
    public:
     // For array sizing
-    static constexpr int n_castling_sides = 2;
-    // Easy iteration through castles
-    static constexpr board::Piece castling_sides[n_castling_sides]{
-        board::Piece::QUEEN, board::Piece::KING};
+    static constexpr size_t n_castling_sides = 2;
+    static constexpr size_t n_castling_squares =
+        board::n_colours * n_castling_sides;
+    // Iteration through castles
+    static constexpr std::array<board::Piece, n_castling_sides> castling_sides{
+        {board::Piece::QUEEN, board::Piece::KING}};
+    static constexpr std::array<board::ColouredPiece, n_castling_squares>
+        castling_squares{
+            {{.colour = board::Colour::BLACK, .piece = board::Piece::QUEEN},
+             {.colour = board::Colour::WHITE, .piece = board::Piece::QUEEN},
+             {.colour = board::Colour::BLACK, .piece = board::Piece::KING},
+             {.colour = board::Colour::WHITE, .piece = board::Piece::KING}}};
 
    private:
     // The following final destinations are the same for classical and 960, and
@@ -110,18 +118,19 @@ struct CastlingInfo {
                         return board::Piece::KING;
                     case b_qs_rook_start:
                         return board::Piece::QUEEN;
+                    default:
+                        return {};
                 }
-                break;
             case board::Colour::WHITE:
                 switch (square) {
                     case w_ks_rook_start:
                         return board::Piece::KING;
                     case w_qs_rook_start:
                         return board::Piece::QUEEN;
+                    default:
+                        return {};
                 }
-                break;
         }
-        return {};
     };
 
     // Given colour and castling side, the king's destination
@@ -228,7 +237,7 @@ struct CastlingRights : Wrapper<uint8_t, CastlingRights> {
 struct State {
    public:
     // Blank state
-    constexpr State() : castling_rights{}, m_pieces{} {}
+    constexpr State() = default;
 
     // State from fen string
     State(const fen_t &fen_string);
@@ -240,13 +249,13 @@ struct State {
     std::optional<board::Square> ep_square;
 
     // Plies since capture/pawn push
-    uint8_t halfmove_clock;
+    uint8_t halfmove_clock{};
 
     // (2-ply) moves since game start
-    int fullmove_number;
+    int fullmove_number{};
 
     // Side to move
-    board::Colour to_move;
+    board::Colour to_move{};
 
     // Castling rights
     CastlingRights castling_rights;
@@ -301,7 +310,7 @@ struct State {
         board::Bitboard bit, board::Colour colour) const {
         for (int pieceIdx = 0; pieceIdx < board::n_pieces; pieceIdx++) {
             if (!(m_pieces[(int)colour][pieceIdx] & bit).empty()) {
-                return {{colour, (board::Piece)pieceIdx}};
+                return {{.colour = colour, .piece = (board::Piece)pieceIdx}};
             }
         }
         return {};
@@ -332,7 +341,8 @@ struct State {
     }
     constexpr void swap_sameside(board::Bitboard loc, board::Colour player,
                                  board::Piece from, board::Piece to) {
-        swap(loc, {player, from}, {player, to});
+        swap(loc, {.colour = player, .piece = from},
+             {.colour = player, .piece = to});
     }
     constexpr void swap_oppside(board::Bitboard loc, board::ColouredPiece from,
                                 board::ColouredPiece to) {
@@ -362,7 +372,8 @@ struct State {
         get_bitboard(cp) ^= loc;
     }
     // Position of all pieces for each player
-    board::Bitboard m_pieces[board::n_colours][board::n_pieces];
+    std::array<std::array<board::Bitboard, board::n_pieces>, board::n_colours>
+        m_pieces;
 };
 static_assert(IncrementallyUpdateable<State>);
 
@@ -378,33 +389,15 @@ std::ostream &operator<<(std::ostream &os, const State s);
 // recomputation within the same search node.
 struct AugmentedState {
    public:
-    AugmentedState() : state::AugmentedState(state::State()) {};
+    AugmentedState() = default;
     AugmentedState(State state)
         : state(state),
           total_occupancy(state.total_occupancy()),
-          castling_info{},
           m_side_occupancy{state.side_occupancy((board::Colour)0),
                            state.side_occupancy((board::Colour)1)} {};
 
-    // Rule of three: no dynamic memory to move
-
-    ~AugmentedState() {}
-
-    AugmentedState(const AugmentedState &other)
-        : state::AugmentedState(other.state) {};
-
-    void operator=(const AugmentedState &other) {
-        state = other.state;
-        total_occupancy = other.total_occupancy;
-        total_occupancy = other.total_occupancy;
-        // Castling info has no non-static members currently
-        m_side_occupancy[0] = other.m_side_occupancy[0];
-        m_side_occupancy[1] = other.m_side_occupancy[1];
-    }
-
     State state;
     board::Bitboard total_occupancy;
-    CastlingInfo castling_info;
 
     // Helper accessor for side_occupancy bitsets
     board::Bitboard &side_occupancy(board::Colour colour) {
@@ -482,7 +475,8 @@ struct AugmentedState {
     }
 
    private:
-    board::Bitboard m_side_occupancy[board::n_colours];
+    // board::Bitboard m_side_occupancy[board::n_colours];
+    std::array<board::Bitboard, board::n_colours> m_side_occupancy;
 };
 static_assert(IncrementallyUpdateable<AugmentedState>);
 };  // namespace state

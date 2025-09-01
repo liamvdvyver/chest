@@ -15,10 +15,11 @@ namespace state {
 State::State(const fen_t &fen_string) : State::State() {
     // Parse FEN string
     std::vector<std::string> parts;
+    static constexpr size_t n_fen_fields = 6;
 
-    int len = fen_string.length();
-    int curIdx = 0;
-    int offset;
+    size_t len = fen_string.length();
+    size_t curIdx = 0;
+    size_t offset = 0;
     char delim = ' ';
 
     do {
@@ -31,7 +32,7 @@ State::State(const fen_t &fen_string) : State::State() {
         curIdx += (offset + 1);
     } while ((size_t)offset != std::string::npos);
 
-    if (parts.size() != 6)
+    if (parts.size() != n_fen_fields)
         throw std::invalid_argument("FEN string must have 6 fields.");
 
     // Parse placement
@@ -93,8 +94,8 @@ State::State(const fen_t &fen_string) : State::State() {
     if (castling_rights_str.length() == 1 && castling_rights_str == "-") {
         // no rights
     } else {
-        board::Colour colour;
-        board::Piece side;
+        board::Colour colour{};
+        board::Piece side{};
 
         for (int i = 0; i < (int)castling_rights_str.length(); i++) {
             colour = isupper(castling_rights_str.at(i)) ? board::Colour::WHITE
@@ -161,19 +162,19 @@ std::string State::to_fen() const {
 
     // Castling rights
     if (castling_rights.get_castling_rights(
-            {board::Colour::WHITE, board::Piece::KING})) {
+            {.colour=board::Colour::WHITE, .piece=board::Piece::KING})) {
         ret += 'K';
     }
     if (castling_rights.get_castling_rights(
-            {board::Colour::WHITE, board::Piece::QUEEN})) {
+            {.colour=board::Colour::WHITE, .piece=board::Piece::QUEEN})) {
         ret += 'Q';
     }
     if (castling_rights.get_castling_rights(
-            {board::Colour::BLACK, board::Piece::KING})) {
+            {.colour=board::Colour::BLACK, .piece=board::Piece::KING})) {
         ret += 'k';
     }
     if (castling_rights.get_castling_rights(
-            {board::Colour::BLACK, board::Piece::QUEEN})) {
+            {.colour=board::Colour::BLACK, .piece=board::Piece::QUEEN})) {
         ret += 'q';
     }
     ret += ' ';

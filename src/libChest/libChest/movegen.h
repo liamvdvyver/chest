@@ -460,12 +460,12 @@ class RookMoverFactory : TMover {
             board::ColouredPiece cp = {astate.state.to_move, side};
             if (astate.state.castling_rights.get_castling_rights(cp)) {
                 board::Bitboard rk_mask =
-                    astate.castling_info.get_rook_mask(cp);
+                    state::CastlingInfo::get_rook_mask(cp);
                 board::Bitboard blockers = rk_mask & total_occ;
                 if (blockers.empty()) {
                     moves.push_back(
-                        {move::Move(astate.castling_info.get_rook_start(cp),
-                                    astate.castling_info.get_king_start(
+                        {move::Move(state::CastlingInfo::get_rook_start(cp),
+                                    state::CastlingInfo::get_king_start(
                                         astate.state.to_move),
                                     MoveType::CASTLE),
                          side});
