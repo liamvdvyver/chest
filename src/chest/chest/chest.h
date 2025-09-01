@@ -346,12 +346,12 @@ class Engine {
     void go(UciCommand command) {
         (void)command;
 
-        std::optional<int> to_go;
+        std::optional<int> to_go{0};
 
         std::optional<search::ms_t> b_remaining;
         std::optional<search::ms_t> w_remaining;
-        std::optional<search::ms_t> b_increment = 0;
-        std::optional<search::ms_t> w_increment = 0;
+        std::optional<search::ms_t> b_increment{0};
+        std::optional<search::ms_t> w_increment{0};
 
         // TODO: do this better
         for (size_t i = 0; i < command.args.size(); i++) {
@@ -391,9 +391,8 @@ class Engine {
             }
         }
 
-        if (!(to_go && b_remaining && w_remaining && b_increment &&
-              w_increment)) {
-            bad_args(command);
+        if (!(w_remaining && b_remaining)) {
+            return bad_args(command);
         }
         search::TimeControl time_control(
             b_remaining.value(), w_remaining.value(), b_increment.value(),
