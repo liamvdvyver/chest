@@ -128,7 +128,7 @@ struct CastlingInfo {
     static constexpr board::Square get_king_destination(
         board::ColouredPiece cp) {
         assert(is_castling_side(cp.piece));
-        return (bool)cp.colour
+        return cp.colour == board::Colour::WHITE
                    ? (cp.piece == board::Piece::KING ? w_ks_king_dest
                                                      : w_qs_king_dest)
                    : (cp.piece == board::Piece::KING ? b_ks_king_dest
@@ -139,7 +139,7 @@ struct CastlingInfo {
     static constexpr board::Square get_rook_destination(
         board::ColouredPiece cp) {
         assert(is_castling_side(cp.piece));
-        return (bool)cp.colour
+        return cp.colour == board::Colour::WHITE
                    ? (cp.piece == board::Piece::KING ? w_ks_rook_dest
                                                      : w_qs_rook_dest)
                    : (cp.piece == board::Piece::KING ? b_ks_rook_dest
@@ -149,7 +149,7 @@ struct CastlingInfo {
     // Given colour and castling side, the rook's starting position
     static constexpr board::Square get_rook_start(board::ColouredPiece cp) {
         assert(is_castling_side(cp.piece));
-        return (bool)cp.colour
+        return cp.colour == board::Colour::WHITE
                    ? (cp.piece == board::Piece::KING ? w_ks_rook_start
                                                      : w_qs_rook_start)
                    : (cp.piece == board::Piece::KING ? b_ks_rook_start
@@ -158,14 +158,14 @@ struct CastlingInfo {
 
     // Given colour, the king's starting position
     static constexpr board::Square get_king_start(board::Colour colour) {
-        return (bool)colour ? w_king_start : b_king_start;
+        return colour == board::Colour::WHITE ? w_king_start : b_king_start;
     }
 
     // Given colour and castling side, which squares must be unobstructed,
     // including the final destination
     static constexpr board::Bitboard get_rook_mask(board::ColouredPiece cp) {
         assert(is_castling_side(cp.piece));
-        return (bool)cp.colour
+        return cp.colour == board::Colour::WHITE
                    ? (cp.piece == board::Piece::KING ? w_ks_rook_mask
                                                      : w_qs_rook_mask)
                    : (cp.piece == board::Piece::KING ? b_ks_rook_mask
@@ -176,20 +176,44 @@ struct CastlingInfo {
     // including the starting and final king squares
     static constexpr board::Bitboard get_king_mask(board::ColouredPiece cp) {
         assert(is_castling_side(cp.piece));
-        return (bool)cp.colour
+        return cp.colour == board::Colour::WHITE
                    ? (cp.piece == board::Piece::KING ? w_ks_king_mask
                                                      : w_qs_king_mask)
                    : (cp.piece == board::Piece::KING ? b_ks_king_mask
                                                      : b_qs_king_mask);
     }
 
-   private:
     // Is the piece a valid argument to castling accessors?
     static constexpr bool is_castling_side(board::Piece p) {
         return p == board::Piece::KING || p == board::Piece::QUEEN;
     }
 
     friend struct State;
+    friend struct CastlingRights;
+};
+
+// Store castling rights
+struct CastlingRights : Wrapper<uint8_t, CastlingRights> {
+    constexpr bool get_castling_rights(board::ColouredPiece cp) const {
+        return (1) & (value >> castling_rights_offset(cp));
+    }
+
+    // TODO: test, and make it faster
+    constexpr void set_castling_rights(board::ColouredPiece cp, bool rights) {
+        int selected_bit = (1 << castling_rights_offset(cp));
+        int selected_bit_val = (rights << castling_rights_offset(cp));
+        value = (value & ~selected_bit) ^ selected_bit_val;
+    }
+    constexpr void set_both_castling_rights(board::Colour colour, bool rights) {
+        for (board::Piece side : CastlingInfo::castling_sides) {
+            set_castling_rights({.colour = colour, .piece = side}, rights);
+        }
+    }
+
+    // Helper: defines layout of castling rights bitset
+    constexpr int castling_rights_offset(board::ColouredPiece cp) const {
+        return (2 * (int)cp.colour) + CastlingInfo::side_idx(cp.piece);
+    }
 };
 
 // Store complete (minimal) game state.
@@ -204,7 +228,7 @@ struct CastlingInfo {
 struct State {
    public:
     // Blank state
-    constexpr State() : m_pieces{}, m_castling_rights{} {}
+    constexpr State() : castling_rights{}, m_pieces{} {}
 
     // State from fen string
     State(const fen_t &fen_string);
@@ -224,6 +248,9 @@ struct State {
     // Side to move
     board::Colour to_move;
 
+    // Castling rights
+    CastlingRights castling_rights;
+
     // Position accessors
 
     constexpr board::Bitboard &get_bitboard(board::ColouredPiece cp) {
@@ -236,22 +263,6 @@ struct State {
 
     // Castling rights accessors
 
-    constexpr bool get_castling_rights(board::ColouredPiece cp) const {
-        return (1) & (m_castling_rights >> castling_rights_offset(cp));
-    }
-
-    // TODO: test, and make it faster
-    constexpr void set_castling_rights(board::ColouredPiece cp, bool rights) {
-        int selected_bit = (1 << castling_rights_offset(cp));
-        int selected_bit_val = (rights << castling_rights_offset(cp));
-        m_castling_rights =
-            (m_castling_rights & ~selected_bit) ^ selected_bit_val;
-    }
-    constexpr void set_both_castling_rights(board::Colour colour, bool rights) {
-        for (board::Piece side : CastlingInfo::castling_sides) {
-            set_castling_rights({.colour = colour, .piece = side}, rights);
-        }
-    }
     // Union of piece bitboards, per side
     constexpr board::Bitboard side_occupancy(board::Colour colour) const {
         board::Bitboard ret = 0;
@@ -300,38 +311,6 @@ struct State {
     std::string pretty() const;
     std::string to_fen() const;
 
-    // Stores information other than the from/to squares and move type
-    // which is neccessary to unmake a move
-    struct IrreversibleInfo {
-        board::Piece captured_piece;
-        uint8_t halfmove_clock;
-        uint8_t castling_rights;
-        int8_t ep_file;  // set to negative if no square, TODO: maybe just store
-                         // ep like this?
-    };
-
-    constexpr IrreversibleInfo irreversible(
-        board::Piece captured = (board::Piece)0) const {
-        return {.captured_piece = captured,
-                .halfmove_clock = halfmove_clock,
-                .castling_rights = m_castling_rights,
-                .ep_file = ep_square.has_value()
-                               ? (int8_t)ep_square.value().file()
-                               : (int8_t)-1};
-    };
-
-    // Assumes the player to move is the one who made the move
-    constexpr void reset(IrreversibleInfo info) {
-        halfmove_clock = info.halfmove_clock;
-        m_castling_rights = info.castling_rights;
-        if (info.ep_file >= 0) {
-            ep_square =
-                board::Square(info.ep_file, board::push_rank[(int)(!to_move)]);
-        } else {
-            ep_square = {};
-        }
-    };
-
     // Incremental updates
 
     constexpr void move(board::Bitboard from_bb, board::Bitboard to_bb,
@@ -359,12 +338,24 @@ struct State {
                                 board::ColouredPiece to) {
         swap(loc, from, to);
     }
+    constexpr void add_castling_rights(board::ColouredPiece cp) {
+        castling_rights.set_castling_rights(cp, true);
+    }
+    constexpr void add_castling_rights(board::Colour colour) {
+        castling_rights.set_both_castling_rights(colour, true);
+    }
     constexpr void remove_castling_rights(board::ColouredPiece cp) {
-        set_castling_rights(cp, false);
+        castling_rights.set_castling_rights(cp, false);
     }
     constexpr void remove_castling_rights(board::Colour colour) {
-        set_both_castling_rights(colour, false);
+        castling_rights.set_both_castling_rights(colour, false);
     }
+    constexpr void add_ep_sq(board::Square ep_sq) { ep_square = {ep_sq}; }
+    constexpr void remove_ep_sq(board::Square ep_sq) {
+        (void)ep_sq;
+        ep_square = {};
+    }
+    constexpr void set_to_move(board::Colour colour) { to_move = colour; }
 
    private:
     constexpr void toggle(board::Bitboard loc, board::ColouredPiece cp) {
@@ -372,14 +363,6 @@ struct State {
     }
     // Position of all pieces for each player
     board::Bitboard m_pieces[board::n_colours][board::n_pieces];
-
-    // Castling rights for each player, for each side (king/queen)
-    uint8_t m_castling_rights;
-
-    // Helper: defines layout of castling rights bitset
-    constexpr int castling_rights_offset(board::ColouredPiece cp) const {
-        return (2 * (int)cp.colour) + CastlingInfo::side_idx(cp.piece);
-    }
 };
 static_assert(IncrementallyUpdateable<State>);
 
@@ -477,11 +460,25 @@ struct AugmentedState {
                                  board::Piece from, board::Piece to) {
         state.swap_sameside(loc, player, from, to);
     }
+    constexpr void add_castling_rights(board::ColouredPiece cp) {
+        state.add_castling_rights(cp);
+    }
+    constexpr void add_castling_rights(board::Colour colour) {
+        state.add_castling_rights(colour);
+    }
     constexpr void remove_castling_rights(board::ColouredPiece cp) {
         state.remove_castling_rights(cp);
     }
     constexpr void remove_castling_rights(board::Colour colour) {
         state.remove_castling_rights(colour);
+    }
+    constexpr void add_ep_sq(board::Square ep_sq) { state.add_ep_sq(ep_sq); }
+    constexpr void remove_ep_sq(board::Square ep_sq) {
+        state.remove_ep_sq(ep_sq);
+    }
+
+    constexpr void set_to_move(board::Colour colour) {
+        state.set_to_move(colour);
     }
 
    private:

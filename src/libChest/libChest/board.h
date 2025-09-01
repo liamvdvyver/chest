@@ -1,6 +1,7 @@
 #ifndef BOARD_H
 #define BOARD_H
 
+#include <array>
 #include <cassert>
 #include <cstdint>
 #include <stdexcept>
@@ -31,7 +32,11 @@ enum class Colour : bool { BLACK, WHITE };
 constexpr Colour operator!(const Colour c) { return (Colour) !((bool)c); };
 
 // Number of colours, for sizing arrays
-static constexpr int n_colours = 2;
+constexpr int n_colours = 2;
+
+// For iteration
+static constexpr std::array<board::Colour, n_colours> colours = {Colour::BLACK,
+                                                                 Colour::WHITE};
 
 //
 // Coordinates

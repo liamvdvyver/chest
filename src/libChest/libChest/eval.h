@@ -192,14 +192,29 @@ class IncrementalNetEval : public NetEval<IncrementalNetEval<TEval>> {
         swap(loc, {side, from}, {side, to});
     };
 
-    // Castling rights do not affect eval
+    // Castling rights/ep/halfmove clock do not affect eval
 
+    constexpr void add_castling_rights(board::ColouredPiece cp) const {
+        (void)cp;
+    };
+    constexpr void add_castling_rights(board::Colour colour) const {
+        (void)colour;
+    };
     constexpr void remove_castling_rights(board::ColouredPiece cp) const {
         (void)cp;
     };
     constexpr void remove_castling_rights(board::Colour colour) const {
         (void)colour;
     };
+    constexpr void add_ep_sq(board::Square ep_sq) const { (void)ep_sq; }
+    constexpr void remove_ep_sq(board::Square ep_sq) const { (void)ep_sq; }
+    constexpr void increment_halfmove() const {}
+    constexpr void decrement_halfmove() const {}
+
+    // To move is fetched on demand
+    constexpr void set_to_move(const board::Colour to_move) const {
+        (void)to_move;
+    }
 
    private:
     std::array<centipawn_t, board::n_colours> m_evaluation;

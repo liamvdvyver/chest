@@ -1,7 +1,9 @@
 #include "state.h"
-#include "board.h"
+
 #include <string>
 #include <vector>
+
+#include "board.h"
 
 //
 // Defines IO for game state
@@ -11,7 +13,6 @@
 namespace state {
 
 State::State(const fen_t &fen_string) : State::State() {
-
     // Parse FEN string
     std::vector<std::string> parts;
 
@@ -39,7 +40,6 @@ State::State(const fen_t &fen_string) : State::State() {
     int rowIdx = (board::board_size - 1), colIdx = 0;
 
     for (int charIdx = 0; charIdx < (int)placements.length(); charIdx++) {
-
         assert(rowIdx <= board::board_size);
         assert(colIdx <= board::board_size);
 
@@ -53,7 +53,6 @@ State::State(const fen_t &fen_string) : State::State() {
             rowIdx--;
 
         } else {
-
             assert(isalpha(placements[charIdx]));
             board::Colour colour = isupper(placements[charIdx])
                                        ? board::Colour::WHITE
@@ -72,17 +71,18 @@ State::State(const fen_t &fen_string) : State::State() {
     if (to_move.length() != 1)
         throw std::invalid_argument("Side to move must have length 1.");
     switch (to_move.at(0)) {
-    case 'b': {
-        this->to_move = board::Colour::BLACK;
-        break;
-    }
-    case 'w': {
-        this->to_move = board::Colour::WHITE;
-        break;
-    }
-    default:
-        throw std::invalid_argument("Side to move must be one of: 'b', 'w'");
-        break;
+        case 'b': {
+            this->to_move = board::Colour::BLACK;
+            break;
+        }
+        case 'w': {
+            this->to_move = board::Colour::WHITE;
+            break;
+        }
+        default:
+            throw std::invalid_argument(
+                "Side to move must be one of: 'b', 'w'");
+            break;
     }
 
     // Castling rights
@@ -93,7 +93,6 @@ State::State(const fen_t &fen_string) : State::State() {
     if (castling_rights_str.length() == 1 && castling_rights_str == "-") {
         // no rights
     } else {
-
         board::Colour colour;
         board::Piece side;
 
@@ -109,11 +108,11 @@ State::State(const fen_t &fen_string) : State::State() {
                 throw std::invalid_argument(
                     "Castling rights must specify queen or king only");
 
-            if (get_castling_rights(castling_cp))
+            if (castling_rights.get_castling_rights(castling_cp))
                 throw std::invalid_argument(
                     "Castling rights may not be redundant");
 
-            set_castling_rights(castling_cp, true);
+            castling_rights.set_castling_rights(castling_cp, true);
         }
     }
 
@@ -138,7 +137,6 @@ std::string State::pretty() const {
     std::string ret = "";
     for (int r = board::board_size - 1; r >= 0; r--) {
         for (int c = 0; c < board::board_size; c++) {
-
             std::optional<board::ColouredPiece> atLoc =
                 piece_at(board::Bitboard(board::Square(c, r)));
 
@@ -162,16 +160,20 @@ std::string State::to_fen() const {
     ret += ' ';
 
     // Castling rights
-    if (get_castling_rights({board::Colour::WHITE, board::Piece::KING})) {
+    if (castling_rights.get_castling_rights(
+            {board::Colour::WHITE, board::Piece::KING})) {
         ret += 'K';
     }
-    if (get_castling_rights({board::Colour::WHITE, board::Piece::QUEEN})) {
+    if (castling_rights.get_castling_rights(
+            {board::Colour::WHITE, board::Piece::QUEEN})) {
         ret += 'Q';
     }
-    if (get_castling_rights({board::Colour::BLACK, board::Piece::KING})) {
+    if (castling_rights.get_castling_rights(
+            {board::Colour::BLACK, board::Piece::KING})) {
         ret += 'k';
     }
-    if (get_castling_rights({board::Colour::BLACK, board::Piece::QUEEN})) {
+    if (castling_rights.get_castling_rights(
+            {board::Colour::BLACK, board::Piece::QUEEN})) {
         ret += 'q';
     }
     ret += ' ';
@@ -195,4 +197,4 @@ std::ostream &operator<<(std::ostream &os, const State s) {
     return (os << s.pretty());
 };
 
-} // namespace state
+}  // namespace state

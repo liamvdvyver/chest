@@ -2,6 +2,7 @@
 #define MAKEMOVE_H
 
 #include <cstdio>
+#include <iostream>
 #include <optional>
 
 #include "board.h"
@@ -22,14 +23,24 @@
 
 namespace state {
 
+// Stores information other than the from/to squares and move type
+// which is neccessary to unmake a move
+struct IrreversibleInfo {
+    board::Piece captured_piece;
+    uint8_t halfmove_clock;
+    CastlingRights castling_rights;
+    int8_t ep_file;  // set to negative if no square, TODO: maybe just store
+                     // ep like this?
+};
+
 // Stores all information needed to unmake move.
 struct MadeMove {
     move::FatMove fmove;
-    State::IrreversibleInfo info;
+    IrreversibleInfo info;
     // board::Piece moved_piece;
 };
 
-static const MadeMove nullMadeMove{{}, State().irreversible()};
+static const MadeMove nullMadeMove{{}, {}};
 
 // Stores augmented state, has buffers for made moves, found moves.
 // This is the basic unit for iterative (non-recursive, incrementally updated)
@@ -129,7 +140,7 @@ struct SearchNode {
         board::Piece moved_p = fmove.get_piece();
 
         // Default values, update as needed
-        MadeMove made{.fmove = fmove, .info = m_astate.state.irreversible()};
+        MadeMove made{.fmove = fmove, .info = irreversible()};
 
         // Get some constants
         const board::Colour to_move = m_astate.state.to_move;
@@ -139,8 +150,10 @@ struct SearchNode {
         // Prepare for next move
         // Early returns still need to push the made move
         tick();
-        m_astate.state.ep_square = {};
         m_cur_depth++;
+        if (m_astate.state.ep_square.has_value()) {
+            remove_ep_sq(m_astate.state.ep_square.has_value());
+        }
 
         // Find moved piece (avoid lookup if pawn move)
         board::ColouredPiece moved;
@@ -191,8 +204,8 @@ struct SearchNode {
 
                 // Set the en-passant square
                 if (mv.type() == move::MoveType::DOUBLE_PUSH) {
-                    m_astate.state.ep_square = board::Square(
-                        mv.to().file(), board::push_rank[(int)to_move]);
+                    add_ep_sq(board::Square(mv.to().file(),
+                                            board::push_rank[(int)to_move]));
                 }
 
                 // Promote
@@ -216,9 +229,50 @@ struct SearchNode {
                 .single_bitscan_forward(),
             to_move);
 
-        m_astate.state.to_move = !m_astate.state.to_move;
+        set_to_move(!m_astate.state.to_move);
         m_made_moves.push_back(made);
         return was_legal;
+    };
+
+    constexpr IrreversibleInfo irreversible(
+        board::Piece captured = (board::Piece)0) const {
+        return {.captured_piece = captured,
+                .halfmove_clock = m_astate.state.halfmove_clock,
+                .castling_rights = m_astate.state.castling_rights,
+                .ep_file = m_astate.state.ep_square.has_value()
+                               ? (int8_t)m_astate.state.ep_square.value().file()
+                               : (int8_t)-1};
+    };
+
+    // Assumes the player to move is the one who made the move
+    constexpr void reset(IrreversibleInfo info) {
+        m_astate.state.halfmove_clock = info.halfmove_clock;
+        // TODO: do this better!
+        // Ideally, store just the bits that are different then xor.
+        // I.e. add a toggle castling rights to IncrementallyUpdateable.
+        for (board::Colour to_move : board::colours) {
+            for (board::Piece side : state::CastlingInfo::castling_sides) {
+                bool cur_right =
+                    m_astate.state.castling_rights.get_castling_rights(
+                        {to_move, side});
+                bool new_right =
+                    info.castling_rights.get_castling_rights({to_move, side});
+                if (cur_right && !new_right) {
+                    remove_castling_rights({to_move, side});
+                } else if (!cur_right && new_right) {
+                    add_castling_rights({to_move, side});
+                }
+            }
+        }
+        // m_astate.state.castling_rights = info.castling_rights;
+        if (m_astate.state.ep_square.has_value()) {
+            remove_ep_sq(m_astate.state.ep_square.value());
+        }
+        if (info.ep_file >= 0) {
+            add_ep_sq(board::Square(
+                info.ep_file,
+                board::push_rank[(int)(!m_astate.state.to_move)]));
+        }
     };
 
     constexpr void unmake_move() {
@@ -226,8 +280,8 @@ struct SearchNode {
         m_made_moves.pop_back();
         m_cur_depth--;
 
-        m_astate.state.to_move = !m_astate.state.to_move;
-        m_astate.state.reset(unmake.info);
+        set_to_move(!m_astate.state.to_move);
+        reset(unmake.info);
         m_astate.state.fullmove_number -= (int)(!m_astate.state.to_move);
 
         const board::Square from = unmake.fmove.get_move().from();
@@ -342,6 +396,14 @@ struct SearchNode {
 #ifndef NDEBUG
             // Check incremental updates were reversed in unmake
             if (m_cur_depth == 0) {
+                // if (fen != m_astate.state.to_fen() ||
+                //     m_astate.state.pretty() != state.pretty()) {
+                //     std::cout << state.pretty();
+                //     std::cout << state.to_fen() << std::endl;
+                //     std::cout << m_astate.state.pretty();
+                //     std::cout << m_astate.state.to_fen() << std::endl;
+                //     ;
+                // }
                 assert(m_astate.state.to_fen() == fen);
                 assert(eval == m_eval.eval());
                 assert(eval == TEval(m_astate).eval());
@@ -416,6 +478,27 @@ struct SearchNode {
         m_astate.remove_castling_rights(colour);
         m_eval.remove_castling_rights(colour);
     };
+    constexpr void add_castling_rights(board::ColouredPiece cp) const {
+        m_astate.add_castling_rights(cp);
+        m_eval.add_castling_rights(cp);
+    };
+    constexpr void add_castling_rights(board::Colour colour) const {
+        m_astate.add_castling_rights(colour);
+        m_eval.add_castling_rights(colour);
+    };
+    constexpr void add_ep_sq(board::Square ep_sq) {
+        m_astate.add_ep_sq(ep_sq);
+        m_eval.add_ep_sq(ep_sq);
+    }
+    constexpr void remove_ep_sq(board::Square ep_sq) {
+        m_astate.remove_ep_sq(ep_sq);
+        m_eval.remove_ep_sq(ep_sq);
+    }
+
+    constexpr void set_to_move(board::Colour colour) {
+        m_astate.set_to_move(colour);
+        m_eval.set_to_move(colour);
+    }
 
     // Get evaluatiion
 
