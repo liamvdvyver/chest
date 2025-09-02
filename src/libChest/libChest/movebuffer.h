@@ -1,5 +1,4 @@
-#ifndef MOVEBUFFER_H
-#define MOVEBUFFER_H
+#pragma once
 
 #include <array>
 #include <concepts>
@@ -79,5 +78,3 @@ constexpr size_t MaxMoves = 256;
 // must be compatible with interface of std::vector<move::Move>
 using MoveBuffer = svec<move::FatMove, MaxMoves>;
 static_assert(RAStack<MoveBuffer, move::FatMove>);
-
-#endif

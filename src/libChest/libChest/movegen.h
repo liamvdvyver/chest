@@ -1,5 +1,4 @@
-#ifndef MOVEGEN_H
-#define MOVEGEN_H
+#pragma once
 
 #include <concepts>
 
@@ -599,5 +598,3 @@ static_assert(OneshotMoveGenerator<AllMoveGenerator<true>>);
 static_assert(AttackDetector<AllMoveGenerator<true>>);
 
 }  // namespace move::movegen
-
-#endif

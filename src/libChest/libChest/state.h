@@ -1,5 +1,4 @@
-#ifndef STATE_H
-#define STATE_H
+#pragma once
 
 #include <cassert>
 #include <cstdint>
@@ -471,5 +470,3 @@ struct AugmentedState {
 };
 
 };  // namespace state
-
-#endif

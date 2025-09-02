@@ -1,5 +1,4 @@
-#ifndef ATTACK_H
-#define ATTACK_H
+#pragma once
 
 #include "board.h"
 
@@ -611,5 +610,3 @@ static_assert(SlidingAttacker<BishopAttacker>);
 static_assert(SlidingAttacker<RookAttacker>);
 
 }  // namespace move::attack
-
-#endif

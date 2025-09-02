@@ -1,5 +1,4 @@
-#ifndef TIMEMANAGEMENT_H
-#define TIMEMANAGEMENT_H
+#pragma once
 
 #include <libChest/board.h>
 #include <libChest/state.h>
@@ -91,5 +90,3 @@ using DefaultTimeManager = search::SuddenDeathTimeManager<
 
 }  // namespace search
 static_assert(search::StaticTimeManager<search::DefaultTimeManager>);
-
-#endif

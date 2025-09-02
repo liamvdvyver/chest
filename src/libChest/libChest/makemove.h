@@ -1,5 +1,4 @@
-#ifndef MAKEMOVE_H
-#define MAKEMOVE_H
+#pragma once
 
 #include "board.h"
 #include "eval.h"
@@ -524,4 +523,3 @@ struct SearchNode {
 
 static_assert(IncrementallyUpdateable<SearchNode<1, eval::DefaultEval>>);
 }  // namespace state
-#endif

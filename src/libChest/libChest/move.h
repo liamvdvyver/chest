@@ -1,5 +1,4 @@
-#ifndef MOVE_H
-#define MOVE_H
+#pragma once
 
 #include <cstdlib>
 #include <optional>
@@ -346,5 +345,3 @@ struct LongAlgMove : Wrapper<long_alg_t, LongAlgMove> {
 };
 
 }  // namespace move
-
-#endif

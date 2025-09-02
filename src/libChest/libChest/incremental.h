@@ -1,5 +1,4 @@
-#ifndef INCREMENTAL_H
-#define INCREMENTAL_H
+#pragma once
 
 #include <concepts>
 
@@ -109,5 +108,3 @@ static_assert(IncrementallyUpdateable<IgnoreUpdates<int>>);
 
 static_assert(IncrementallyUpdateable<state::State>);
 static_assert(IncrementallyUpdateable<state::AugmentedState>);
-
-#endif

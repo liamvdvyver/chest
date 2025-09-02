@@ -1,5 +1,4 @@
-#ifndef EVAL_H
-#define EVAL_H
+#pragma once
 
 #include <concepts>
 
@@ -405,5 +404,3 @@ static_assert(IncrementallyUpdateableEvaluator<MichniewskiIncrementalEval>);
 static_assert(IncrementallyUpdateableEvaluator<NullEval>);
 
 }  // namespace eval
-
-#endif

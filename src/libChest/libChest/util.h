@@ -1,3 +1,5 @@
+#pragma once
+
 #include <tuple>
 
 // Calls a function for each element of a tuple.

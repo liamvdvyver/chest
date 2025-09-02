@@ -1,5 +1,4 @@
-#ifndef BOARD_H
-#define BOARD_H
+#pragma once
 
 #include <array>
 #include <cassert>
@@ -535,5 +534,3 @@ constexpr std::array<uint8_t, n_colours> pre_promote_rank{1, board_size - 2};
 constexpr std::array<uint8_t, n_colours> back_rank{0, board_size - 1};
 
 }  // namespace board
-
-#endif

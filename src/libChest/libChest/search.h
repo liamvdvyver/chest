@@ -1,5 +1,4 @@
-#ifndef SEARCH_H
-#define SEARCH_H
+#pragma once
 
 #include <algorithm>
 #include <chrono>
@@ -334,5 +333,3 @@ static_assert(
     StoppableSearcher<IDSearcher<DLNegaMax<eval::DefaultEval, 5>, 5>>);
 
 }  // namespace search
-
-#endif

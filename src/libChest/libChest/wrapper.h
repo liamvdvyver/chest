@@ -1,5 +1,4 @@
-#ifndef WRAPPER_H
-#define WRAPPER_H
+#pragma once
 
 // Wrap a base type with a single-member struct, providing:
 //
@@ -135,5 +134,3 @@ struct Wrapper {
    private:
     T value;
 };
-
-#endif
