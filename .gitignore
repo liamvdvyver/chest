@@ -8,3 +8,6 @@ Testing/*
 _deps/*
 *.tcl
 *.a
+config.json
+compile_commands.json
+build/*
