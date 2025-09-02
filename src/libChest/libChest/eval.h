@@ -194,17 +194,8 @@ class IncrementalNetEval : public NetEval<IncrementalNetEval<TEval>> {
 
     // Castling rights/ep/halfmove clock do not affect eval
 
-    constexpr void add_castling_rights(board::ColouredPiece cp) const {
-        (void)cp;
-    };
-    constexpr void add_castling_rights(board::Colour colour) const {
-        (void)colour;
-    };
-    constexpr void remove_castling_rights(board::ColouredPiece cp) const {
-        (void)cp;
-    };
-    constexpr void remove_castling_rights(board::Colour colour) const {
-        (void)colour;
+    constexpr void toggle_castling_rights(state::CastlingRights rights) const {
+        (void)rights;
     };
     constexpr void add_ep_sq(board::Square ep_sq) const { (void)ep_sq; }
     constexpr void remove_ep_sq(board::Square ep_sq) const { (void)ep_sq; }

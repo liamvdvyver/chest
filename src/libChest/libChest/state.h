@@ -202,15 +202,23 @@ struct CastlingInfo {
 
 // Store castling rights
 struct CastlingRights : Wrapper<uint8_t, CastlingRights> {
-    constexpr bool get_castling_rights(board::ColouredPiece cp) const {
-        return (1) & (value >> castling_rights_offset(cp));
+    using Wrapper::Wrapper;
+    constexpr CastlingRights(const board::ColouredPiece cp)
+        : Wrapper::Wrapper{
+              static_cast<decltype(value)>(1 << square_offset(cp))} {}
+
+    constexpr bool get_square_rights(board::ColouredPiece cp) const {
+        return value & (1 << square_offset(cp));
+    }
+
+    constexpr CastlingRights get_player_rights(board::Colour colour) {
+        return value & (0b11 << 2 * static_cast<uint>(colour));
     }
 
     // TODO: test, and make it faster
     constexpr void set_castling_rights(board::ColouredPiece cp, bool rights) {
-        int selected_bit = (1 << castling_rights_offset(cp));
-        int selected_bit_val = (rights << castling_rights_offset(cp));
-        value = (value & ~selected_bit) ^ selected_bit_val;
+        *this &= ~CastlingRights{cp};          // clear bit
+        *this ^= rights << square_offset(cp);  // Set to val
     }
     constexpr void set_both_castling_rights(board::Colour colour, bool rights) {
         for (board::Piece side : CastlingInfo::castling_sides) {
@@ -218,9 +226,11 @@ struct CastlingRights : Wrapper<uint8_t, CastlingRights> {
         }
     }
 
+   private:
     // Helper: defines layout of castling rights bitset
-    constexpr int castling_rights_offset(board::ColouredPiece cp) const {
-        return (2 * (int)cp.colour) + CastlingInfo::side_idx(cp.piece);
+    static constexpr uint square_offset(board::ColouredPiece cp) {
+        return 2 * static_cast<uint>(cp.colour) +
+               CastlingInfo::side_idx(cp.piece);
     }
 };
 
@@ -348,17 +358,8 @@ struct State {
                                 board::ColouredPiece to) {
         swap(loc, from, to);
     }
-    constexpr void add_castling_rights(board::ColouredPiece cp) {
-        castling_rights.set_castling_rights(cp, true);
-    }
-    constexpr void add_castling_rights(board::Colour colour) {
-        castling_rights.set_both_castling_rights(colour, true);
-    }
-    constexpr void remove_castling_rights(board::ColouredPiece cp) {
-        castling_rights.set_castling_rights(cp, false);
-    }
-    constexpr void remove_castling_rights(board::Colour colour) {
-        castling_rights.set_both_castling_rights(colour, false);
+    constexpr void toggle_castling_rights(state::CastlingRights rights) {
+        castling_rights ^= rights;
     }
     constexpr void add_ep_sq(board::Square ep_sq) { ep_square = {ep_sq}; }
     constexpr void remove_ep_sq(board::Square ep_sq) {
@@ -452,17 +453,8 @@ struct AugmentedState {
                                  board::Piece from, board::Piece to) {
         state.swap_sameside(loc, player, from, to);
     }
-    constexpr void add_castling_rights(board::ColouredPiece cp) {
-        state.add_castling_rights(cp);
-    }
-    constexpr void add_castling_rights(board::Colour colour) {
-        state.add_castling_rights(colour);
-    }
-    constexpr void remove_castling_rights(board::ColouredPiece cp) {
-        state.remove_castling_rights(cp);
-    }
-    constexpr void remove_castling_rights(board::Colour colour) {
-        state.remove_castling_rights(colour);
+    constexpr void toggle_castling_rights(CastlingRights rights) {
+        state.toggle_castling_rights(rights);
     }
     constexpr void add_ep_sq(board::Square ep_sq) { state.add_ep_sq(ep_sq); }
     constexpr void remove_ep_sq(board::Square ep_sq) {
@@ -477,6 +469,7 @@ struct AugmentedState {
     // board::Bitboard m_side_occupancy[board::n_colours];
     std::array<board::Bitboard, board::n_colours> m_side_occupancy;
 };
+
 };  // namespace state
 
 #endif

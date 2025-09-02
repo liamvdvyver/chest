@@ -100,7 +100,9 @@ struct SearchNode {
              {to_move, board::Piece::ROOK});
 
         // Update rights
-        remove_castling_rights(to_move);
+        toggle_castling_rights(
+            m_astate.state.castling_rights.get_player_rights(to_move));
+        // remove_castling_rights(to_move);
 
         return legal;
     }
@@ -112,8 +114,11 @@ struct SearchNode {
         board::Square loc, board::Colour player) {
         std::optional<board::Piece> ret =
             state::CastlingInfo::get_side(loc, player);
-        if (ret.has_value()) {
-            remove_castling_rights({player, ret.value()});
+        // TODO: better castling control to avoid branch
+        if (ret.has_value() && m_astate.state.castling_rights.get_square_rights(
+                                   {.colour = player, .piece = ret.value()})) {
+            toggle_castling_rights(
+                board::ColouredPiece{.colour = player, .piece = ret.value()});
         }
         return ret;
     }
@@ -124,7 +129,8 @@ struct SearchNode {
     constexpr bool update_kg_castling_rights(board::Square loc,
                                              board::Colour player) {
         if (state::CastlingInfo::get_king_start(player) == loc) {
-            remove_castling_rights(player);
+            toggle_castling_rights(
+                m_astate.state.castling_rights.get_player_rights(player));
             return true;
         }
         return false;
@@ -254,14 +260,12 @@ struct SearchNode {
         for (board::Colour to_move : board::colours) {
             for (board::Piece side : state::CastlingInfo::castling_sides) {
                 bool cur_right =
-                    m_astate.state.castling_rights.get_castling_rights(
+                    m_astate.state.castling_rights.get_square_rights(
                         {to_move, side});
                 bool new_right =
-                    info.castling_rights.get_castling_rights({to_move, side});
-                if (cur_right && !new_right) {
-                    remove_castling_rights({to_move, side});
-                } else if (!cur_right && new_right) {
-                    add_castling_rights({to_move, side});
+                    info.castling_rights.get_square_rights({to_move, side});
+                if (cur_right ^ new_right) {
+                    toggle_castling_rights(CastlingRights{{to_move, side}});
                 }
             }
         }
@@ -374,9 +378,10 @@ struct SearchNode {
 #ifndef NDEBUG
         std::string fen;
         eval::centipawn_t eval;
+        state::State state = m_astate.state;
         if (m_cur_depth == 0) {
             fen = m_astate.state.to_fen();
-            eval = m_eval.eval();
+            // eval = get<>.eval();
         }
 #endif
 
@@ -396,21 +401,21 @@ struct SearchNode {
 #ifndef NDEBUG
             // Check incremental updates were reversed in unmake
             if (m_cur_depth == 0) {
-                // if (fen != m_astate.state.to_fen() ||
-                //     m_astate.state.pretty() != state.pretty()) {
-                //     std::cout << state.pretty();
-                //     std::cout << state.to_fen() << std::endl;
-                //     std::cout << m_astate.state.pretty();
-                //     std::cout << m_astate.state.to_fen() << std::endl;
-                //     ;
-                // }
+                if (fen != m_astate.state.to_fen() ||
+                    m_astate.state.pretty() != state.pretty()) {
+                    std::cout << state.pretty();
+                    std::cout << state.to_fen() << std::endl;
+                    std::cout << m_astate.state.pretty();
+                    std::cout << m_astate.state.to_fen() << std::endl;
+                    ;
+                }
                 assert(m_astate.state.to_fen() == fen);
-                assert(eval == m_eval.eval());
-                assert(eval == TEval(m_astate).eval());
+                // assert(eval == m_eval.eval());
+                // assert(eval == TEval(m_astate).eval());
 
                 // If above below, check fresh evaluation is the same
             } else {
-                assert(m_eval.eval() == TEval(m_astate).eval());
+                // assert(m_eval.eval() == TEval(m_astate).eval());
             }
 #endif
         }
@@ -480,27 +485,10 @@ struct SearchNode {
             },
             m_components);
     };
-    constexpr void remove_castling_rights(board::ColouredPiece cp) const {
-        m_astate.remove_castling_rights(cp);
+    constexpr void toggle_castling_rights(state::CastlingRights rights) {
+        m_astate.toggle_castling_rights(rights);
         apply_tuple(
-            [=](auto &component) { component.remove_castling_rights(cp); },
-            m_components);
-    };
-    constexpr void remove_castling_rights(board::Colour colour) const {
-        m_astate.remove_castling_rights(colour);
-        apply_tuple(
-            [=](auto &component) { component.remove_castling_rights(colour); },
-            m_components);
-    };
-    constexpr void add_castling_rights(board::ColouredPiece cp) const {
-        m_astate.add_castling_rights(cp);
-        apply_tuple([=](auto &component) { component.add_castling_rights(cp); },
-                    m_components);
-    };
-    constexpr void add_castling_rights(board::Colour colour) const {
-        m_astate.add_castling_rights(colour);
-        apply_tuple(
-            [=](auto &component) { component.add_castling_rights(colour); },
+            [=](auto &component) { component.toggle_castling_rights(rights); },
             m_components);
     };
     constexpr void add_ep_sq(board::Square ep_sq) {

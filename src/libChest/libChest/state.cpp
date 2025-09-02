@@ -109,7 +109,7 @@ State::State(const fen_t &fen_string) : State::State() {
                 throw std::invalid_argument(
                     "Castling rights must specify queen or king only");
 
-            if (castling_rights.get_castling_rights(castling_cp))
+            if (castling_rights.get_square_rights(castling_cp))
                 throw std::invalid_argument(
                     "Castling rights may not be redundant");
 
@@ -161,19 +161,19 @@ std::string State::to_fen() const {
     ret += ' ';
 
     // Castling rights
-    if (castling_rights.get_castling_rights(
+    if (castling_rights.get_square_rights(
             {.colour=board::Colour::WHITE, .piece=board::Piece::KING})) {
         ret += 'K';
     }
-    if (castling_rights.get_castling_rights(
+    if (castling_rights.get_square_rights(
             {.colour=board::Colour::WHITE, .piece=board::Piece::QUEEN})) {
         ret += 'Q';
     }
-    if (castling_rights.get_castling_rights(
+    if (castling_rights.get_square_rights(
             {.colour=board::Colour::BLACK, .piece=board::Piece::KING})) {
         ret += 'k';
     }
-    if (castling_rights.get_castling_rights(
+    if (castling_rights.get_square_rights(
             {.colour=board::Colour::BLACK, .piece=board::Piece::QUEEN})) {
         ret += 'q';
     }

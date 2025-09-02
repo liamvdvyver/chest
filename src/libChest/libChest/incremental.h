@@ -17,51 +17,42 @@
 // Any such structure must support the following standard incremental
 // operations, then, they can be made/unmade.
 template <typename T>
-concept IncrementallyUpdateable =
-    requires(T t, const board::Bitboard from, const board::Bitboard to,
-             const board::Bitboard loc, const board::Square ep_sq,
-             const board::Colour colour, const board::Piece piece,
-             const board::ColouredPiece cp) {
-        // State should be initialised from AugmentedState.
-        { std::constructible_from<state::AugmentedState> };
+concept IncrementallyUpdateable = requires(
+    T t, const board::Bitboard from, const board::Bitboard to,
+    const board::Bitboard loc, const board::Square ep_sq,
+    const board::Colour colour, const board::Piece piece,
+    const board::ColouredPiece cp, const state::CastlingRights rights) {
+    // State should be initialised from AugmentedState.
+    { std::constructible_from<state::AugmentedState> };
 
-        // Change a piece's location on the same bitboard
-        { t.move(from, to, cp) } -> std::same_as<void>;
+    // Change a piece's location on the same bitboard
+    { t.move(from, to, cp) } -> std::same_as<void>;
 
-        // Add a square on a bitboard (assumed to be empty)
-        { t.add(loc, cp) } -> std ::same_as<void>;
+    // Add a square on a bitboard (assumed to be empty)
+    { t.add(loc, cp) } -> std ::same_as<void>;
 
-        // Remove a square on a bitboard (assumed to be filled)
-        { t.remove(loc, cp) } -> std ::same_as<void>;
+    // Remove a square on a bitboard (assumed to be filled)
+    { t.remove(loc, cp) } -> std ::same_as<void>;
 
-        // Swap a piece from one bitboard to another (general case)
-        { t.swap(loc, cp, cp) } -> std::same_as<void>;
+    // Swap a piece from one bitboard to another (general case)
+    { t.swap(loc, cp, cp) } -> std::same_as<void>;
 
-        // Swap a piece from one bitboard to another (belonging to the other
-        // player)
-        { t.swap_oppside(loc, cp, cp) } -> std::same_as<void>;
+    // Swap a piece from one bitboard to another (belonging to the other
+    // player)
+    { t.swap_oppside(loc, cp, cp) } -> std::same_as<void>;
 
-        // Swap a piece from one bitboard to another (belonging to the same
-        // player)
-        { t.swap_sameside(loc, colour, piece, piece) } -> std::same_as<void>;
+    // Swap a piece from one bitboard to another (belonging to the same
+    // player)
+    { t.swap_sameside(loc, colour, piece, piece) } -> std::same_as<void>;
 
-        // Update castling rights
+    // Update castling rights
+    { t.toggle_castling_rights(rights) } -> std::same_as<void>;
 
-        { t.add_castling_rights(cp) } -> std::same_as<void>;
-        { t.add_castling_rights(colour) } -> std::same_as<void>;
-        { t.remove_castling_rights(cp) } -> std::same_as<void>;
-        { t.remove_castling_rights(colour) } -> std::same_as<void>;
+    { t.add_ep_sq(ep_sq) } -> std::same_as<void>;
+    { t.remove_ep_sq(ep_sq) } -> std::same_as<void>;
 
-        { t.add_ep_sq(ep_sq) } -> std::same_as<void>;
-        { t.remove_ep_sq(ep_sq) } -> std::same_as<void>;
-
-        // Increment move counters,
-        // Called before set_to_move()
-        // { t.increment_halfmove() } -> std::same_as<void>;
-        // { t.decrement_halfmove() } -> std::same_as<void>;
-
-        { t.set_to_move(colour) } -> std::same_as<void>;
-    };
+    { t.set_to_move(colour) } -> std::same_as<void>;
+};
 
 // When a type receives updates, but it is not favourable to incrementally
 // update, ignore updates.
@@ -101,24 +92,14 @@ class IgnoreUpdates {
         (void)from;
         (void)to;
     };
-    constexpr void add_castling_rights(board::ColouredPiece cp) const {
-        (void)cp;
-    };
-    constexpr void add_castling_rights(board::Colour colour) const {
-        (void)colour;
-    };
-    constexpr void remove_castling_rights(board::ColouredPiece cp) const {
-        (void)cp;
-    };
-    constexpr void remove_castling_rights(board::Colour colour) const {
-        (void)colour;
-    };
+
+    // Castling is only handled via toggles
+    constexpr void toggle_castling_rights(state::CastlingRights rights) {
+        (void)rights;
+    }
 
     constexpr void add_ep_sq(board::Square ep_sq) const { (void)ep_sq; }
     constexpr void remove_ep_sq(board::Square ep_sq) const { (void)ep_sq; }
-
-    // constexpr void increment_halfmove() const {}
-    // constexpr void decrement_halfmove() const {}
 
     constexpr void set_to_move(const board::Colour to_move) const {
         (void)to_move;

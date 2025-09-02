@@ -458,7 +458,7 @@ class RookMoverFactory : TMover {
                      board::Bitboard total_occ) const {
         for (board::Piece side : state::CastlingInfo::castling_sides) {
             board::ColouredPiece cp = {astate.state.to_move, side};
-            if (astate.state.castling_rights.get_castling_rights(cp)) {
+            if (astate.state.castling_rights.get_square_rights(cp)) {
                 board::Bitboard rk_mask =
                     state::CastlingInfo::get_rook_mask(cp);
                 board::Bitboard blockers = rk_mask & total_occ;
