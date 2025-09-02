@@ -4,6 +4,7 @@
 #include <concepts>
 
 #include "board.h"
+#include "state.h"
 
 //
 // Types which support incremental updates.
@@ -21,6 +22,9 @@ concept IncrementallyUpdateable =
              const board::Bitboard loc, const board::Square ep_sq,
              const board::Colour colour, const board::Piece piece,
              const board::ColouredPiece cp) {
+        // State should be initialised from AugmentedState.
+        { std::constructible_from<state::AugmentedState> };
+
         // Change a piece's location on the same bitboard
         { t.move(from, to, cp) } -> std::same_as<void>;
 
@@ -121,5 +125,8 @@ class IgnoreUpdates {
     }
 };
 static_assert(IncrementallyUpdateable<IgnoreUpdates<int>>);
+
+static_assert(IncrementallyUpdateable<state::State>);
+static_assert(IncrementallyUpdateable<state::AugmentedState>);
 
 #endif

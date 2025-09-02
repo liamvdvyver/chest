@@ -144,10 +144,11 @@ class DLNegaMax {
 
         // Cutoff -> return value
         if (m_node.bottomed_out()) {
-            SearchResult search_ret = {.type = SearchResult::LeafType::CUTOFF,
-                                       .best_move = {},
-                                       .eval = m_node.eval(),
-                                       .n_nodes = 1};
+            SearchResult search_ret = {
+                .type = SearchResult::LeafType::CUTOFF,
+                .best_move = {},
+                .eval = m_node.template get<TEval>().eval(),
+                .n_nodes = 1};
             return {search_ret, ABResult::ABNodeType::NA};
         }
 

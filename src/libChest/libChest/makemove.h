@@ -1,13 +1,13 @@
 #ifndef MAKEMOVE_H
 #define MAKEMOVE_H
 
-#include <optional>
-
 #include "board.h"
 #include "eval.h"
+#include "incremental.h"
 #include "move.h"
 #include "movegen.h"
 #include "state.h"
+#include "util.h"
 
 //
 // A basic class which composes:
@@ -43,16 +43,22 @@ static const MadeMove nullMadeMove{};
 // Stores augmented state, has buffers for made moves, found moves.
 // This is the basic unit for iterative (non-recursive, incrementally updated)
 // game tree traversal,
-template <size_t MaxDepth, eval::StaticEvaluator TEval>
+template <size_t MaxDepth, typename... TComponents>
 struct SearchNode {
    public:
     constexpr SearchNode(const move::movegen::AllMoveGenerator<> &mover,
                          AugmentedState &astate, int max_depth)
         : m_astate(astate),
-          m_eval(astate),
           m_max_depth(max_depth),
           m_cur_depth(0),
+          m_components(TComponents{astate}...),
           m_mover(mover) {};
+
+    // Gets the incrementally updateable component by type.
+    template <IncrementallyUpdateable T>
+    auto &get() {
+        return std::get<T>(m_components);
+    }
 
     // All state changes which do not depend on current move
     // Called before processing board state
@@ -438,70 +444,90 @@ struct SearchNode {
     // Incrementally updateable.
     constexpr void add(board::Bitboard loc, board::ColouredPiece cp) {
         m_astate.add(loc, cp);
-        m_eval.add(loc, cp);
+        apply_tuple([=](auto &component) { component.add(loc, cp); },
+                    m_components);
     };
     constexpr void remove(board::Bitboard loc, board::ColouredPiece cp) {
         m_astate.remove(loc, cp);
-        m_eval.remove(loc, cp);
+        apply_tuple([=](auto &component) { component.remove(loc, cp); },
+                    m_components);
     };
     constexpr void move(board::Bitboard from, board::Bitboard to,
                         board::ColouredPiece cp) {
         m_astate.move(from, to, cp);
-        m_eval.move(from, to, cp);
+        apply_tuple([=](auto &component) { component.move(from, to, cp); },
+                    m_components);
     };
     constexpr void swap(board::Bitboard loc, board::ColouredPiece from,
                         board::ColouredPiece to) {
         m_astate.swap(loc, from, to);
-        m_eval.swap(loc, from, to);
+        apply_tuple([=](auto &component) { component.swap(loc, from, to); },
+                    m_components);
     };
     constexpr void swap_oppside(board::Bitboard loc, board::ColouredPiece from,
                                 board::ColouredPiece to) {
         m_astate.swap_oppside(loc, from, to);
-        m_eval.swap_oppside(loc, from, to);
+        apply_tuple(
+            [=](auto &component) { component.swap_oppside(loc, from, to); },
+            m_components);
     };
     constexpr void swap_sameside(board::Bitboard loc, board::Colour side,
                                  board::Piece from, board::Piece to) {
         m_astate.swap_sameside(loc, side, from, to);
-        m_eval.swap_sameside(loc, side, from, to);
+        apply_tuple(
+            [=](auto &component) {
+                component.swap_sameside(loc, side, from, to);
+            },
+            m_components);
     };
     constexpr void remove_castling_rights(board::ColouredPiece cp) const {
         m_astate.remove_castling_rights(cp);
-        m_eval.remove_castling_rights(cp);
+        apply_tuple(
+            [=](auto &component) { component.remove_castling_rights(cp); },
+            m_components);
     };
     constexpr void remove_castling_rights(board::Colour colour) const {
         m_astate.remove_castling_rights(colour);
-        m_eval.remove_castling_rights(colour);
+        apply_tuple(
+            [=](auto &component) { component.remove_castling_rights(colour); },
+            m_components);
     };
     constexpr void add_castling_rights(board::ColouredPiece cp) const {
         m_astate.add_castling_rights(cp);
-        m_eval.add_castling_rights(cp);
+        apply_tuple([=](auto &component) { component.add_castling_rights(cp); },
+                    m_components);
     };
     constexpr void add_castling_rights(board::Colour colour) const {
         m_astate.add_castling_rights(colour);
-        m_eval.add_castling_rights(colour);
+        apply_tuple(
+            [=](auto &component) { component.add_castling_rights(colour); },
+            m_components);
     };
     constexpr void add_ep_sq(board::Square ep_sq) {
         m_astate.add_ep_sq(ep_sq);
-        m_eval.add_ep_sq(ep_sq);
+        apply_tuple([=](auto &component) { component.add_ep_sq(ep_sq); },
+                    m_components);
     }
     constexpr void remove_ep_sq(board::Square ep_sq) {
         m_astate.remove_ep_sq(ep_sq);
-        m_eval.remove_ep_sq(ep_sq);
+        apply_tuple([=](auto &component) { component.remove_ep_sq(ep_sq); },
+                    m_components);
     }
 
     constexpr void set_to_move(board::Colour colour) {
         m_astate.set_to_move(colour);
-        m_eval.set_to_move(colour);
+        apply_tuple([=](auto &component) { component.set_to_move(colour); },
+                    m_components);
     }
 
     // Get evaluatiion
 
-    eval::centipawn_t eval() const { return m_eval.eval(); }
-
     AugmentedState &m_astate;
-    TEval m_eval{m_astate.state};
     int m_max_depth;
     int m_cur_depth;
+
+    // Incrementally updateable components in a tuple
+    std::tuple<TComponents...> m_components;
 
     const move::movegen::AllMoveGenerator<> &m_mover;
     svec<MadeMove, MaxDepth> m_made_moves;

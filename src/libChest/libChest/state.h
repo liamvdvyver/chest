@@ -8,7 +8,6 @@
 #include <string>
 
 #include "board.h"
-#include "incremental.h"
 
 //
 // Defines representations of full, partial, or augemnted game state
@@ -321,6 +320,7 @@ struct State {
     std::string to_fen() const;
 
     // Incremental updates
+    // (type checked in "incremental.h" to avoid recursive inclusion)
 
     constexpr void move(board::Bitboard from_bb, board::Bitboard to_bb,
                         board::ColouredPiece(cp)) {
@@ -375,7 +375,6 @@ struct State {
     std::array<std::array<board::Bitboard, board::n_pieces>, board::n_colours>
         m_pieces;
 };
-static_assert(IncrementallyUpdateable<State>);
 
 std::ostream &operator<<(std::ostream &os, const State s);
 
@@ -478,7 +477,6 @@ struct AugmentedState {
     // board::Bitboard m_side_occupancy[board::n_colours];
     std::array<board::Bitboard, board::n_colours> m_side_occupancy;
 };
-static_assert(IncrementallyUpdateable<AugmentedState>);
 };  // namespace state
 
 #endif
