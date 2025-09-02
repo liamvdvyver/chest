@@ -1,11 +1,6 @@
 #ifndef ENGINESTATE_H
 #define ENGINESTATE_H
 
-#include <libChest/eval.h>
-#include <libChest/makemove.h>
-#include <libChest/search.h>
-#include <unistd.h>
-
 #include <chrono>
 #include <iostream>
 #include <memory>
@@ -15,10 +10,12 @@
 #include <string>
 #include <vector>
 
-#include "libChest/incremental.h"
+#include "libChest/eval.h"
+#include "libChest/makemove.h"
 #include "libChest/move.h"
 #include "libChest/movebuffer.h"
 #include "libChest/movegen.h"
+#include "libChest/search.h"
 #include "libChest/state.h"
 #include "libChest/timemanagement.h"
 
@@ -68,6 +65,8 @@ struct UciCommand {
         STOP,
         PONDERHIT,
         QUIT,
+        // Non-standard
+        PERFT,
     };
     UciCommandType type;
     std::string input;
@@ -98,6 +97,8 @@ struct UciCommand {
             return UciCommandType::PONDERHIT;
         } else if (tkn == "quit") {
             return UciCommandType::QUIT;
+        } else if (tkn == "perft") {
+            return UciCommandType::PERFT;
         } else
             return UciCommandType::UNRECOGNISED;
     }
@@ -241,6 +242,10 @@ class Engine {
             case UciCommand::UciCommandType::QUIT:
                 exit(0);
                 break;
+
+            case UciCommand::UciCommandType::PERFT:
+                handle_perft(command);
+                break;
         };
     }
     UciCommand read_command() {
@@ -289,20 +294,60 @@ class Engine {
         }
     };
 
+    void handle_perft(UciCommand command) {
+        if (command.args.size() != 1) {
+            return bad_args(command);
+        }
+        int depth = std::stoi(command.args.at(0));
+
+        state::SearchNode<MAX_DEPTH> sn{m_globals.mover, m_astate, depth};
+        size_t total = 0;
+        sn.prep_search(depth);
+        MoveBuffer &root_moves = sn.find_moves();
+
+        for (auto fmv : root_moves) {
+            if (sn.make_move(fmv)) {
+                auto results = sn.perft().perft;
+                total += results;
+                std::string msg =
+                    static_cast<std::string>(move::LongAlgMove{fmv, m_astate});
+                msg.append(": ");
+                msg.append(std::to_string(results));
+                m_globals.log(msg);
+            }
+
+            sn.unmake_move();
+        }
+
+        std::string msg = "TOTAL: ";
+        msg.append(std::to_string(total));
+        m_globals.log(msg);
+    }
+
+    void log_board(Globals::LogLevel level = Globals::LogLevel::CHEST_INFO) {
+        m_globals.log(m_astate.state.to_fen().append("\n").append(
+            m_astate.state.pretty()));
+    }
+
     std::optional<state::AugmentedState> handle_position(UciCommand command) {
         size_t i = 0;
         size_t sz = command.args.size();
         const int fen_len = 6;
 
         if (command.args.size() == 0) {
-            bad_args(command);
-            return {};
+            log_board();
+            return m_astate;
         }
 
         std::string &fst = command.args.at(i++);
         std::string state_fen;
-        if (fst == "startpos") {
-            state_fen = state::new_game_fen;
+        std::optional<state::AugmentedState> start_state;
+
+        if (fst == "moves") {
+            start_state = m_astate;
+            --i;  // ensure moves will be read,
+        } else if (fst == "startpos") {
+            start_state = {{state::new_game_fen}};
         } else if (fst == "fen") {
             if (i + fen_len > sz) {
                 bad_args(command);
@@ -313,9 +358,11 @@ class Engine {
                     state_fen += command.args.at(i++);
                 }
             }
+            start_state = {{state_fen}};
+        } else {
+            bad_args(command);
+            return {};
         }
-        state::AugmentedState ret =
-            state::AugmentedState(state::State(state_fen));
 
         if (i < sz) {
             if (command.args.at(i++) != "moves") {
@@ -325,12 +372,14 @@ class Engine {
         }
 
         // Handle state updates
-        state::SearchNode<1, eval::NullEval> sn(m_globals.mover, ret, 1);
+        m_astate = start_state.value();
+        state::SearchNode<1, eval::NullEval> sn(m_globals.mover, m_astate, 1);
 
         // Handle moves
         while (i < sz) {
             std::optional<move::FatMove> fmove =
-                move::LongAlgMove(command.args.at(i++)).to_fmove(ret);
+                move::LongAlgMove(command.args.at(i++))
+                    .to_fmove(start_state.value());
             if (!fmove.has_value()) {
                 bad_args(command);
                 return {};
@@ -340,7 +389,10 @@ class Engine {
             sn.prep_search(1);
             sn.make_move(fmove.value());
         }
-        m_globals.log(m_astate.state.pretty(), Globals::LogLevel::CHEST_INFO);
+
+        if (m_globals.debug) {
+            log_board();
+        }
 
         return {sn.m_astate};
     }
