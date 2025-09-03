@@ -1,9 +1,7 @@
 #pragma once
 
 #ifdef NDEBUG
-constexpr static bool DEBUG = false;
-#undef DEBUG
+#define DEBUG() false
 #else
-constexpr static bool DEBUG = true;
-#define DEBUG DEBUG
+#define DEBUG() true
 #endif

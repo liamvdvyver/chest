@@ -221,7 +221,7 @@ class DLNegaMax {
 
    private:
     const move::movegen::AllMoveGenerator<> &m_mover;
-    state::SearchNode<MaxDepth, TEval> m_node;
+    state::SearchNode<MaxDepth, TEval, Zobrist> m_node;
     const int m_max_depth;
     bool m_stopped;
 };
@@ -330,6 +330,6 @@ class IDSearcher {
     MoveBuffer m_pv;
 };
 static_assert(
-    StoppableSearcher<IDSearcher<DLNegaMax<eval::DefaultEval, 5>, 5>>);
+    StoppableSearcher<IDSearcher<DLNegaMax<eval::DefaultEval, 1>, 1>>);
 
 }  // namespace search

@@ -301,11 +301,7 @@ class Engine {
         }
         int depth = std::stoi(command.args.at(0));
 
-        // HACK: in makemove, should check if we have a matching element for
-        // debug state::SearchNode<MAX_DEPTH> sn{m_globals.mover, m_astate,
-        // depth};
-        state::SearchNode<MAX_DEPTH, eval::DefaultEval, Zobrist> sn{
-            m_globals.mover, m_astate, depth};
+        state::SearchNode<MAX_DEPTH> sn{m_globals.mover, m_astate, depth};
         size_t total = 0;
         sn.prep_search(depth);
         MoveBuffer &root_moves = sn.find_moves();
@@ -379,7 +375,7 @@ class Engine {
 
         // Handle state updates
         m_astate = start_state.value();
-        state::SearchNode<1, eval::NullEval> sn(m_globals.mover, m_astate, 1);
+        state::SearchNode<1> sn(m_globals.mover, m_astate, 1);
 
         // Handle moves
         while (i < sz) {

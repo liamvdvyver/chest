@@ -6,7 +6,6 @@
 #include <iostream>
 
 #include "libChest/debug.h"
-#include "libChest/eval.h"
 
 //
 // Test all depths up to threshold per position
@@ -18,7 +17,8 @@
 // move generation logic decide the fastest way to get moves.
 constexpr size_t max_depth_limit = 7;
 
-#ifdef DEBUG
+#if DEBUG()
+#include "libChest/eval.h"
 using TSearcher =
     state::SearchNode<max_depth_limit, eval::DefaultEval, Zobrist>;
 #else

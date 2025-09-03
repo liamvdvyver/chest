@@ -55,8 +55,15 @@ struct SearchNode {
           m_components(TComponents{astate}...),
           m_mover(mover) {};
 
+    // Checks if an incrementally updateable component exists.
+    template <IncrementallyUpdateable T>
+    static constexpr bool has() {
+        return tuple_has<T, decltype(m_components)>::value;
+    }
+
     // Gets the incrementally updateable component by type.
     template <IncrementallyUpdateable T>
+        requires(has<T>())
     auto &get() {
         return std::get<T>(m_components);
     }
@@ -363,15 +370,20 @@ struct SearchNode {
             return {.perft = 1, .nodes = 0};
         }
 
-// Check state/eval are same before/after make-unmake
-#ifdef DEBUG
+#if DEBUG()
+        // Check state/eval are same before/after make-unmake
         // Get incremental info
-        eval::centipawn_t eval = get<eval::DefaultEval>().eval();
-        Zobrist hash = get<Zobrist>();
-        assert(eval == eval::DefaultEval(m_astate).eval());
-        assert(hash == Zobrist(m_astate));
+        eval::centipawn_t eval{};
+        Zobrist hash{};
+        if constexpr (requires { get<eval::DefaultEval>(); }) {
+            eval = get<eval::DefaultEval>().eval();
+            assert(eval == eval::DefaultEval(m_astate).eval());
+        }
+        if constexpr (requires { get<Zobrist>(); }) {
+            hash = get<Zobrist>();
+            assert(hash == Zobrist(m_astate));
+        }
 #endif
-
         MoveBuffer &moves = find_moves();
         PerftResult ret = {0, 0};
 
@@ -381,17 +393,31 @@ struct SearchNode {
                 PerftResult subtree_result = perft();
                 ret += subtree_result;
                 ret.nodes += 1;
-                assert(get<Zobrist>() == Zobrist(m_astate));
+
+#if DEBUG()
+                // Check move was made correctly
+                if constexpr (requires { get<Zobrist>(); }) {
+                    assert(Zobrist{m_astate} == get<Zobrist>());
+                }
+                if constexpr (requires { get<eval::DefaultEval>(); }) {
+                    assert(eval::DefaultEval{m_astate}.eval() ==
+                           get<eval::DefaultEval>().eval());
+                }
+#endif
             }
 
             unmake_move();
-
-            // Check moves were all unmade
-            assert(eval == get<eval::DefaultEval>().eval());
-            assert(hash == get<Zobrist>());
-            // And not copied
         }
 
+#if DEBUG()
+        // Check moves were all unmade
+        if constexpr (requires { get<eval::DefaultEval>(); }) {
+            assert(eval == get<eval::DefaultEval>().eval());
+        }
+        if constexpr (requires { get<Zobrist>(); }) {
+            assert(hash == get<Zobrist>());
+        }
+#endif
         return ret;
     };
 
@@ -479,8 +505,6 @@ struct SearchNode {
         apply_tuple([=](auto &component) { component.set_to_move(colour); },
                     m_components);
     }
-
-    // Get evaluatiion
 
     AugmentedState &m_astate;
     int m_max_depth;
