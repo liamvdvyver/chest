@@ -200,7 +200,7 @@ struct CastlingInfo {
 };
 
 // Store castling rights
-struct CastlingRights : Wrapper<uint8_t, CastlingRights> {
+struct CastlingRights : public Wrapper<uint8_t, CastlingRights> {
     using Wrapper::Wrapper;
     constexpr CastlingRights(const board::ColouredPiece cp)
         : Wrapper::Wrapper{
@@ -214,6 +214,10 @@ struct CastlingRights : Wrapper<uint8_t, CastlingRights> {
         return value & (0b11 << 2 * static_cast<uint>(colour));
     }
 
+    constexpr static CastlingRights square_mask(board::ColouredPiece cp) {
+        return 1 << square_offset(cp);
+    }
+
     // TODO: test, and make it faster
     constexpr void set_castling_rights(board::ColouredPiece cp, bool rights) {
         *this &= ~CastlingRights{cp};          // clear bit
@@ -224,6 +228,8 @@ struct CastlingRights : Wrapper<uint8_t, CastlingRights> {
             set_castling_rights({.colour = colour, .piece = side}, rights);
         }
     }
+
+    constexpr static size_t max = 0b1111;
 
    private:
     // Helper: defines layout of castling rights bitset
@@ -465,7 +471,6 @@ struct AugmentedState {
     }
 
    private:
-    // board::Bitboard m_side_occupancy[board::n_colours];
     std::array<board::Bitboard, board::n_colours> m_side_occupancy;
 };
 

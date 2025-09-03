@@ -1,9 +1,11 @@
-#include "makemove.h"
+
+#include "libChest/makemove.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <chrono>
 #include <iostream>
 
+#include "libChest/debug.h"
 #include "libChest/eval.h"
 
 //
@@ -16,10 +18,11 @@
 // move generation logic decide the fastest way to get moves.
 constexpr size_t max_depth_limit = 7;
 
-#ifdef NDEBUG
-using TEval = eval::NullEval;
-#else  // ^ release build ^ / V debug build V
-using TEval = eval::DefaultEval;
+#ifdef DEBUG
+using TSearcher =
+    state::SearchNode<max_depth_limit, eval::DefaultEval, Zobrist>;
+#else
+using TSearcher = state::SearchNode<max_depth_limit>;
 #endif
 
 struct PerftTest {
@@ -47,11 +50,11 @@ void do_perft_test(const PerftTest &perft_case, size_t depth_limit) {
     for (size_t i = 0; i < perft_case.results.size() && i < depth_limit; i++) {
         std::cout << indent << indent << "perft(" << i << "): " << std::endl;
 
-        state::SearchNode<max_depth_limit, TEval> sn(mover, astate, i);
+        TSearcher sn(mover, astate, i);
 
         // Run perft
         auto start = std::chrono::steady_clock::now();
-        state::SearchNode<max_depth_limit, TEval>::PerftResult res = sn.perft();
+        auto res = sn.perft();
         auto end = std::chrono::steady_clock::now();
 
         // Timing info

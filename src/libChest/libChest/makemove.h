@@ -1,12 +1,14 @@
 #pragma once
 
 #include "board.h"
+#include "debug.h"
 #include "eval.h"
 #include "incremental.h"
 #include "move.h"
 #include "movegen.h"
 #include "state.h"
 #include "util.h"
+#include "zobrist.h"
 
 //
 // A basic class which composes:
@@ -362,14 +364,12 @@ struct SearchNode {
         }
 
 // Check state/eval are same before/after make-unmake
-#ifndef NDEBUG
-        std::string fen;
-        eval::centipawn_t eval;
-        state::State state = m_astate.state;
-        if (m_cur_depth == 0) {
-            fen = m_astate.state.to_fen();
-            // eval = get<>.eval();
-        }
+#ifdef DEBUG
+        // Get incremental info
+        eval::centipawn_t eval = get<eval::DefaultEval>().eval();
+        Zobrist hash = get<Zobrist>();
+        assert(eval == eval::DefaultEval(m_astate).eval());
+        assert(hash == Zobrist(m_astate));
 #endif
 
         MoveBuffer &moves = find_moves();
@@ -381,30 +381,15 @@ struct SearchNode {
                 PerftResult subtree_result = perft();
                 ret += subtree_result;
                 ret.nodes += 1;
+                assert(get<Zobrist>() == Zobrist(m_astate));
             }
 
             unmake_move();
 
-#ifndef NDEBUG
-            // Check incremental updates were reversed in unmake
-            if (m_cur_depth == 0) {
-                if (fen != m_astate.state.to_fen() ||
-                    m_astate.state.pretty() != state.pretty()) {
-                    std::cout << state.pretty();
-                    std::cout << state.to_fen() << std::endl;
-                    std::cout << m_astate.state.pretty();
-                    std::cout << m_astate.state.to_fen() << std::endl;
-                    ;
-                }
-                assert(m_astate.state.to_fen() == fen);
-                // assert(eval == m_eval.eval());
-                // assert(eval == TEval(m_astate).eval());
-
-                // If above below, check fresh evaluation is the same
-            } else {
-                // assert(m_eval.eval() == TEval(m_astate).eval());
-            }
-#endif
+            // Check moves were all unmade
+            assert(eval == get<eval::DefaultEval>().eval());
+            assert(hash == get<Zobrist>());
+            // And not copied
         }
 
         return ret;

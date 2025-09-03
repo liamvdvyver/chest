@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "libChest/debug.h"
 #include "libChest/eval.h"
 #include "libChest/makemove.h"
 #include "libChest/move.h"
@@ -55,7 +56,7 @@ struct UciCommand {
     enum class UciCommandType : uint8_t {
         UNRECOGNISED = 0,  // generally should be ignored.
         UCI,
-        DEBUG,
+        CONFIG_DEBUG,
         ISREADY,
         SETOPTION,
         REGISTER,
@@ -78,7 +79,7 @@ struct UciCommand {
         if (tkn == "uci") {
             return UciCommandType::UCI;
         } else if (tkn == "debug") {
-            return UciCommandType::DEBUG;
+            return UciCommandType::CONFIG_DEBUG;
         } else if (tkn == "isready") {
             return UciCommandType::ISREADY;
         } else if (tkn == "setoption") {
@@ -131,10 +132,10 @@ struct Globals {
 
     // When debug is true, send extra debug info to output
     static constexpr std::string debug_str = "debug ";
-#ifdef NDEBUG
-    bool debug = false
-#else
+#ifdef DEBUG
     bool debug = true
+#else
+    bool debug = false
 #endif
         ;
     std::ostream &output = std::cout;
@@ -202,7 +203,7 @@ class Engine {
                 tell_opts();
                 m_globals.output << "uciok" << std::endl;
                 break;
-            case UciCommand::UciCommandType::DEBUG:
+            case UciCommand::UciCommandType::CONFIG_DEBUG:
                 handle_debug(command);
                 break;
             case UciCommand::UciCommandType::ISREADY:
@@ -300,7 +301,11 @@ class Engine {
         }
         int depth = std::stoi(command.args.at(0));
 
-        state::SearchNode<MAX_DEPTH> sn{m_globals.mover, m_astate, depth};
+        // HACK: in makemove, should check if we have a matching element for
+        // debug state::SearchNode<MAX_DEPTH> sn{m_globals.mover, m_astate,
+        // depth};
+        state::SearchNode<MAX_DEPTH, eval::DefaultEval, Zobrist> sn{
+            m_globals.mover, m_astate, depth};
         size_t total = 0;
         sn.prep_search(depth);
         MoveBuffer &root_moves = sn.find_moves();
@@ -326,7 +331,8 @@ class Engine {
 
     void log_board(Globals::LogLevel level = Globals::LogLevel::CHEST_INFO) {
         m_globals.log(m_astate.state.to_fen().append("\n").append(
-            m_astate.state.pretty()));
+                          m_astate.state.pretty()),
+                      level);
     }
 
     std::optional<state::AugmentedState> handle_position(UciCommand command) {
