@@ -158,7 +158,7 @@ struct SearchNode {
         tick();
         m_cur_depth++;
         if (m_astate.state.ep_square.has_value()) {
-            remove_ep_sq(m_astate.state.ep_square.has_value());
+            remove_ep_sq(m_astate.state.ep_square.value());
         }
 
         // Find moved piece (avoid lookup if pawn move)
@@ -167,7 +167,7 @@ struct SearchNode {
 
         // Handle castles
         if (mv.type() == move::MoveType::CASTLE) {
-            m_astate.state.to_move = !m_astate.state.to_move;
+            set_to_move(!m_astate.state.to_move);
             m_made_moves.push_back(made);
             return castle(mv.from(), to_move);
         } else {
@@ -253,22 +253,10 @@ struct SearchNode {
     // Assumes the player to move is the one who made the move
     constexpr void reset(IrreversibleInfo info) {
         m_astate.state.halfmove_clock = info.halfmove_clock;
-        // TODO: do this better!
-        // Ideally, store just the bits that are different then xor.
-        // I.e. add a toggle castling rights to IncrementallyUpdateable.
-        for (board::Colour to_move : board::colours) {
-            for (board::Piece side : state::CastlingInfo::castling_sides) {
-                bool cur_right =
-                    m_astate.state.castling_rights.get_square_rights(
-                        {to_move, side});
-                bool new_right =
-                    info.castling_rights.get_square_rights({to_move, side});
-                if (cur_right ^ new_right) {
-                    toggle_castling_rights(CastlingRights{{to_move, side}});
-                }
-            }
-        }
-        // m_astate.state.castling_rights = info.castling_rights;
+        // TODO: consider storing inverse, not calculating here.
+        const state::CastlingRights cur_rights = m_astate.state.castling_rights;
+        const state::CastlingRights new_rights = info.castling_rights;
+        toggle_castling_rights(cur_rights ^ new_rights);
         if (m_astate.state.ep_square.has_value()) {
             remove_ep_sq(m_astate.state.ep_square.value());
         }
