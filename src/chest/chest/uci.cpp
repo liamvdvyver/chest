@@ -169,10 +169,14 @@ void Go::movestogo_impl(const std::string_view keyword,
                         std::stringstream &args) {
     return parse_field(keyword, args, m_tc.to_go);
 }
+void Go::movetime_impl(const std::string_view keyword,
+                       std::stringstream &args) {
+    return parse_field(keyword, args, m_tc.movetime);
+}
 
 bool Go::sufficient_args() const {
     const board::Colour to_move = m_engine->m_astate.state.to_move;
-    return m_tc.copy_remaining(to_move);
+    return m_tc.movetime || m_tc.copy_remaining(to_move);
 };
 
 std::optional<int> Go::execute() {

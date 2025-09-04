@@ -11,8 +11,10 @@ namespace search {
 
 using ms_t = uint64_t;
 
+// If movetime is set -> time manager shouldn't decide how long to think.
 struct TimeControl {
     constexpr TimeControl() = default;
+    constexpr TimeControl(ms_t movetime) : movetime(movetime) {}
     constexpr TimeControl(ms_t b_remaining, ms_t w_remaining, ms_t b_increment,
                           ms_t w_increment, size_t to_go = 0)
         : to_go(to_go),
@@ -20,6 +22,7 @@ struct TimeControl {
           m_increment{b_increment, w_increment} {};
 
     size_t to_go = 0;
+    ms_t movetime = 0;
     constexpr ms_t &remaining(board::Colour colour) {
         return m_remaining[(int)colour];
     };
@@ -66,14 +69,18 @@ class EqualTimeManager {
 
 // Choose between two EqualTimeManagers, depending on whether there is another
 // time control left, or it is sudden death.
+// If movetime is set, return it back.
+// Apply a buffer to the returned time to account for IPC/setup latency.
 template <StaticTimeManager TNormalTimeManager,
-          StaticTimeManager TSuddenDeathTimeManager>
+          StaticTimeManager TSuddenDeathTimeManager, ms_t buffer>
 class SuddenDeathTimeManager {
    public:
     constexpr ms_t operator()(const TimeControl &tc,
                               const board::Colour to_move) const {
-        return tc.to_go ? m_normal_mgr(tc, to_move)
-                        : m_suddendeath_mgr(tc, to_move);
+        const ms_t target_time = tc.movetime ? tc.movetime
+                                 : tc.to_go  ? m_normal_mgr(tc, to_move)
+                                             : m_suddendeath_mgr(tc, to_move);
+        return target_time > buffer ? target_time - buffer : 0;
     }
 
    private:
@@ -84,10 +91,11 @@ class SuddenDeathTimeManager {
 static constexpr ms_t DefaultRemainingProp = 20;
 static constexpr ms_t DefaultIncProp = 20;
 static constexpr ms_t DefaultSuddenDeathProp = 45;
+static constexpr ms_t DefaultBuffer = 20;
 
 using DefaultTimeManager = search::SuddenDeathTimeManager<
     search::EqualTimeManager<DefaultRemainingProp, DefaultIncProp>,
-    EqualTimeManager<DefaultSuddenDeathProp, 1>>;
+    EqualTimeManager<DefaultSuddenDeathProp, 1>, DefaultBuffer>;
 
 }  // namespace search
 static_assert(search::StaticTimeManager<search::DefaultTimeManager>);

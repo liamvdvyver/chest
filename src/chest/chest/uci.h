@@ -97,6 +97,10 @@ class Go : public EngineCommand {
             [this](const std::string_view keyword, std::stringstream &args
 
             ) { return this->movestogo_impl(keyword, args); };
+        m_fields["movetime"] = [this](const std::string_view keyword,
+                                      std::stringstream &args
+
+                               ) { return this->movetime_impl(keyword, args); };
     }
     std::optional<int> execute() override;
     bool sufficient_args() const override;
@@ -112,6 +116,8 @@ class Go : public EngineCommand {
 
     void movestogo_impl(const std::string_view keyword,
                         std::stringstream &args);
+
+    void movetime_impl(const std::string_view keyword, std::stringstream &args);
 
     search::TimeControl m_tc{};
 };
