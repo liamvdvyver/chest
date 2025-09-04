@@ -15,7 +15,11 @@ add_library(libChest
 )
 target_include_directories(libChest PUBLIC libChest)
 
-add_executable(chest chest/chest/chest.cpp)
+file(GLOB CHEST
+    chest/chest/*.h
+    chest/chest/*.cpp
+)
+add_executable(chest ${CHEST})
 target_link_libraries(chest libChest)
 
 # Formatting

@@ -4,7 +4,7 @@
 
 // If x86 pext instruction is present,
 // it is used for generating precomputed attack keys.
-#if __has_include(<immintrin.h>)
+#if defined(__BMI2__)
 #define USE_PEXT
 #include <immintrin.h>
 #endif
@@ -563,7 +563,7 @@ class MagicAttacker {
         board::Bitboard mask = m_masks[sq];
         return _pext_u64((board::bitboard_t)occ, (board::bitboard_t)mask);
 #else
-        return get_magic_key(sq, occ, m_magics[sq]);
+        return attack_map_key(sq, occ, m_magics[sq]);
 #endif
     };
 
