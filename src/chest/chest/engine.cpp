@@ -7,7 +7,7 @@ bool EngineCommand::parse(const std::string_view keyword,
         if (!m_fields.contains(cur_tkn)) {
             bad_arg(keyword, cur_tkn);
         } else {
-            m_fields[cur_tkn](args, *m_engine);
+            m_fields[cur_tkn](cur_tkn, args);
         }
     }
     return sufficient_args();
@@ -20,14 +20,14 @@ void EngineCommand::bad_arg(const std::string_view keyword,
     msg.append(": ");
     msg.append(tkn);
     msg.push_back('\n');
-    m_engine->log(msg);
+    m_engine->log(msg, LogLevel::ENGINE_WARN);
 }
 
 void EngineCommand::bad_usage(const std::string_view input) const {
     std::string msg = "invalid usage: ";
     msg.append(input);
     msg.push_back('\n');
-    m_engine->log(msg);
+    m_engine->log(msg, LogLevel::ENGINE_WARN);
 }
 
 std::optional<int> GenericEngine::run() {
@@ -36,11 +36,18 @@ std::optional<int> GenericEngine::run() {
     getline(*m_input, input);
     std::stringstream ss{input};
     std::string keyword;
-    ss >> keyword;
 
     // Parse first keyword
+    while (ss >> keyword) {
+        if (!m_commands.count(keyword)) {
+            bad_command(keyword);
+        } else {
+            break;
+        }
+    }
+
+    // Return if no valid keyword
     if (!m_commands.count(keyword)) {
-        bad_command(keyword);
         return {};
     }
 
@@ -58,10 +65,28 @@ std::optional<int> GenericEngine::run() {
     return cmd->execute();
 }
 
-void GenericEngine::log(const std::string_view &msg,
-                        const LogLevel level) const {
-    (void)level;
+void GenericEngine::log(const std::string_view &msg, const LogLevel level,
+                        bool flush) const {
+    switch (level) {
+        case LogLevel::ENGINE_INFO:
+            if (!m_debug) {
+                return;
+            }
+            *m_output << "[INFO]: ";
+            break;
+        case LogLevel::ENGINE_WARN:
+            *m_output << "[WARN]: ";
+            break;
+        case LogLevel::ENGINE_ERR:
+            *m_output << "[ERROR]: ";
+            break;
+        default:
+            break;
+    }
     *m_output << msg;
+    if (flush) {
+        *m_output << std::flush;
+    }
 }
 
 void GenericEngine::bad_command(const std::string_view cmd) const {

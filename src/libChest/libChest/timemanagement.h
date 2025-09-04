@@ -12,17 +12,18 @@ namespace search {
 using ms_t = uint64_t;
 
 struct TimeControl {
+    constexpr TimeControl() = default;
     constexpr TimeControl(ms_t b_remaining, ms_t w_remaining, ms_t b_increment,
                           ms_t w_increment, size_t to_go = 0)
         : to_go(to_go),
           m_remaining{b_remaining, w_remaining},
           m_increment{b_increment, w_increment} {};
 
-    size_t to_go;
-    constexpr ms_t &get_remaining(board::Colour colour) {
+    size_t to_go = 0;
+    constexpr ms_t &remaining(board::Colour colour) {
         return m_remaining[(int)colour];
     };
-    constexpr ms_t &get_increment(board::Colour colour) {
+    constexpr ms_t &increment(board::Colour colour) {
         return m_increment[(int)colour];
     };
     constexpr ms_t copy_remaining(board::Colour colour) const {
@@ -33,8 +34,8 @@ struct TimeControl {
     };
 
    private:
-    std::array<ms_t, board::n_colours> m_remaining;
-    std::array<ms_t, board::n_colours> m_increment;
+    std::array<ms_t, board::n_colours> m_remaining{0, 0};
+    std::array<ms_t, board::n_colours> m_increment{0, 0};
 };
 
 // StaticTimeManager is a functor which suggests the time to think

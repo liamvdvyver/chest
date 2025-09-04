@@ -1,3 +1,5 @@
+#pragma once
+
 // Generic classes for defining an engine.
 // Designed for UCI, should generalise to other protocols.
 // See uci.h for uci specific code.
@@ -8,19 +10,21 @@
 #include <optional>
 #include <sstream>
 
+#include "libChest/debug.h"
+#include "libChest/movegen.h"
 #include "libChest/search.h"
+
+constexpr size_t MAX_DEPTH = 64;
 
 class GenericEngine;
 
 class EngineCommand {
    public:
-    using FieldParser =
-        std::function<void(std::stringstream &args, GenericEngine &engine)>;
+    using FieldParser = std::function<void(const std::string_view keyword,
+                                           std::stringstream &args)>;
 
     // Pass fields to construct (in derived class one-arg constructor)
-    EngineCommand(GenericEngine *engine,
-                  std::map<std::string, FieldParser> fields)
-        : m_fields(std::move(fields)), m_engine(engine) {};
+    EngineCommand(GenericEngine *engine) : m_engine(engine) {};
     EngineCommand(const EngineCommand &) = default;
     EngineCommand(EngineCommand &&) = delete;
     EngineCommand &operator=(const EngineCommand &) = default;
@@ -45,7 +49,7 @@ class EngineCommand {
     GenericEngine *m_engine;
 
     // After parse(): were the parse: arguments sufficient to execute()?.
-    virtual bool sufficient_args() = 0;
+    virtual bool sufficient_args() const { return true; };
 };
 
 enum class LogLevel : uint8_t {
@@ -56,13 +60,14 @@ enum class LogLevel : uint8_t {
     ENGINE_ERR,     // Internal error
 };
 
-class GenericEngine : search::StatReporter {
+class GenericEngine : public search::StatReporter {
    protected:
     using CommandFactory = std::function<std::unique_ptr<EngineCommand>()>;
 
    public:
+    friend EngineCommand;
     // Pass commands to construct (in derived class no-arg constructor)
-    GenericEngine(std::map<std::string, CommandFactory> commands)
+    GenericEngine(std::unordered_map<std::string, CommandFactory> &&commands)
         : m_commands(std::move(commands)) {}
 
     // Special members
@@ -77,15 +82,18 @@ class GenericEngine : search::StatReporter {
     virtual std::optional<int> run();
 
     virtual void log(const std::string_view &msg,
-                     const LogLevel level = LogLevel::ENGINE_INFO) const;
+                     const LogLevel level = LogLevel::ENGINE_INFO,
+                     bool flush = false) const;
 
-   protected:
     std::istream *m_input = &std::cin;
     std::ostream *m_output = &std::cout;
     state::AugmentedState m_astate{};
-
-    std::map<std::string, CommandFactory> m_commands;
+    move::movegen::AllMoveGenerator<> m_mover{};
+    bool m_debug = DEBUG();
 
     void bad_command(const std::string_view cmd) const;
     void bad_command_args(const std::string_view input) const;
+
+   protected:
+    std::unordered_map<std::string, CommandFactory> m_commands;
 };
