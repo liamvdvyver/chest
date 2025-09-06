@@ -1,14 +1,14 @@
+//============================================================================//
+// Operator-forwarding struct wrappers for primitive types
+//============================================================================//
+
 #pragma once
 
 // Wrap a base type with a single-member struct, providing:
-//
 // * private "value" field of base type
-// * (explicit) conversion operator to base type or bool is allowed
+// * (explicit) conversion operator to base type or bool
 // * one arg (value)/no-arg (default initialisation of value field) c'tors
 // * overload operators of a wrapper based on the operators of a wrapper type
-//
-// By inheriting from the Wrapper type the derived Wrapper type can be used
-// (mostly) interchangeable with T.
 template <typename T, typename WrapperType>
 struct Wrapper {
     // Make value available to derived WrapperType

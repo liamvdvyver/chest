@@ -1,3 +1,9 @@
+//============================================================================//
+// Generic classes for defining an engine.
+// Designed for UCI, should generalise to other protocols.
+// See uci.h for uci specific code.
+//============================================================================//
+
 #include "engine.h"
 
 bool EngineCommand::parse(const std::string_view keyword,
@@ -66,7 +72,7 @@ std::optional<int> GenericEngine::run() {
 }
 
 void GenericEngine::log(const std::string_view &msg, const LogLevel level,
-                        bool flush) const {
+                        const bool flush) const {
     switch (level) {
         case LogLevel::ENGINE_INFO:
             if (!m_debug) {

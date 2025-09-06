@@ -1,13 +1,13 @@
-#include "board.h"
-
-//
-// Defines IO for board state
+//============================================================================//
+// IO for board state
 // all other code is contexpr in the main module.
-//
+//============================================================================//
+
+#include "board.h"
 
 board::Square board::io::to_square(const alg_t &sq) {
     if (sq.length() != 2) {
-        std::invalid_argument("Coord(const alg_t &)");
+        throw std::invalid_argument("Coord(const alg_t &)");
     }
 
     int rank = (tolower(sq.at(0)) - 'a');
@@ -17,14 +17,14 @@ board::Square board::io::to_square(const alg_t &sq) {
         throw std::invalid_argument("to_square(const alg_t &)");
     };
 
-    return Square(rank, file);
+    return {static_cast<coord_t>(rank), static_cast<coord_t>(file)};
 }
 
 board::io::alg_t board::io::algebraic(const board::Square sq) {
     board::io::alg_t ret = "";
 
-    ret += sq.file() + 'a';
-    ret += sq.rank() + '1';
+    ret += (static_cast<char>(sq.file()) + 'a');
+    ret += (static_cast<char>(sq.rank()) + '1');
 
     return ret;
 }

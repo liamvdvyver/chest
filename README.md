@@ -15,14 +15,15 @@ The engine supports:
 Library design:
 
 - Header-only (except IO) core engine (`libChess`)
-    - Templates/static polymorphism favoured (not a vtable in sight except for logging)
-    - See e.g. `makemove.h` and `incremental.h`
+  - Templates/static polymorphism favoured (not a vtable in sight except for logging)
+  - See e.g. `makemove.h` and `incremental.h`
 - General-purpose "frontend" design (see `engine.h`) with UCI implementation (see `UCI.h`)
-    - May support other protocols
+  - May support other protocols
 
 # Build
 
-Run `cmake . && cmake --build .` from clone directory.
+If on x64: Run `cmake --build build/release-native` to build the release version.
+On other platforms: remove or modify `CmakePresets.json` and build.
 
 Uses catch2 for tests.
 

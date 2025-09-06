@@ -1,11 +1,16 @@
+//============================================================================//
+// Implementation of GenericEngine for the UCI protocol.
+//============================================================================//
 
 #pragma once
-
-#include <string>
 
 #include "engine.h"
 #include "libChest/state.h"
 #include "libChest/timemanagement.h"
+
+//============================================================================//
+// Commands
+//============================================================================//
 
 class UCICheck : public EngineCommand {
    public:
@@ -56,12 +61,9 @@ class Position : public EngineCommand {
     std::optional<int> execute() override;
 
    private:
-    // GOOd BNEW
     void fen_impl(const std::string_view keyword, std::stringstream &args);
     void moves_impl(const std::string_view keyword, std::stringstream &args);
-
     void startpos_impl(const std::string_view keyword, std::stringstream &args);
-
     void curpos_impl(const std::string_view keyword, std::stringstream &args);
 
     std::vector<std::string> m_moves{};
@@ -101,26 +103,38 @@ class Go : public EngineCommand {
                                       std::stringstream &args
 
                                ) { return this->movetime_impl(keyword, args); };
+        m_fields["perft"] = [this](const std::string_view keyword,
+                                   std::stringstream &args
+
+                            ) { return this->perft_impl(keyword, args); };
     }
     std::optional<int> execute() override;
     bool sufficient_args() const override;
 
    private:
+    // std::optional<size_t> m_perft_depth{};
+    size_t m_perft_depth = 0;
+
     void parse_field(const std::string_view keyword, std::stringstream &args,
                      auto &field);
     void inc_impl(const std::string_view keyword, std::stringstream &args,
                   board::Colour to_move);
-
     void time_impl(const std::string_view keyword, std::stringstream &args,
                    board::Colour to_move);
-
     void movestogo_impl(const std::string_view keyword,
                         std::stringstream &args);
-
     void movetime_impl(const std::string_view keyword, std::stringstream &args);
+    void perft_impl(const std::string_view keyword, std::stringstream &args);
+
+    std::optional<int> search_impl();
+    std::optional<int> perft_impl();
 
     search::TimeControl m_tc{};
 };
+
+//============================================================================//
+// Main engine
+//============================================================================//
 
 class UCIEngine : public GenericEngine {
    public:
@@ -139,8 +153,8 @@ class UCIEngine : public GenericEngine {
     void log(const std::string_view &msg, const LogLevel level,
              bool flush) const override;
 
-    void report(int depth, eval::centipawn_t eval, size_t nodes,
-                std::chrono::duration<double> time,
-                const svec<move::FatMove, MaxMoves> &pv,
+    void report(const size_t depth, const eval::centipawn_t eval,
+                const size_t nodes, const std::chrono::duration<double> time,
+                const MoveBuffer &pv,
                 const state::AugmentedState &astate) const override;
 };

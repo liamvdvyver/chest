@@ -1,3 +1,17 @@
+//============================================================================//
+// Uniform interface for types which support incremental updates:
+//
+// As moves are made/unmade during the process of search, many different
+// structures (i.e. occupancy, hashes, eval, etc.) might be able to be
+// incrementally updated.
+//
+// Any such structure must support the following standard incremental
+// operations, then, they can be made/unmade.
+//
+// The updates are assumed valid,
+// i.e. pieces exist at the locations they are moved from, etc.
+//============================================================================//
+
 #pragma once
 
 #include <concepts>
@@ -5,16 +19,6 @@
 #include "board.h"
 #include "state.h"
 
-//
-// Types which support incremental updates.
-//
-
-// As moves are made/unmade during the process of search, many different
-// structures (i.e. occupancy, hashes, eval, etc.) might be able to be
-// incrementally updated.
-//
-// Any such structure must support the following standard incremental
-// operations, then, they can be made/unmade.
 template <typename T>
 concept IncrementallyUpdateable = requires(
     T t, const board::Bitboard from, const board::Bitboard to,
@@ -22,6 +26,7 @@ concept IncrementallyUpdateable = requires(
     const board::Colour colour, const board::Piece piece,
     const board::ColouredPiece cp, const state::CastlingRights rights) {
     // State should be initialised from AugmentedState.
+    // See makemove.h
     { std::constructible_from<state::AugmentedState> };
 
     // Change a piece's location on the same bitboard
@@ -50,61 +55,75 @@ concept IncrementallyUpdateable = requires(
     { t.add_ep_sq(ep_sq) } -> std::same_as<void>;
     { t.remove_ep_sq(ep_sq) } -> std::same_as<void>;
 
+    // TODO: replace with toggle_to_move
     { t.set_to_move(colour) } -> std::same_as<void>;
 };
+
+// Since we rely on state.h, check the types within here.
+static_assert(IncrementallyUpdateable<state::State>);
+static_assert(IncrementallyUpdateable<state::AugmentedState>);
 
 // When a type receives updates, but it is not favourable to incrementally
 // update, ignore updates.
 template <typename T>
 class IgnoreUpdates {
    public:
-    constexpr void add(board::Bitboard loc, board::ColouredPiece cp) const {
+    constexpr void add(const board::Bitboard loc,
+                       board::ColouredPiece cp) const {
         (void)loc;
         (void)cp;
-    };
-    constexpr void remove(board::Bitboard loc, board::ColouredPiece cp) const {
+    }
+
+    constexpr void remove(const board::Bitboard loc,
+                          board::ColouredPiece cp) const {
         (void)loc;
         (void)cp;
-    };
-    constexpr void move(board::Bitboard from, board::Bitboard to,
-                        board::ColouredPiece cp) const {
+    }
+
+    constexpr void move(const board::Bitboard from, board::Bitboard to,
+                        const board::ColouredPiece cp) const {
         (void)from;
         (void)to;
         (void)cp;
-    };
-    constexpr void swap(board::Bitboard loc, board::ColouredPiece from,
-                        board::ColouredPiece to) const {
+    }
+
+    constexpr void swap(const board::Bitboard loc, board::ColouredPiece from,
+                        const board::ColouredPiece to) const {
         (void)loc;
         (void)from;
         (void)to;
-    };
-    constexpr void swap_oppside(board::Bitboard loc, board::ColouredPiece from,
-                                board::ColouredPiece to) const {
+    }
+
+    constexpr void swap_oppside(const board::Bitboard loc,
+                                board::ColouredPiece from,
+                                const board::ColouredPiece to) const {
         (void)loc;
         (void)from;
         (void)to;
-    };
-    constexpr void swap_sameside(board::Bitboard loc, board::Colour side,
-                                 board::Piece from, board::Piece to) const {
+    }
+
+    constexpr void swap_sameside(const board::Bitboard loc, board::Colour side,
+                                 const board::Piece from,
+                                 board::Piece to) const {
         (void)loc;
         (void)side;
         (void)from;
         (void)to;
-    };
+    }
 
-    // Castling is only handled via toggles
     constexpr void toggle_castling_rights(state::CastlingRights rights) {
         (void)rights;
     }
 
-    constexpr void add_ep_sq(board::Square ep_sq) const { (void)ep_sq; }
-    constexpr void remove_ep_sq(board::Square ep_sq) const { (void)ep_sq; }
+    constexpr void add_ep_sq(const board::Square ep_sq) const { (void)ep_sq; }
+    constexpr void remove_ep_sq(const board::Square ep_sq) const {
+        (void)ep_sq;
+    }
 
     constexpr void set_to_move(const board::Colour to_move) const {
         (void)to_move;
     }
 };
-static_assert(IncrementallyUpdateable<IgnoreUpdates<int>>);
 
-static_assert(IncrementallyUpdateable<state::State>);
-static_assert(IncrementallyUpdateable<state::AugmentedState>);
+// Checks
+static_assert(IncrementallyUpdateable<IgnoreUpdates<int>>);

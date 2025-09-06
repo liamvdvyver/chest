@@ -1,3 +1,7 @@
+//============================================================================//
+// Implementation of GenericEngine for the UCI protocol.
+//============================================================================//
+
 #include "uci.h"
 
 #include <cstdlib>
@@ -6,11 +10,11 @@
 
 #include "engine.h"
 #include "libChest/makemove.h"
+#include "libChest/move.h"
 #include "libChest/state.h"
 #include "libChest/timemanagement.h"
 
-// Free helper
-
+// Helper
 void display_state(const GenericEngine &engine) {
     std::string state_str = engine.m_astate.state.pretty();
     state_str.append(engine.m_astate.state.to_fen());
@@ -21,7 +25,11 @@ void display_state(const GenericEngine &engine) {
     }
 }
 
-// UCICheck
+//============================================================================//
+// Commands
+//============================================================================//
+
+//-- UCICheck ----------------------------------------------------------------//
 
 void UCICheck::identify() {
     std::string name_msg = "id name ";
@@ -40,14 +48,14 @@ std::optional<int> UCICheck::execute() {
     return {};
 };
 
-// IsReady
+//-- ISReady -----------------------------------------------------------------//
 
 std::optional<int> ISReady::execute() {
     m_engine->log("readyok\n", LogLevel::RAW_MESSAGE);
     return {};
 };
 
-// DebugConfig
+//-- DebugConfig -------------------------------------------------------------//
 
 bool DebugConfig::parse(const std::string_view keyword,
                         std::stringstream &args) {
@@ -65,7 +73,8 @@ bool DebugConfig::parse(const std::string_view keyword,
 };
 std::optional<int> DebugConfig::execute() { return {}; };
 
-// Position
+//-- Position ----------------------------------------------------------------//
+
 void Position::moves_impl(const std::string_view keyword,
                           std::stringstream &args) {
     (void)keyword;
@@ -115,8 +124,8 @@ std::optional<int> Position::execute() {
     state::SearchNode<1> sn{m_engine->m_mover, m_astate.value(), 0};
 
     for (const std::string &move : m_moves) {
-        std::optional<move::FatMove> fmove =
-            move::LongAlgMove(move).to_fmove(sn.m_astate);
+        const std::optional<move::FatMove> fmove =
+            move::LongAlgMove(move).to_fmove(sn.get_astate());
         if (!fmove.has_value()) {
             return false;
         }
@@ -125,7 +134,7 @@ std::optional<int> Position::execute() {
         sn.make_move(fmove.value());
     }
 
-    m_engine->m_astate = sn.m_astate;
+    m_engine->m_astate = sn.get_astate();
 
     if (m_engine->m_debug) {
         display_state(*m_engine);
@@ -134,12 +143,12 @@ std::optional<int> Position::execute() {
     return {};
 }
 
-// Quit
+//-- Quit --------------------------------------------------------------------//
+
 std::optional<int> Quit::execute() { return {EXIT_SUCCESS}; };
 
-// Go
+//-- Go ----------------------------------------------------------------------//
 
-// TODO: check if need template<typename T>
 void Go::parse_field(const std::string_view keyword, std::stringstream &args,
                      auto &field) {
     std::string arg;
@@ -169,17 +178,60 @@ void Go::movestogo_impl(const std::string_view keyword,
                         std::stringstream &args) {
     return parse_field(keyword, args, m_tc.to_go);
 }
+
 void Go::movetime_impl(const std::string_view keyword,
                        std::stringstream &args) {
     return parse_field(keyword, args, m_tc.movetime);
 }
 
+void Go::perft_impl(const std::string_view keyword, std::stringstream &args) {
+    return parse_field(keyword, args, m_perft_depth);
+}
+
 bool Go::sufficient_args() const {
     const board::Colour to_move = m_engine->m_astate.state.to_move;
-    return m_tc.movetime || m_tc.copy_remaining(to_move);
-};
+    return m_tc.movetime || m_tc.copy_remaining(to_move) || m_perft_depth;
+}
 
 std::optional<int> Go::execute() {
+    return m_perft_depth ? perft_impl() : search_impl();
+}
+
+std::optional<int> Go::perft_impl() {
+    state::PerftNode<MAX_DEPTH> sn{m_engine->m_mover, m_engine->m_astate,
+                                   m_perft_depth};
+    const auto moves = sn.find_moves();
+    size_t perft = 0;
+
+    for (auto m : moves) {
+        if (sn.make_move(m)) {
+            const auto mv_res = sn.perft().perft;
+            perft += mv_res;
+
+            // Need to_move to reset to convert castles to long algebraic
+            // notation correctly
+            sn.unmake_move();
+
+            std::string partial_msg =
+                static_cast<std::string>(move::LongAlgMove(m, sn.get_astate()));
+            partial_msg.append(": ");
+            partial_msg.append(std::to_string(mv_res));
+            partial_msg.push_back('\n');
+
+            m_engine->log(partial_msg, LogLevel::ENGINE_INFO);
+        } else {
+            sn.unmake_move();
+        }
+    }
+
+    std::string msg = "Result: ";
+    msg.append(std::to_string(perft));
+    msg.push_back('\n');
+    m_engine->log(msg, LogLevel::ENGINE_INFO);
+    return {};
+};
+
+std::optional<int> Go::search_impl() {
     // Types used for searching.
     // Could template at engine level.
     using EvalTp = eval::DefaultEval;
@@ -190,20 +242,21 @@ std::optional<int> Go::execute() {
     // Calculate stop time
     // TODO: add buffer to account for parsing time
     // Maybe in parse(): record time message came in.
-    TimeManagerTp time_manager{};
+    const TimeManagerTp time_manager{};
     state::AugmentedState &eng_astate = m_engine->m_astate;
-    search::ms_t search_time = time_manager(m_tc, eng_astate.state.to_move);
+    const search::ms_t search_time =
+        time_manager(m_tc, eng_astate.state.to_move);
 
     // TODO:consider making searcher member of engine rather than dynamically
     // allocating.
-    DlSearcherTp nega(m_engine->m_mover, eng_astate, MAX_DEPTH);
+    DlSearcherTp nega(m_engine->m_mover, eng_astate);
 
-    std::chrono::time_point<std::chrono::steady_clock> finish_time =
+    const std::chrono::time_point<std::chrono::steady_clock> finish_time =
         std::chrono::steady_clock::now() +
         std::chrono::milliseconds(search_time);
 
     SearcherTp idsearcher{eng_astate, nega, *m_engine};
-    move::FatMove best = idsearcher.search(finish_time).best_move;
+    const move::FatMove best = idsearcher.search(finish_time).best_move;
 
     std::string msg = "bestmove ";
     msg.append((move::long_alg_t)move::LongAlgMove(best, eng_astate));
@@ -212,7 +265,9 @@ std::optional<int> Go::execute() {
     return {};
 };
 
+//============================================================================//
 // Main engine
+//============================================================================//
 
 void UCIEngine::log(const std::string_view &msg, const LogLevel level,
                     bool flush) const {
@@ -223,6 +278,10 @@ void UCIEngine::log(const std::string_view &msg, const LogLevel level,
         case LogLevel::PROTOCOL_INFO:
             log(info_str, LogLevel::RAW_MESSAGE, false);
             break;
+        case LogLevel::ENGINE_INFO:
+            if (!m_debug) {
+                return;
+            }  // else fallthrough
         default:
             info_str.append("string ");
             log(info_str, LogLevel::RAW_MESSAGE, false);
@@ -231,9 +290,10 @@ void UCIEngine::log(const std::string_view &msg, const LogLevel level,
     return GenericEngine::log(msg, level, flush);
 };
 
-void UCIEngine::report(int depth, eval::centipawn_t eval, size_t nodes,
-                       std::chrono::duration<double> time,
-                       const svec<move::FatMove, MaxMoves> &pv,
+void UCIEngine::report(const size_t depth, const eval::centipawn_t eval,
+                       const size_t nodes,
+                       const std::chrono::duration<double> time,
+                       const MoveBuffer &pv,
                        const state::AugmentedState &astate) const {
     constexpr static uint64_t ms_per_s = 1000;
     std::string info_string;
@@ -252,7 +312,8 @@ void UCIEngine::report(int depth, eval::centipawn_t eval, size_t nodes,
     info_string += " time ";
     info_string += std::to_string((uint64_t)(time.count() * ms_per_s));
     info_string += " nps ";
-    info_string += std::to_string((uint64_t)(nodes / time.count()));
+    info_string +=
+        std::to_string((uint64_t)(static_cast<double>(nodes) / time.count()));
     info_string += " pv";
 
     for (const move::FatMove fmove : pv) {

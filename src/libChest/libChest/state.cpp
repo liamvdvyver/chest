@@ -1,14 +1,12 @@
+//============================================================================//
+// IO for game state,
+// all other code is contexpr in the main module.
+//============================================================================//
+
 #include "state.h"
 
 #include <string>
 #include <vector>
-
-#include "board.h"
-
-//
-// Defines IO for game state
-// all other code is contexpr in the main module.
-//
 
 namespace state {
 
@@ -22,15 +20,15 @@ State::State(const fen_t &fen_string) : State::State() {
     size_t offset = 0;
     char delim = ' ';
 
-    do {
+    while (offset != std::string::npos) {
         offset = fen_string.substr(curIdx, len).find(delim);
-        if ((size_t)offset == std::string::npos) {
+        if (offset == std::string::npos) {
             parts.push_back(fen_string.substr(curIdx));
         } else {
             parts.push_back(fen_string.substr(curIdx, offset));
         }
         curIdx += (offset + 1);
-    } while ((size_t)offset != std::string::npos);
+    }
 
     if (parts.size() != n_fen_fields)
         throw std::invalid_argument("FEN string must have 6 fields.");
@@ -62,7 +60,7 @@ State::State(const fen_t &fen_string) : State::State() {
             get_bitboard({.colour = colour, .piece = piece}) |=
                 board::Bitboard(board::Square(colIdx, rowIdx));
             colIdx++;
-        };
+        }
     }
 
     // Parse the rest
@@ -151,7 +149,7 @@ std::string State::pretty() const {
         ret += "\n";
     }
     return ret;
-};
+}
 
 std::string State::to_fen() const {
     std::string ret = "";
@@ -162,19 +160,19 @@ std::string State::to_fen() const {
 
     // Castling rights
     if (castling_rights.get_square_rights(
-            {.colour=board::Colour::WHITE, .piece=board::Piece::KING})) {
+            {.colour = board::Colour::WHITE, .piece = board::Piece::KING})) {
         ret += 'K';
     }
     if (castling_rights.get_square_rights(
-            {.colour=board::Colour::WHITE, .piece=board::Piece::QUEEN})) {
+            {.colour = board::Colour::WHITE, .piece = board::Piece::QUEEN})) {
         ret += 'Q';
     }
     if (castling_rights.get_square_rights(
-            {.colour=board::Colour::BLACK, .piece=board::Piece::KING})) {
+            {.colour = board::Colour::BLACK, .piece = board::Piece::KING})) {
         ret += 'k';
     }
     if (castling_rights.get_square_rights(
-            {.colour=board::Colour::BLACK, .piece=board::Piece::QUEEN})) {
+            {.colour = board::Colour::BLACK, .piece = board::Piece::QUEEN})) {
         ret += 'q';
     }
     ret += ' ';
@@ -192,10 +190,10 @@ std::string State::to_fen() const {
     ret + std::to_string(fullmove_number);
 
     return ret;
-};
+}
 
 std::ostream &operator<<(std::ostream &os, const State s) {
     return (os << s.pretty());
-};
+}
 
 }  // namespace state

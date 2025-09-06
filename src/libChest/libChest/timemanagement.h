@@ -1,39 +1,52 @@
+//============================================================================//
+// Time management for search
+//============================================================================//
+
 #pragma once
 
-#include <libChest/board.h>
-#include <libChest/state.h>
-
-#include <concepts>
-#include <cstddef>
-#include <cstdint>
+#include "board.h"
+#include "state.h"
 
 namespace search {
 
+// All calculations done during ms, in line with protocols.
 using ms_t = uint64_t;
 
-// If movetime is set -> time manager shouldn't decide how long to think.
+//============================================================================//
+// Time controls
+//============================================================================//
+
+// Contains information regarding the remaining time, increment, moves to next
 struct TimeControl {
     constexpr TimeControl() = default;
-    constexpr TimeControl(ms_t movetime) : movetime(movetime) {}
-    constexpr TimeControl(ms_t b_remaining, ms_t w_remaining, ms_t b_increment,
-                          ms_t w_increment, size_t to_go = 0)
+    constexpr TimeControl(const ms_t movetime) : movetime(movetime) {}
+    constexpr TimeControl(const ms_t b_remaining, const ms_t w_remaining,
+                          const ms_t b_increment, const ms_t w_increment,
+                          const size_t to_go = 0)
         : to_go(to_go),
           m_remaining{b_remaining, w_remaining},
           m_increment{b_increment, w_increment} {};
 
+    // Moves till next time control.
+    // If zero, sudden death (no more time controls).
     size_t to_go = 0;
+
+    // If movetime is set -> time manager shouldn't decide how long to think.
     ms_t movetime = 0;
-    constexpr ms_t &remaining(board::Colour colour) {
-        return m_remaining[(int)colour];
+
+    // Accessors
+
+    constexpr ms_t &remaining(const board::Colour colour) {
+        return m_remaining[static_cast<size_t>(colour)];
     };
-    constexpr ms_t &increment(board::Colour colour) {
-        return m_increment[(int)colour];
+    constexpr ms_t &increment(const board::Colour colour) {
+        return m_increment[static_cast<size_t>(colour)];
     };
-    constexpr ms_t copy_remaining(board::Colour colour) const {
-        return m_remaining[(int)colour];
+    constexpr ms_t copy_remaining(const board::Colour colour) const {
+        return m_remaining[static_cast<size_t>(colour)];
     };
-    constexpr ms_t copy_increment(board::Colour colour) const {
-        return m_increment[(int)colour];
+    constexpr ms_t copy_increment(const board::Colour colour) const {
+        return m_increment[static_cast<size_t>(colour)];
     };
 
    private:
@@ -41,8 +54,12 @@ struct TimeControl {
     std::array<ms_t, board::n_colours> m_increment{0, 0};
 };
 
-// StaticTimeManager is a functor which suggests the time to think
-// based on time control remaining and current state.
+//============================================================================//
+// Time managers
+//============================================================================//
+
+// Functor which suggests the time to think based on time control info and
+// current state.
 // State is passed at construction, allowing incremental updates, etc.
 template <typename T>
 concept StaticTimeManager =
@@ -51,9 +68,9 @@ concept StaticTimeManager =
         { t(tc, to_move) } -> std::same_as<ms_t>;
     };
 
-//
-// Default time manager
-//
+//----------------------------------------------------------------------------//
+// Templates
+//----------------------------------------------------------------------------//
 
 // Return remaining / MovesProp + increment / IncProp.
 template <ms_t MovesProp, ms_t IncProp>
@@ -87,6 +104,10 @@ class SuddenDeathTimeManager {
     TNormalTimeManager m_normal_mgr{};
     TSuddenDeathTimeManager m_suddendeath_mgr{};
 };
+
+//----------------------------------------------------------------------------//
+// Concrete instances
+//----------------------------------------------------------------------------//
 
 static constexpr ms_t DefaultRemainingProp = 20;
 static constexpr ms_t DefaultIncProp = 20;

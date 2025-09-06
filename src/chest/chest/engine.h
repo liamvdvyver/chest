@@ -1,8 +1,10 @@
-#pragma once
-
+//============================================================================//
 // Generic classes for defining an engine.
 // Designed for UCI, should generalise to other protocols.
 // See uci.h for uci specific code.
+//============================================================================//
+
+#pragma once
 
 #include <functional>
 #include <iostream>
@@ -10,9 +12,9 @@
 #include <optional>
 #include <sstream>
 
-#include "libChest/debug.h"
 #include "libChest/movegen.h"
 #include "libChest/search.h"
+#include "libChest/util.h"
 
 constexpr size_t MAX_DEPTH = 64;
 
@@ -75,7 +77,7 @@ class GenericEngine : public search::StatReporter {
     GenericEngine(GenericEngine &&) = delete;
     GenericEngine &operator=(const GenericEngine &) = delete;
     GenericEngine &operator=(GenericEngine &&) = delete;
-    virtual ~GenericEngine() = default;
+    ~GenericEngine() override = default;
 
     // Read command and execute.
     // Returns return code if engine should exit, otherwise empty.
@@ -88,7 +90,8 @@ class GenericEngine : public search::StatReporter {
     std::istream *m_input = &std::cin;
     std::ostream *m_output = &std::cout;
     state::AugmentedState m_astate{};
-    move::movegen::AllMoveGenerator<> m_mover{};
+    const move::movegen::AllMoveGenerator<>
+        m_mover{};  // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
     bool m_debug = DEBUG();
 
     void bad_command(const std::string_view cmd) const;
