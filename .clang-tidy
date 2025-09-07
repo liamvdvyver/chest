@@ -8,4 +8,5 @@ Checks: >
   performance-*,
   cppcoreguidelines-*,
   -cppcoreguidelines-non-private-member-variables-in-classes,
-  -cppcoreguidelines-pro-bounds-constant-array-index
+  -cppcoreguidelines-pro-bounds-constant-array-index,
+  misc-const-correctness
