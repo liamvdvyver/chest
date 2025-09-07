@@ -1,0 +1,42 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 20 },
+  "configurePresets": [
+    {
+      "name": "debug-base",
+      "displayName": "Debug (baseline x86-64-v2)",
+      "binaryDir": "${sourceDir}/build/debug-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CXX_FLAGS": "-march=x86-64-v2"
+      }
+    },
+    {
+      "name": "debug-native",
+      "displayName": "Debug (native)",
+      "binaryDir": "${sourceDir}/build/debug-native",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CXX_FLAGS": "-march=native"
+      }
+    },
+    {
+      "name": "release-base",
+      "displayName": "Release (baseline x86-64-v2)",
+      "binaryDir": "${sourceDir}/build/release-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_FLAGS": "-march=x86-64-v2"
+      }
+    },
+    {
+      "name": "release-native",
+      "displayName": "Release (native)",
+      "binaryDir": "${sourceDir}/build/release-native",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_FLAGS": "-march=native"
+      }
+    }
+  ]
+}
