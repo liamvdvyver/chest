@@ -94,10 +94,12 @@ class SuddenDeathTimeManager {
    public:
     constexpr ms_t operator()(const TimeControl &tc,
                               const board::Colour to_move) const {
-        const ms_t target_time = tc.movetime ? tc.movetime
+        const ms_t movetime_buffered =
+            tc.movetime > buffer ? tc.movetime - buffer : 0;
+        const ms_t target_time = tc.movetime ? movetime_buffered
                                  : tc.to_go  ? m_normal_mgr(tc, to_move)
                                              : m_suddendeath_mgr(tc, to_move);
-        return target_time > buffer ? target_time - buffer : 0;
+        return target_time;
     }
 
    private:
