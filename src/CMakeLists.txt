@@ -5,7 +5,7 @@ message("Compiler Version: ${CMAKE_CXX_COMPILER} ${CMAKE_CXX_COMPILER_VERSION}")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -fomit-frame-pointer -flto -ffast-math -DNDEBUG" CACHE STRING "" FORCE)
-set(CMAKE_CXX_FLAGS_DEBUG "-Og -fsanitize=address,undefined" CACHE STRING "" FORCE)
+set(CMAKE_CXX_FLAGS_DEBUG "-Og -g -fsanitize=address,undefined" CACHE STRING "" FORCE)
 
 add_compile_options(-std=c++23 -Wall -Wextra -Wpedantic)
 add_link_options(-fuse-ld=lld)
