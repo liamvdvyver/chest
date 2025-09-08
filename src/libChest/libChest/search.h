@@ -90,6 +90,64 @@ struct StatReporter {
 };
 
 //============================================================================//
+// Move ordering
+//============================================================================//
+
+// MVV-LVA is used to sort captures.
+//
+// Captures are sorted (highest to lowest) lexicographically by:
+// * highest victim value,
+// * then lowest attacker value
+//
+// Quiet moves are ordered to be always equivalent.
+// A promotion is considered quiet, since it is currently not generated in
+// pawn's loud line generation.
+//
+// This is a rough implementation, the following improvements should be made,
+// contingent upon changes to pawn move generation:
+// TODO: sort queen promotion captures first
+// TODO: include queen promotions as last tactical move
+struct MvvLva {
+    constexpr static bool gt(const move::FatMove mv_a, const move::FatMove mv_b,
+                             const state::AugmentedState &astate) {
+        const uint8_t victim_a = victim_val(mv_a, astate);
+        const uint8_t victim_b = victim_val(mv_b, astate);
+
+        return (victim_a > victim_b) ||
+               ((victim_a == victim_b) &&
+                (attacker_val(mv_a) < attacker_val(mv_b)));
+    }
+
+   private:
+    // 0 if there is no victim (not a tactical move)
+    // enum value + 1 if there is a victim
+    constexpr static uint8_t victim_val(const move::FatMove mv,
+                                        const state::AugmentedState &astate) {
+        return move::is_capture(mv.get_move().type())
+                   ? static_cast<uint8_t>(
+                         astate.state
+                             .piece_at(mv.get_move().to(),
+                                       !astate.state.to_move)
+                             .transform([](board::ColouredPiece cp) {
+                                 return cp.piece;
+                             })
+
+                             // Only capture with empty destination is EP
+                             .value_or(board::Piece::PAWN)) +
+                         1
+                   : 0;
+    }
+
+    // 0 if there is no victim (not a tactical move)
+    // enum value + 1 if there is a victim
+    // promoted pieces are considered to be taken
+    constexpr static uint8_t attacker_val(const move::FatMove mv) {
+        assert(move::is_capture(mv.get_move().type()));
+        return static_cast<uint8_t>(mv.get_piece());
+    }
+};
+
+//============================================================================//
 // Depth-limited negamax
 //============================================================================//
 
@@ -167,6 +225,10 @@ class DLNegaMax {
 
         // Get children (in order)
         MoveBuffer &moves = m_node.template find_moves<true>();
+        std::sort(moves.begin(), moves.end(),
+                  [this](const move::FatMove a, const move::FatMove b) {
+                      return MvvLva::gt(a, b, m_astate);
+                  });
 
         // Recurse over children
         std::optional<SearchResult> best_move;
