@@ -5,17 +5,9 @@
 
 #pragma once
 
-#include <algorithm>
-#include <chrono>
 #include <mutex>
 
-#include "board.h"
-#include "eval.h"
-#include "libChest/move.h"
-#include "libChest/state.h"
-#include "libChest/util.h"
 #include "makemove.h"
-#include "movegen.h"
 
 namespace search {
 
@@ -31,6 +23,7 @@ struct SearchResult {
         STALEMATE,
         CHECKMATE,
         TIMEOUT,
+        STANDPAT,
     };
     LeafType type;
     move::FatMove best_move{};
@@ -39,7 +32,7 @@ struct SearchResult {
 };
 
 // When the search is terminated early, this should be returned
-static constexpr SearchResult cutoff_result{
+static constexpr SearchResult timeout_result{
     .type = SearchResult::LeafType::TIMEOUT,
     .best_move = {},
     .eval = 0,
@@ -178,10 +171,6 @@ struct ABResult {
 };
 static_assert(std::convertible_to<ABResult, SearchResult>);
 
-// Time cutoff -> don't worry about result for now
-static constexpr ABResult ab_cutoff_result{.result = cutoff_result,
-                                           .type = ABResult::ABNodeType::NA};
-
 template <eval::IncrementallyUpdateableEvaluator TEval, size_t MaxDepth>
 class DLNegaMax {
    public:
@@ -197,9 +186,9 @@ class DLNegaMax {
     }
 
     // Not protected from races.
-    // Calling code should ensure set_depth/stop
-    // do not race.
+    // Calling code should ensure set_depth/stop do not race.
     constexpr void stop() { m_stopped = true; }
+    template <SearchType Type = SearchType::NORMAL>
     constexpr ABResult search(
         const std::chrono::time_point<std::chrono::steady_clock> finish_time,
         Bounds bounds) {
@@ -210,21 +199,35 @@ class DLNegaMax {
 
         // Early return
         if (m_stopped) {
-            return ab_cutoff_result;
+            return ab_timeout_result;
         }
 
         // Cutoff -> return value
-        if (m_node.bottomed_out()) {
-            SearchResult search_ret = {
-                .type = SearchResult::LeafType::CUTOFF,
-                .best_move = {},
-                .eval = m_node.template get<TEval>().eval(),
-                .n_nodes = 1};
-            return {.result = search_ret, .type = ABResult::ABNodeType::NA};
+        if (m_node.template bottomed_out<Type>()) {
+            // Normal search -> quiesce
+            if constexpr (Type == SearchType::NORMAL) {
+                return search<SearchType::QUIESCE>(finish_time, bounds);
+                // Quiescence search -> return (shouldn't occur frequently)
+            } else if (Type == SearchType::QUIESCE) {
+                return cutoff_result();
+            }
+        }
+
+        // In quiescence only: check stand-pat score
+        if constexpr (Type == SearchType::QUIESCE) {
+            const eval::centipawn_t standpat_score =
+                m_node.template get<TEval>().eval();
+            if (standpat_score >= bounds.beta) {
+                return {.result = {.type = SearchResult::LeafType::STANDPAT,
+                                   .best_move = {},
+                                   .eval = standpat_score,
+                                   .n_nodes = 1},
+                        .type = ABResult::ABNodeType::NA};
+            }
         }
 
         // Get children (in order)
-        MoveBuffer &moves = m_node.template find_moves<true>();
+        MoveBuffer &moves = search_moves<Type>();
         std::sort(moves.begin(), moves.end(),
                   [this](const move::FatMove a, const move::FatMove b) {
                       return MvvLva::gt(a, b, m_astate);
@@ -238,17 +241,17 @@ class DLNegaMax {
         for (move::FatMove m : moves) {
             // Early return from recursion
             if (m_stopped) {
-                return ab_cutoff_result;
+                return ab_timeout_result;
             }
 
             // Check child
             if (m_node.make_move(m)) {
                 SearchResult child_result =
-                    search(finish_time, {-bounds.beta, -bounds.alpha});
+                    search<Type>(finish_time, {-bounds.beta, -bounds.alpha});
 
                 // Count nodes
                 n_nodes += child_result.n_nodes;
-                eval::centipawn_t child_eval = -child_result.eval;
+                const eval::centipawn_t child_eval = -child_result.eval;
 
                 // Update best move if eval improves
                 if (!(best_move.has_value()) || child_eval > best_move->eval) {
@@ -269,13 +272,21 @@ class DLNegaMax {
             m_node.unmake_move();
         }
 
-        // Stale/checkmate
         if (!best_move) {
-            board::Square king_sq =
+            // If no result in quiescence search: search quiet moves.
+            if constexpr (Type == SearchType::QUIESCE) {
+                if (quiet_moves_exist()) {
+                    return cutoff_result();
+                }
+            }
+
+            // Stale/checkmate
+            const board::Square king_sq =
                 m_astate.state
-                    .get_bitboard({m_astate.state.to_move, board::Piece::KING})
+                    .get_bitboard({.colour = m_astate.state.to_move,
+                                   .piece = board::Piece::KING})
                     .single_bitscan_forward();
-            bool checked =
+            const bool checked =
                 m_mover.is_attacked(m_astate, king_sq, m_astate.state.to_move);
             return {
                 .result = {.type = checked ? SearchResult::LeafType::CHECKMATE
@@ -296,6 +307,52 @@ class DLNegaMax {
     }
 
    private:
+    // Time cutoff -> don't worry about result for now
+    static constexpr ABResult ab_timeout_result{
+        .result = timeout_result, .type = ABResult::ABNodeType::NA};
+
+    // Return value in (soft/hard) cutoff
+    constexpr ABResult cutoff_result() const {
+        SearchResult search_ret = {.type = SearchResult::LeafType::CUTOFF,
+                                   .best_move = {},
+                                   .eval = m_node.template get<TEval>().eval(),
+                                   .n_nodes = 1};
+        return {.result = search_ret, .type = ABResult::ABNodeType::NA};
+    }
+
+    // Gets moves to be searched based on search type.
+    template <SearchType Type>
+    constexpr MoveBuffer &search_moves();
+
+    template <>
+    constexpr MoveBuffer &search_moves<SearchType::NORMAL>() {
+        return m_node.template find_moves<true>();
+    }
+
+    // Return sorted
+    template <>
+    constexpr MoveBuffer &search_moves<SearchType::QUIESCE>() {
+        return m_node.find_loud_moves();
+    }
+
+    // Quiescence helper: if no loud moves were found,
+    // check if this is due to checkmate/stalemate,
+    // or if there are legal quiet moves.
+    constexpr bool quiet_moves_exist() {
+        // Get children (in order)
+        const MoveBuffer &moves = m_node.find_quiet_moves();
+
+        for (const move::FatMove &m : moves) {
+            if (m_node.make_move(m)) {
+                m_node.unmake_move();
+                return true;
+            }
+            m_node.unmake_move();
+        }
+
+        return false;
+    }
+
     // NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members)
     // Movegen and state should outlive searcher.
     const move::movegen::AllMoveGenerator &m_mover;
@@ -321,8 +378,8 @@ class IDSearcher {
                          const StatReporter &reporter)
         : m_searcher(searcher), m_astate(astate), m_reporter(reporter) {}
 
-    // Stops the search as soon as possible, will return to the (other) thread
-    // which called search().
+    // Stops the search as soon as possible, will return to the (other)
+    // thread which called search().
     constexpr void stop() {
         m_stoplock.lock();
         m_stopped = true;

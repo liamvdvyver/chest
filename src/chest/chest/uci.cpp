@@ -200,7 +200,7 @@ std::optional<int> Go::execute() {
 std::optional<int> Go::perft_impl() {
     state::PerftNode<MAX_DEPTH> sn{m_engine->m_mover, m_engine->m_astate,
                                    m_perft_depth};
-    const auto moves = sn.find_moves();
+    const auto moves = sn.find_moves<false>();
     size_t perft = 0;
 
     for (auto m : moves) {

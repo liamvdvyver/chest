@@ -17,11 +17,19 @@
 #include "util.h"
 #include "zobrist.h"
 
-namespace state {
-
 //============================================================================//
 // Helper classes
 //============================================================================//
+
+namespace search {
+// Search nodes for quiesence search may proceed deeper.
+enum class SearchType : bool {
+    NORMAL,
+    QUIESCE,
+};
+}  // namespace search
+
+namespace state {
 
 // Stores information other than the from/to squares and move type
 // which is neccessary to unmake a move.
@@ -67,7 +75,7 @@ struct SearchNode {
     // Gets the incrementally updateable component by type.
     template <IncrementallyUpdateable T>
         requires(has<T>())
-    auto &get() {
+    auto &get() const {
         return std::get<T>(m_components);
     }
 
@@ -204,12 +212,28 @@ struct SearchNode {
         m_found_moves.clear();
     }
 
-    // Find moves at the current depth
-    // Returns a reference to the vector containing the found moves
+    // Find moves at the current depth.
+    // Returns a reference to the vector containing the found moves.
     template <bool InOrder = false>
     constexpr MoveBuffer &find_moves() {
         m_found_moves[m_cur_depth].clear();
         m_mover.get_all_moves<InOrder>(m_astate, m_found_moves[m_cur_depth]);
+        return m_found_moves[m_cur_depth];
+    }
+
+    // Find loud moves at the current depth.
+    // Returns a reference to the vector containing the found moves.
+    constexpr MoveBuffer &find_loud_moves() {
+        m_found_moves[m_cur_depth].clear();
+        m_mover.get_loud_moves(m_astate, m_found_moves[m_cur_depth]);
+        return m_found_moves[m_cur_depth];
+    }
+
+    // Find quiet moves at the current depth.
+    // Returns a reference to the vector containing the found moves.
+    constexpr MoveBuffer &find_quiet_moves() {
+        m_found_moves[m_cur_depth].clear();
+        m_mover.get_quiet_moves(m_astate, m_found_moves[m_cur_depth]);
         return m_found_moves[m_cur_depth];
     }
 
@@ -226,8 +250,21 @@ struct SearchNode {
         return {};
     }
 
-    // Helper: does depth == maxdepth?
-    constexpr bool bottomed_out() { return m_max_depth == m_cur_depth; }
+    // Helper: Is the search unable to proceed deeper?
+    // In quiescence search, will search to maximum allocated depth.
+
+    template <search::SearchType type = search::SearchType::NORMAL>
+    constexpr bool bottomed_out();
+
+    template <>
+    constexpr bool bottomed_out<search::SearchType::NORMAL>() {
+        return m_max_depth == m_cur_depth;
+    }
+
+    template <>
+    constexpr bool bottomed_out<search::SearchType::QUIESCE>() {
+        return m_cur_depth == MaxDepth;
+    }
 
     //-- Incremental updates -------------------------------------------------//
 
