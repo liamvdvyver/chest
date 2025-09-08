@@ -374,9 +374,10 @@ constexpr Bitboard::ElementIterator Bitboard::singletons() const {
 //============================================================================//
 
 // Requirements on ordering:
-// * Lowest valued members should follow same order as promoted pieces in move.h
+// * Should follow same order as promoted pieces in move.h
 // * King must be last, as in eval.h.
-enum class Piece : uint8_t { KNIGHT, BISHOP, ROOK, QUEEN, PAWN, KING };
+// * Should be in order of value for move ordering.
+enum class Piece : uint8_t { PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING };
 
 static constexpr size_t n_pieces = 6;  // For array sizing
 

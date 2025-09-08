@@ -103,6 +103,12 @@ constexpr bool is_promotion(const MoveType type) {
     return promo_flag_mask & (movetype_t)type;
 };
 
+// Is material changed?
+constexpr bool is_tactical(const MoveType type) {
+    static constexpr movetype_t promo_capture_mask = 0b1100;
+    return promo_capture_mask & (movetype_t)type;
+}
+
 constexpr bool is_pawn_move(const MoveType type) {
     return type == MoveType::SINGLE_PUSH || type == MoveType::DOUBLE_PUSH ||
            type == MoveType::CAPTURE_EP || is_promotion(type);
@@ -118,8 +124,21 @@ constexpr bool is_castle(const MoveType type) {
 constexpr board::Piece promoted_piece(const MoveType type) {
     static constexpr movetype_t promo_move_mask = 0b0011;
     assert(is_promotion(type));
-    return (board::Piece)(promo_move_mask & (movetype_t)type);
+    return (board::Piece)((promo_move_mask & (movetype_t)type) + 1);
 }
+
+static_assert(promoted_piece(MoveType::PROMOTE_KNIGHT) == board::Piece::KNIGHT);
+static_assert(promoted_piece(MoveType::PROMOTE_BISHOP) == board::Piece::BISHOP);
+static_assert(promoted_piece(MoveType::PROMOTE_ROOK) == board::Piece::ROOK);
+static_assert(promoted_piece(MoveType::PROMOTE_QUEEN) == board::Piece::QUEEN);
+static_assert(promoted_piece(MoveType::PROMOTE_CAPTURE_KNIGHT) ==
+              board::Piece::KNIGHT);
+static_assert(promoted_piece(MoveType::PROMOTE_CAPTURE_BISHOP) ==
+              board::Piece::BISHOP);
+static_assert(promoted_piece(MoveType::PROMOTE_CAPTURE_ROOK) ==
+              board::Piece::ROOK);
+static_assert(promoted_piece(MoveType::PROMOTE_CAPTURE_QUEEN) ==
+              board::Piece::QUEEN);
 
 //============================================================================//
 // Minimal (complete) moves
