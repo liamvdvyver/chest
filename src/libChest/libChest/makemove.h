@@ -51,7 +51,7 @@ static const MadeMove nullMadeMove{};
 template <size_t MaxDepth, typename... TComponents>
 struct SearchNode {
    public:
-    constexpr SearchNode(const move::movegen::AllMoveGenerator<> &mover,
+    constexpr SearchNode(const move::movegen::AllMoveGenerator &mover,
                          AugmentedState &astate, const size_t max_depth)
         : m_astate(astate),
           m_max_depth(max_depth),
@@ -206,9 +206,10 @@ struct SearchNode {
 
     // Find moves at the current depth
     // Returns a reference to the vector containing the found moves
+    template <bool InOrder = false>
     constexpr MoveBuffer &find_moves() {
         m_found_moves[m_cur_depth].clear();
-        m_mover.get_all_moves(m_astate, m_found_moves[m_cur_depth]);
+        m_mover.get_all_moves<InOrder>(m_astate, m_found_moves[m_cur_depth]);
         return m_found_moves[m_cur_depth];
     }
 
@@ -496,7 +497,7 @@ struct SearchNode {
     // Incrementally updateable components in a tuple
     std::tuple<TComponents...> m_components;
 
-    const move::movegen::AllMoveGenerator<> &m_mover;
+    const move::movegen::AllMoveGenerator &m_mover;
     SVec<MadeMove, MaxDepth> m_made_moves;
     SVec<MoveBuffer, MaxDepth> m_found_moves;
 

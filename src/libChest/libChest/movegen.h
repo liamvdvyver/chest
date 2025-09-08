@@ -451,7 +451,6 @@ static_assert(StagedMoveGenerator<RookMover>);
 //============================================================================//
 
 // Gets all the legal moves in a position, performs attack detection.
-template <bool InOrder = false>
 class AllMoveGenerator {
    public:
     constexpr AllMoveGenerator() = default;
@@ -468,14 +467,28 @@ class AllMoveGenerator {
                     movers);
     };
 
+    // Gets all moves, either in order (loud, then quiet, slower),
+    // or with no guarantees about ordering (faster).
+    template <bool InOrder = false>
     constexpr void get_all_moves(const state::AugmentedState &astate,
-                                 MoveBuffer &moves) const {
-        if constexpr (InOrder) {
-            return get_all_moves_ordered(astate, moves);
-        } else {
-            return get_all_moves_defer(astate, moves);
-        }
-    }
+                                 MoveBuffer &moves) const;
+
+    // Gets all moves, loud moves guaranteed first.
+    template <>
+    constexpr void get_all_moves<true>(const state::AugmentedState &astate,
+                                       MoveBuffer &moves) const {
+        get_loud_moves(astate, moves);
+        get_quiet_moves(astate, moves);
+    };
+
+    // Gets all moves, no guarantees on move ordering,
+    // move ordering is deferred to members -> better memory access pattern
+    template <>
+    constexpr void get_all_moves<false>(const state::AugmentedState &astate,
+                                        MoveBuffer &moves) const {
+        apply_tuple([&](auto &mover) { mover.get_all_moves(astate, moves); },
+                    movers);
+    };
 
     constexpr bool is_attacked(const state::AugmentedState &astate,
                                const board::Square sq,
@@ -495,21 +508,6 @@ class AllMoveGenerator {
     }
 
    private:
-    // Gets all moves, loud moves guaranteed first.
-    constexpr void get_all_moves_ordered(const state::AugmentedState &astate,
-                                         MoveBuffer &moves) const {
-        get_loud_moves(astate, moves);
-        get_quiet_moves(astate, moves);
-    };
-
-    // Gets all moves, no guarantees on move ordering,
-    // move ordering is deferred to members -> better memory access pattern
-    constexpr void get_all_moves_defer(const state::AugmentedState &astate,
-                                       MoveBuffer &moves) const {
-        apply_tuple([&](auto &mover) { mover.get_all_moves(astate, moves); },
-                    movers);
-    };
-
     // Hold instances of Attackers
     attack::PawnAttacker m_pawn_attacker;
     attack::PawnSinglePusher m_pawn_single_pusher;
@@ -533,8 +531,8 @@ class AllMoveGenerator {
     };
 };
 
-static_assert(StagedMoveGenerator<AllMoveGenerator<true>>);
-static_assert(OneshotMoveGenerator<AllMoveGenerator<true>>);
-static_assert(AttackDetector<AllMoveGenerator<true>>);
+static_assert(StagedMoveGenerator<AllMoveGenerator>);
+static_assert(OneshotMoveGenerator<AllMoveGenerator>);
+static_assert(AttackDetector<AllMoveGenerator>);
 
 }  // namespace move::movegen

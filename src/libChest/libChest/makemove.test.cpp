@@ -33,7 +33,7 @@ struct AveragePerft {
 static AveragePerft
     avg;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-const move::movegen::AllMoveGenerator<> mover{};
+const move::movegen::AllMoveGenerator mover{};
 
 const std::string indent = "    ";
 const uint64_t million = 1000000;

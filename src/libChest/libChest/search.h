@@ -127,7 +127,7 @@ static constexpr ABResult ab_cutoff_result{.result = cutoff_result,
 template <eval::IncrementallyUpdateableEvaluator TEval, size_t MaxDepth>
 class DLNegaMax {
    public:
-    constexpr DLNegaMax(const move::movegen::AllMoveGenerator<> &mover,
+    constexpr DLNegaMax(const move::movegen::AllMoveGenerator &mover,
                         state::AugmentedState &astate)
         : m_mover(mover), m_astate(astate), m_node(mover, astate, MaxDepth) {};
 
@@ -165,8 +165,8 @@ class DLNegaMax {
             return {.result = search_ret, .type = ABResult::ABNodeType::NA};
         }
 
-        // Get children
-        MoveBuffer &moves = m_node.find_moves();
+        // Get children (in order)
+        MoveBuffer &moves = m_node.template find_moves<true>();
 
         // Recurse over children
         std::optional<SearchResult> best_move;
@@ -236,7 +236,7 @@ class DLNegaMax {
    private:
     // NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members)
     // Movegen and state should outlive searcher.
-    const move::movegen::AllMoveGenerator<> &m_mover;
+    const move::movegen::AllMoveGenerator &m_mover;
     state::AugmentedState &m_astate;
     // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
 

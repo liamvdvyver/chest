@@ -90,7 +90,7 @@ class GenericEngine : public search::StatReporter {
     std::istream *m_input = &std::cin;
     std::ostream *m_output = &std::cout;
     state::AugmentedState m_astate{};
-    const move::movegen::AllMoveGenerator<>
+    const move::movegen::AllMoveGenerator
         m_mover{};  // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
     bool m_debug = DEBUG();
 
