@@ -10,6 +10,7 @@ The engine supports:
 - PEXT/magic pseudo-legal staged movegen w/legality checks (>35Mn/s perft)
 - Make/unmake-style traversal
 - Incrementally updated PST eval/Zobrist hashes
+- Iterative deepening alpha-beta search w/ quiescence and MVV-LVA move ordering
 - (Partial) UCI suport
 
 Library design:
@@ -29,17 +30,16 @@ Uses catch2 for tests.
 
 # TODO
 
-Short term goals:
+Short term goals for v1.0.0:
 
-- [ ] Quiescence search
 - [ ] Transposition tables
-- [ ] MVV/LVA ordering
 - [ ] Null-window/PV search
 - [ ] Aspiration windows
-- [ ] Full UCI compliance
+- [ ] Full(er) UCI compliance
 
 Long term goals:
 
+- [ ] 100% UCI compliance
 - [ ] SEE ordering
 - [ ] Killer/history heuristic ordering
 - [ ] NNUEs
