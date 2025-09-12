@@ -94,6 +94,11 @@ struct SearchNode {
         // Prepare for next move
         // Early returns still need to push the made move!
         m_cur_depth++;
+
+        // Populated later
+        MadeMove made{.fmove = fmove, .info = irreversible()};
+
+        // Increment clocks
         m_astate.state.fullmove_number +=
             static_cast<uint>(!m_astate.state.to_move);
         m_astate.state.halfmove_clock++;
@@ -103,9 +108,6 @@ struct SearchNode {
         const board::Bitboard from_bb = board::Bitboard(mv.from());
         const board::Bitboard to_bb = board::Bitboard(mv.to());
         const board::ColouredPiece moved = {to_move, moved_p};
-
-        // Populated later
-        MadeMove made{.fmove = fmove, .info = irreversible()};
 
         // Clear en-passant square
         if (m_astate.state.ep_square.has_value()) {
@@ -136,7 +138,7 @@ struct SearchNode {
                 update_rk_castling_rights(mv.from(), to_move);
                 break;
             case board::Piece::KING:
-                update_kg_castling_rights<false>(mv.from(), to_move);
+                update_kg_castling_rights<true>(mv.from(), to_move);
                 break;
             default:
         }
@@ -362,6 +364,7 @@ struct SearchNode {
 
     // Removes the captured piece after the capturing piece has been moved.
     // Updates the made move with the type of piece captured.
+    // Resets the halfmove clock.
     constexpr void remove_captured(const move::Move mv,
                                    const board::Colour to_move,
                                    const board::Bitboard to_bb,
@@ -389,6 +392,9 @@ struct SearchNode {
 
         // Update the made move
         made.info.captured_piece = captured.piece;
+
+        // Reset halfmove clock
+        m_astate.state.halfmove_clock = 0;
     }
 
     // Perform pawn specific state updates:
@@ -416,10 +422,12 @@ struct SearchNode {
 
     // Assumes move is pseudo-legal, returns whether it was legal.
     // If legal, moves the king and the bishop and removes castling rights.
+    // Resets the halfmove clock.
     // Sufficient for early return.
     constexpr bool castle(const board::Square from,
                           const board::Colour to_move) {
         bool legal = true;
+        m_astate.state.halfmove_clock = 0;
 
         // Get (queen/king)-side
         const std::optional<board::Piece> side =
@@ -453,35 +461,38 @@ struct SearchNode {
     }
 
     // Given the colour/location of a (potential) rook which is moved/captured,
-    // update castling rights for the corresponding player.
+    // update castling rights/halfmove clock for the corresponding player.
     // Returns which side (queen/kingside) had rights removed for the player
     constexpr std::optional<board::Piece> update_rk_castling_rights(
         const board::Square loc, const board::Colour player) {
         const std::optional<board::Piece> ret =
             state::CastlingInfo::get_side(loc, player);
 
+        // Player has rights on this side
         if (ret.has_value() && m_astate.state.castling_rights.get_square_rights(
                                    {player, ret.value()})) {
+            m_astate.state.halfmove_clock = 0;
             toggle_castling_rights(board::ColouredPiece{player, ret.value()});
         }
         return ret;
     }
 
-    // Given the colour/location of a (potential) king which is moved update
-    // castling rights for the corresponding player. Return true if the king was
-    // at this square, false otherwise.
-    // If checked, ensures the moved piece was the king.
+    // Given the colour/location of a (potential) king which is moved,
+    // update castling rights/halfmove clock for the corresponding player.
+    // Return true if the king was at this square, false otherwise.
+    // If checked, ensures the moved piece was the king, and the player has
+    // castling rights currently.
     template <bool Checked = true>
     constexpr bool update_kg_castling_rights(const board::Square loc,
                                              const board::Colour player) {
         if constexpr (Checked) {
-            if (state::CastlingInfo::get_king_start(player) == loc) {
-                toggle_castling_rights(
-                    m_astate.state.castling_rights.get_player_rights(player));
-                return true;
+            if (state::CastlingInfo::get_king_start(player) == loc &&
+                m_astate.state.castling_rights.get_player_rights(player)) {
+                return update_kg_castling_rights<false>(loc, player);
             }
             return false;
         } else {
+            m_astate.state.halfmove_clock = 0;
             toggle_castling_rights(
                 m_astate.state.castling_rights.get_player_rights(player));
             return true;
@@ -574,6 +585,7 @@ template <size_t MaxDepth, typename... TComponents>
 struct PerftNode : public SearchNode<MaxDepth, TComponents...> {
    public:
     using SearchNode<MaxDepth, TComponents...>::SearchNode;
+    using SearchNode<MaxDepth, TComponents...>::get_astate;
 
     struct PerftResult {
         uint64_t perft;
@@ -595,6 +607,10 @@ struct PerftNode : public SearchNode<MaxDepth, TComponents...> {
         }
 
 #if DEBUG()
+        // Info not tracked by hash, not incrementally made/unmade
+        size_t fullmove_number = get_astate().state.fullmove_number;
+        uint8_t halfmove_clock = get_astate().state.halfmove_clock;
+
         // Check state/eval are same before/after make-unmake
         // Get incremental info
         eval::centipawn_t eval{};
@@ -638,6 +654,8 @@ struct PerftNode : public SearchNode<MaxDepth, TComponents...> {
 
 #if DEBUG()
         // Check moves were all unmade
+        assert(fullmove_number == get_astate().state.fullmove_number);
+        assert(halfmove_clock == get_astate().state.halfmove_clock);
         if constexpr (requires { this->template get<eval::DefaultEval>(); }) {
             assert(eval == this->template get<eval::DefaultEval>().eval());
         }
