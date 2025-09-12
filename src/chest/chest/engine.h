@@ -88,15 +88,18 @@ class GenericEngine : public search::StatReporter {
                      const LogLevel level = LogLevel::ENGINE_INFO,
                      bool flush = false) const;
 
+    void bad_command(const std::string_view cmd) const;
+    void bad_command_args(const std::string_view input) const;
+
+    // TODO: make these members private.
+
     std::istream *m_input = &std::cin;
     std::ostream *m_output = &std::cout;
     state::AugmentedState m_astate{};
     const move::movegen::AllMoveGenerator
         m_mover{};  // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
+    search::TTable m_ttable;
     bool m_debug = DEBUG();
-
-    void bad_command(const std::string_view cmd) const;
-    void bad_command_args(const std::string_view input) const;
 
    protected:
     std::unordered_map<std::string, CommandFactory> m_commands;

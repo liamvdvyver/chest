@@ -138,6 +138,97 @@ struct MvvLva {
         assert(move::is_capture(mv.get_move().type()));
         return static_cast<uint8_t>(mv.get_piece());
     }
+//============================================================================//
+// Transposition tables
+//============================================================================//
+
+struct TTable {
+   public:
+    TTable() = default;
+    TTable(size_t n) : m_size(n) {};
+
+    //-- Value/entry types ---------------------------------------------------//
+    struct TTValue {
+        eval::centipawn_t score{};
+        // Stored as depth + 1, so that a value of 0 indicates no value.
+        uint8_t depth_remaining{};
+        search::ABNodeType type{ABNodeType::NA};
+        move::FatMove best_move{};
+    };
+
+    using TTEntry = std::pair<Zobrist, TTValue>;
+
+    //-- Accessors -----------------------------------------------------------//
+
+    const TTValue &operator[](const Zobrist idx) const {
+        return get(idx).second;
+    }
+
+    TTValue &operator[](const Zobrist idx) { return get(idx).second; }
+
+    // Optional accessor
+    const std::optional<TTValue> at_opt(const Zobrist idx) const {
+        return contains(idx) ? get(idx).second : std::optional<TTValue>{};
+    }
+
+    // Extracts the principal variation from a state until miss.
+    template <size_t MaxDepth, typename... TComponents>
+    void get_pv(MoveBuffer &buf,
+                state::SearchNode<MaxDepth, TComponents...> &sn) const {
+        sn.prep_search(MaxDepth);
+        buf.clear();
+        Zobrist hash = sn.template get<Zobrist>();
+        while (contains(hash) && !sn.bottomed_out()) {
+            move::FatMove best_move = get(hash).second.best_move;
+            buf.push_back(best_move);
+            sn.make_move(best_move);
+            hash = sn.template get<Zobrist>();
+        }
+        sn.unmake_all();
+    }
+
+    // Checks membership
+    bool contains(const Zobrist idx) const { return get(idx).first == idx; }
+
+    // Inserts result,
+    // if depth of new entry is deeper than an existing entry.
+    void insert(const Zobrist idx, const ABResult result,
+                const uint8_t depth_remaining) {
+        // Do not overwrite results from a deeper search.
+        if (contains(idx) &&
+            // Entries stored depth as depth + 1.
+            get(idx).second.depth_remaining > depth_remaining + 1) {
+            return;
+        }
+
+        // Store the new result.
+        get(idx) = {idx, TTValue{.score = result.result.eval,
+                                 .depth_remaining =
+                                     static_cast<uint8_t>(depth_remaining + 1),
+                                 .type = result.type,
+                                 .best_move = result.result.best_move}};
+    };
+
+    void clear() {
+        m_entries.clear();
+        m_entries.resize(m_size);
+    }
+
+   private:
+    // Access helper.
+    TTEntry &get(const Zobrist idx) {
+        return m_entries[static_cast<size_t>(idx) % m_size];
+    }
+
+    // Access helper.
+    const TTEntry &get(const Zobrist idx) const {
+        return m_entries[static_cast<size_t>(idx) % m_size];
+    }
+
+    // NOLINTNEXTLINE(cppcoreguidelines-avoid-const-or-ref-data-members)
+    const size_t m_size = 1024UL * 1024UL / sizeof(TTEntry);
+
+    std::vector<TTEntry> m_entries = std::vector<TTEntry>(m_size, {{}, {}});
 };
 
 //============================================================================//
@@ -175,8 +266,11 @@ template <eval::IncrementallyUpdateableEvaluator TEval, size_t MaxDepth>
 class DLNegaMax {
    public:
     constexpr DLNegaMax(const move::movegen::AllMoveGenerator &mover,
-                        state::AugmentedState &astate)
-        : m_mover(mover), m_astate(astate), m_node(mover, astate, MaxDepth) {};
+                        state::AugmentedState &astate, TTable &ttable)
+        : m_mover(mover),
+          m_astate(astate),
+          m_node(mover, astate, MaxDepth),
+          m_ttable(ttable) {};
 
     constexpr void set_depth(size_t depth) {
         assert(depth <= MaxDepth);
@@ -297,7 +391,11 @@ class DLNegaMax {
         }
 
         best_move->n_nodes = n_nodes;
-        return {.result = best_move.value(), .type = ABResult::ABNodeType::NA};
+        const ABResult ret = {.result = best_move.value(), .type = ABNodeType::NA};
+        m_ttable.insert(
+            hash, ret,
+            static_cast<uint8_t>(m_node.template depth_remaining<Type>()));
+        return ret;
     }
 
     // Search with default bounds
@@ -357,6 +455,7 @@ class DLNegaMax {
     // Movegen and state should outlive searcher.
     const move::movegen::AllMoveGenerator &m_mover;
     state::AugmentedState &m_astate;
+    TTable &m_ttable;
     // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
 
     state::SearchNode<MaxDepth, TEval, Zobrist> m_node;
