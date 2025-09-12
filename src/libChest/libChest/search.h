@@ -531,11 +531,8 @@ class DLNegaMax {
         return ret;
     }
 
-    // Search with default bounds
-    constexpr ABResult search(
-        std::chrono::time_point<std::chrono::steady_clock> finish_time) {
-        return search(finish_time, {});
-    }
+    // Extracts principal variation from the transposition table.
+    void get_pv(MoveBuffer &buf) { return m_ttable.get_pv(buf, m_node); }
 
    private:
     // Time cutoff -> don't worry about result for now
@@ -666,6 +663,10 @@ class IDSearcher {
             // Report partial results
 
             assert(search_result.has_value());
+
+            // TODO: ensure ttable pv is legal (i.e. don't allow repetitions),
+            // Then report pv from transposition table like this.
+            // m_searcher.get_pv(m_pv);
 
             m_pv.clear();
             m_pv.push_back(search_result->best_move);
