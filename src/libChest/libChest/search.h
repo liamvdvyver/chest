@@ -414,6 +414,14 @@ class DLNegaMax {
             return ab_timeout_result;
         }
 
+        // Check for repetition
+        if (m_node.depth() > 0 && m_node.last_repetition()) {
+            return {.result = {.type = SearchResult::LeafType::DRAW,
+                               .eval = 0,
+                               .n_nodes = 1},
+                    .type = ABNodeType::NA};
+        }
+
         // Cutoff -> return value
         if (m_node.template bottomed_out<Type>()) {
             // Normal search -> quiesce
@@ -606,7 +614,9 @@ class DLNegaMax {
     TTable &m_ttable;
     // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
 
-    state::SearchNode<MaxDepth, TEval, Zobrist> m_node;
+    state::SearchNodeWithHistory<MaxDepth, state::default_history_size, TEval,
+                                 Zobrist>
+        m_node;
     bool m_stopped = false;
 };
 static_assert(DLSearcher<DLNegaMax<eval::StdEval, 1>>);

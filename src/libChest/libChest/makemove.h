@@ -649,6 +649,53 @@ struct PerftNode : public SearchNode<MaxDepth, TComponents...> {
     };
 };
 
-}  // namespace state
+//============================================================================//
+// Repetition detection
+//============================================================================//
 
+// All indexing is done mod the array size,
+// i.e. it is a ring buffer.
+// From cur ply to cur ply - halfmove clock (<= 100) mustn't be overwritten,
+// providing an extra 64 slots for search means > 164 slots is sufficient.
+constexpr size_t default_history_size = 256;
+
+// Adds hash history for threefold repetition detection.
+template <size_t MaxDepth, size_t HistorySz = default_history_size,
+          typename... TComponents>
+struct SearchNodeWithHistory : public SearchNode<MaxDepth, TComponents...> {
+   private:
+    using ParentNode = SearchNode<MaxDepth, TComponents...>;
+
+   public:
+    using ParentNode::ParentNode;
+
+    constexpr bool make_move(const move::FatMove fmove) {
+        m_history[ply() % HistorySz] = ParentNode::template get<Zobrist>();
+        return ParentNode::make_move(fmove);
+    }
+
+    // Is there a repetition in history since the half-move clock was
+    // incremented?
+    constexpr size_t last_repetition() const {
+        const Zobrist cur_pos_hash = ParentNode::template get<Zobrist>();
+        const size_t hm = ParentNode::get_astate().state.halfmove_clock;
+        const size_t cur_ply = ply();
+        for (size_t offset = 4; offset <= hm; offset += 4) {
+            if (cur_pos_hash == m_history[cur_ply - offset % HistorySz])
+                return offset;
+        }
+        return false;
+    }
+
+   private:
+    constexpr size_t ply() const {
+        return 2UL * ParentNode::get_astate().state.fullmove_number +
+               static_cast<size_t>(ParentNode::get_astate().state.to_move ==
+                                   board::Colour::BLACK);
+    };
+
+    SVec<Zobrist, HistorySz>
+        m_history;  // NOLINT(cppcoreguidelines-avoid-magic-numbers)
+};
+}  // namespace state
 // NOLINTEND(modernize-use-designated-initializers)
