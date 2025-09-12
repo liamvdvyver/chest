@@ -55,9 +55,9 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(Catch2)
 
-add_executable(makemove_test libChest/libChest/makemove.test.cpp)
-target_link_libraries(makemove_test PRIVATE libChest Catch2::Catch2WithMain)
+add_executable(test libChest/libChest/search.test.cpp libChest/libChest/makemove.test.cpp)
+target_link_libraries(test PRIVATE libChest Catch2::Catch2WithMain)
 
 include(CTest)
 include(Catch)
-catch_discover_tests(makemove_test)
+catch_discover_tests(test)
