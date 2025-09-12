@@ -220,6 +220,11 @@ struct FatMove {
 
     constexpr board::Piece get_piece() const { return m_piece; }
 
+    constexpr bool operator==(const move::FatMove &other) const {
+        return get_move() == other.get_move() &&
+               get_piece() == other.get_piece();
+    }
+
    private:
     // Even though this is a POD struct, allow further packing in future.
     Move m_move;
