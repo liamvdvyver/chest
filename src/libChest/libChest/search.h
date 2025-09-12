@@ -351,9 +351,16 @@ struct Bounds {
     eval::centipawn_t beta;
 };
 
+// Settings to pass into negamax
+struct NegaMaxOptions {
+    bool prune = true;
+    bool sort = true;
+    bool quiesce = true;
+    bool quiescence_standpat = true;
 };
 
-template <eval::IncrementallyUpdateableEvaluator TEval, size_t MaxDepth>
+template <eval::IncrementallyUpdateableEvaluator TEval, size_t MaxDepth,
+          NegaMaxOptions Opts = {}>
 class DLNegaMax {
    public:
     constexpr DLNegaMax(const move::movegen::AllMoveGenerator &mover,
@@ -375,10 +382,11 @@ class DLNegaMax {
     constexpr void stop() { m_stopped = true; }
     template <SearchType Type = SearchType::NORMAL>
     constexpr ABResult search(
-        const std::chrono::time_point<std::chrono::steady_clock> finish_time,
-        Bounds bounds) {
+        const std::optional<std::chrono::time_point<std::chrono::steady_clock>>
+            finish_time = std::nullopt,
+        Bounds bounds = {}) {
         // Auto-stop
-        if (std::chrono::steady_clock::now() > finish_time) {
+        if (finish_time && std::chrono::steady_clock::now() > finish_time) {
             stop();
         }
 
@@ -390,38 +398,35 @@ class DLNegaMax {
         // Cutoff -> return value
         if (m_node.template bottomed_out<Type>()) {
             // Normal search -> quiesce
-            if constexpr (Type == SearchType::NORMAL) {
+            if constexpr (Type == SearchType::NORMAL && Opts.quiesce) {
                 return search<SearchType::QUIESCE>(finish_time, bounds);
-                // Quiescence search -> return (shouldn't occur frequently)
-            } else if (Type == SearchType::QUIESCE) {
+            } else {
                 return cutoff_result();
             }
         }
 
         // In quiescence only: check stand-pat score
-        if constexpr (Type == SearchType::QUIESCE) {
+        if constexpr (Type == SearchType::QUIESCE && Opts.quiescence_standpat) {
             const eval::centipawn_t standpat_score =
                 m_node.template get<TEval>().eval();
+            bounds.alpha = std::max(bounds.alpha, standpat_score);
             if (standpat_score >= bounds.beta) {
                 return {.result = {.type = SearchResult::LeafType::STANDPAT,
                                    .best_move = {},
                                    .eval = standpat_score,
                                    .n_nodes = 1},
-                        .type = ABResult::ABNodeType::NA};
+                        .type = ABNodeType::NA};
             }
         }
 
         // Get children (in order)
         MoveBuffer &moves = search_moves<Type>();
-        std::sort(moves.begin(), moves.end(),
-                  [this](const move::FatMove a, const move::FatMove b) {
-                      return MvvLva::gt(a, b, m_astate);
-                  });
+        if constexpr (Opts.sort) {
             std::sort(
                 moves.begin(), moves.end(),
                 [this, hash_move](const move::FatMove a,
                                   const move::FatMove b) {
-                    auto ret = DefaultOrdering(m_astate, hash_move)(a, b);
+                    const bool ret = DefaultOrdering(m_astate, hash_move)(a, b);
                     if constexpr (DEBUG()) {
                         assert(!(ret &&
                                  DefaultOrdering(m_astate, hash_move)(b, a)));
@@ -430,6 +435,7 @@ class DLNegaMax {
                     }
                     return ret;
                 });
+        }
 
         // Recurse over children
         std::optional<SearchResult> best_move;
@@ -447,6 +453,10 @@ class DLNegaMax {
                 SearchResult child_result =
                     search<Type>(finish_time, {-bounds.beta, -bounds.alpha});
 
+                if constexpr (Type == SearchType::QUIESCE) {
+                    assert(move::is_capture(m.get_move().type()));
+                }
+
                 // Count nodes
                 n_nodes += child_result.n_nodes;
                 const eval::centipawn_t child_eval = -child_result.eval;
@@ -457,10 +467,13 @@ class DLNegaMax {
                                  .best_move = m,
                                  .eval = child_eval,
                                  .n_nodes{}};  // count nodes later
+                }
 
-                    // Handle pruning
-                    bounds.alpha = std::max(bounds.alpha, child_eval);
-                    if (bounds.alpha >= bounds.beta) {
+                if constexpr (Opts.prune) {
+                    if (child_eval > bounds.alpha) {
+                        bounds.alpha = child_eval;
+                    }
+                    if (child_eval >= bounds.beta) {
                         // Pruned -> return lower bound
                         m_node.unmake_move();
                         break;
