@@ -249,7 +249,7 @@ std::optional<int> Go::search_impl() {
 
     // TODO:consider making searcher member of engine rather than dynamically
     // allocating.
-    DlSearcherTp nega(m_engine->m_mover, eng_astate);
+    DlSearcherTp nega(m_engine->m_mover, eng_astate, m_engine->m_ttable);
 
     const std::chrono::time_point<std::chrono::steady_clock> finish_time =
         std::chrono::steady_clock::now() +

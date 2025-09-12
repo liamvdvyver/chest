@@ -15,6 +15,10 @@ namespace search {
 // Types and concepts
 //============================================================================//
 
+//----------------------------------------------------------------------------//
+// Results
+//----------------------------------------------------------------------------//
+
 // TODO: implement integrated bound and value eval
 struct SearchResult {
     enum class LeafType : uint8_t {
@@ -30,6 +34,23 @@ struct SearchResult {
     eval::centipawn_t eval;
     size_t n_nodes;  // Count of legal nodes
 };
+
+// Ordering is optimal for IBValue,
+// that is, integrated bound and values are equal to
+// corresponding enum values mod 2.
+enum class ABNodeType : uint8_t {
+    PV = 0,   // didn't fail/raised alpha (exact)
+    CUT = 1,  // failed high (lower bound)
+    NA = 2,   // e.g. incomplete result
+    ALL = 3,  // failed low (upper bound)
+};
+
+struct ABResult {
+    SearchResult result;
+    ABNodeType type;
+    operator SearchResult() const { return result; }
+};
+static_assert(std::convertible_to<ABResult, SearchResult>);
 
 // When the search is terminated early, this should be returned
 static constexpr SearchResult timeout_result{
@@ -246,21 +267,7 @@ struct Bounds {
     eval::centipawn_t beta;
 };
 
-// TODO: actually return node types, if its useful at some point.
-// I just return NA for now.
-struct ABResult {
-    // Use Knuth's numbering
-    enum class ABNodeType : uint8_t {
-        NA = 0,   // e.g. time cutoff
-        PV = 1,   // didn't fail
-        CUT = 2,  // failed high
-        ALL = 3,  // failed low
-    };
-    SearchResult result;
-    ABNodeType type;
-    operator SearchResult() const { return result; }
 };
-static_assert(std::convertible_to<ABResult, SearchResult>);
 
 template <eval::IncrementallyUpdateableEvaluator TEval, size_t MaxDepth>
 class DLNegaMax {
@@ -387,11 +394,12 @@ class DLNegaMax {
                                            : SearchResult::LeafType::STALEMATE,
                            .eval = checked ? -eval::max_eval : 0,
                            .n_nodes = n_nodes},
-                .type = ABResult::ABNodeType::NA};
+                .type = ABNodeType::NA};
         }
 
         best_move->n_nodes = n_nodes;
-        const ABResult ret = {.result = best_move.value(), .type = ABNodeType::NA};
+        const ABResult ret = {.result = best_move.value(),
+                              .type = ABNodeType::NA};
         m_ttable.insert(
             hash, ret,
             static_cast<uint8_t>(m_node.template depth_remaining<Type>()));
@@ -406,8 +414,8 @@ class DLNegaMax {
 
    private:
     // Time cutoff -> don't worry about result for now
-    static constexpr ABResult ab_timeout_result{
-        .result = timeout_result, .type = ABResult::ABNodeType::NA};
+    static constexpr ABResult ab_timeout_result{.result = timeout_result,
+                                                .type = ABNodeType::NA};
 
     // Return value in (soft/hard) cutoff
     constexpr ABResult cutoff_result() const {
@@ -415,7 +423,7 @@ class DLNegaMax {
                                    .best_move = {},
                                    .eval = m_node.template get<TEval>().eval(),
                                    .n_nodes = 1};
-        return {.result = search_ret, .type = ABResult::ABNodeType::NA};
+        return {.result = search_ret, .type = ABNodeType::NA};
     }
 
     // Gets moves to be searched based on search type.
