@@ -16,7 +16,11 @@
 #include "libChest/util.h"
 
 constexpr size_t max_depth = 64;
+#if DEBUG()
+constexpr size_t search_depth = 6;
+#else
 constexpr size_t search_depth = 7;
+#endif
 
 using VanillaNegaMax = search::DLNegaMax<eval::DefaultEval, max_depth,
                                          {.prune = false,
