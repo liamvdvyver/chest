@@ -58,6 +58,24 @@ struct ABResult {
 };
 static_assert(std::convertible_to<ABResult, SearchResult>);
 
+// Integrated bound and value.
+struct IBValue : public Wrapper<eval::centipawn_t, IBValue> {
+   public:
+    IBValue(eval::centipawn_t score, ABNodeType type = ABNodeType::PV) {
+        value = score * 4;
+        value += static_cast<eval::centipawn_t>(type);
+        value -= static_cast<eval::centipawn_t>(type == ABNodeType::ALL) * 4;
+    }
+
+    eval::centipawn_t eval() const { return (value + 1) / 4; }
+
+    ABNodeType node_type() const { return static_cast<ABNodeType>(value % 4); }
+
+    bool exact() const { return !(0b1 & value); }
+
+   private:
+};
+
 //----------------------------------------------------------------------------//
 // Searching
 //----------------------------------------------------------------------------//
@@ -368,8 +386,8 @@ class DLNegaMax {
                         state::AugmentedState &astate, TTable &ttable)
         : m_mover(mover),
           m_astate(astate),
-          m_node(mover, astate, MaxDepth),
-          m_ttable(ttable) {};
+          m_ttable(ttable),
+          m_node(mover, astate, MaxDepth) {};
 
     constexpr void set_depth(size_t depth) {
         assert(depth <= MaxDepth);

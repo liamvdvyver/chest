@@ -40,10 +40,10 @@ const uint64_t million = 1000000;
 
 void do_perft_test(const PerftTest &perft_case, const size_t depth_limit) {
     state::AugmentedState astate(state::State(perft_case.fen));
-    std::cout << indent << "Testing position: " << perft_case.name << '\n';
+    std::cerr << indent << "Testing position: " << perft_case.name << '\n';
 
     for (size_t i = 0; i < perft_case.results.size() && i < depth_limit; i++) {
-        std::cout << indent << indent << "perft(" << i << "): " << '\n';
+        std::cerr << indent << indent << "perft(" << i << "): " << '\n';
 
         TSearcher sn(mover, astate, i);
 
@@ -56,10 +56,10 @@ void do_perft_test(const PerftTest &perft_case, const size_t depth_limit) {
         const std::chrono::duration<double> taken = end - start;
         const double mnps =
             static_cast<double>(res.nodes) / taken.count() / million;
-        std::cout << indent << indent << indent << "took: " << taken << '\n';
-        std::cout << indent << indent << indent
+        std::cerr << indent << indent << indent << "took: " << taken << '\n';
+        std::cerr << indent << indent << indent
                   << "legal nodes searched: " << res.nodes << '\n';
-        std::cout << indent << indent << indent << "rate: " << mnps << "Mn/s"
+        std::cerr << indent << indent << indent << "rate: " << mnps << "Mn/s"
                   << '\n';
 
         // Update average
@@ -189,7 +189,7 @@ TEST_CASE("Perft tests") {
         do_perft_test(perft_case, max_depth_limit);
     };
 
-    std::cout << indent << "TOTAL (LEGAL) NODES: " << avg.nodes / million
+    std::cerr << indent << "TOTAL (LEGAL) NODES: " << avg.nodes / million
               << " million" << "\n\n"
               << indent << "AVERAGE RATE: "
               << static_cast<double>(avg.nodes) / avg.seconds / million
