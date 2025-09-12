@@ -357,6 +357,7 @@ struct NegaMaxOptions {
     bool sort = true;
     bool quiesce = true;
     bool quiescence_standpat = true;
+    bool hash_first = true;
 };
 
 template <eval::IncrementallyUpdateableEvaluator TEval, size_t MaxDepth,
@@ -417,6 +418,20 @@ class DLNegaMax {
                                    .n_nodes = 1},
                         .type = ABNodeType::NA};
             }
+        }
+
+        // Get hash move
+        const Zobrist hash = m_node.template get<Zobrist>();
+        move::FatMove hash_move;
+
+        if constexpr (Opts.hash_first) {
+            // TODO: check for cutoff with this move.
+            // TODO: if has deeper hash move, don't research this node.
+            const std::optional<TTable::TTValue> tt_value =
+                m_ttable.at_opt(hash);
+            hash_move =
+                tt_value.transform([](auto val) { return val.best_move; })
+                    .value_or({});
         }
 
         // Get children (in order)
