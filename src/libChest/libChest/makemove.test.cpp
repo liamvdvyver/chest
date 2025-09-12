@@ -10,7 +10,7 @@
 
 #include "libChest/util.h"
 
-constexpr size_t max_depth_limit = 7;
+constexpr size_t max_depth_limit = 6;
 
 #if DEBUG()
 #include "libChest/eval.h"
