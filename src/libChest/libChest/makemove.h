@@ -200,6 +200,13 @@ struct SearchNode {
         return;
     }
 
+    // Unmakes all moves since last prep_search().
+    void unmake_all() {
+        while (m_cur_depth) {
+            unmake_move();
+        }
+    }
+
     //-- Searching -----------------------------------------------------------//
 
     // Clears move buffers and sets max_depth
@@ -248,6 +255,22 @@ struct SearchNode {
             }
         }
         return {};
+    }
+
+    constexpr size_t depth() const { return m_cur_depth; }
+
+    // Depth till (soft) bottom out,
+    template <search::SearchType type = search::SearchType::NORMAL>
+    constexpr size_t depth_remaining() const;
+
+    template <>
+    constexpr size_t depth_remaining<search::SearchType::NORMAL>() const {
+        return m_max_depth - m_cur_depth;
+    };
+
+    template <>
+    constexpr size_t depth_remaining<search::SearchType::QUIESCE>() const {
+        return 0;
     }
 
     // Helper: Is the search unable to proceed deeper?
