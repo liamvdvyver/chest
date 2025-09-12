@@ -7,7 +7,13 @@
 
 #include <mutex>
 
+#include "eval.h"
 #include "makemove.h"
+#include "move.h"
+#include "state.h"
+#include "util.h"
+#include "wrapper.h"
+#include "zobrist.h"
 
 namespace search {
 
@@ -52,6 +58,10 @@ struct ABResult {
 };
 static_assert(std::convertible_to<ABResult, SearchResult>);
 
+//----------------------------------------------------------------------------//
+// Searching
+//----------------------------------------------------------------------------//
+
 // When the search is terminated early, this should be returned
 static constexpr SearchResult timeout_result{
     .type = SearchResult::LeafType::TIMEOUT,
@@ -85,6 +95,10 @@ concept DLSearcher = requires(T t, int max_depth) {
     { t.set_depth(max_depth) };
 } && StoppableSearcher<T>;
 
+//----------------------------------------------------------------------------//
+// Reporting
+//----------------------------------------------------------------------------//
+
 // Call backs to report search statistics at the top of each loop
 // These will be called in a blocking manner once search has completed
 // to a depth, so should not be too slow.
@@ -107,8 +121,53 @@ struct StatReporter {
 // Move ordering
 //============================================================================//
 
-// MVV-LVA is used to sort captures.
-//
+//----------------------------------------------------------------------------//
+// Helpers
+//----------------------------------------------------------------------------//
+
+// Combine several comparators.
+template <auto... Cmp>
+struct LexicographicGt;
+
+template <auto H, auto... T>
+struct LexicographicGt<H, T...> {
+    static constexpr bool operator()(const auto a, const auto b) {
+        if (H(a, b)) return true;
+        if (H(b, a)) return false;
+        return LexicographicGt<T...>::operator()(a, b);
+    }
+};
+
+// Base case: no comparators left
+template <>
+struct LexicographicGt<> {
+    static constexpr bool operator()(const auto a, const auto b) {
+        (void)a;
+        (void)b;
+        return false;  // exhausted all comparators, treat as equal
+    }
+};
+
+// Sort a particular move first if presetn, e.g. hash move, killer, etc.
+struct IdentityGt {
+    IdentityGt(const move::FatMove target) : m_target(target) {}
+
+    constexpr bool operator()(const move::FatMove mv_a,
+                              const move::FatMove mv_b) const {
+        const bool is_a = mv_a == m_target;
+        const bool is_b = mv_b == m_target;
+        return is_a && !is_b;
+    }
+
+   private:
+    const move::FatMove
+        m_target;  // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
+};
+
+//----------------------------------------------------------------------------//
+// Capture ordering
+//----------------------------------------------------------------------------//
+
 // Captures are sorted (highest to lowest) lexicographically by:
 // * highest victim value,
 // * then lowest attacker value
@@ -117,31 +176,31 @@ struct StatReporter {
 // A promotion is considered quiet, since it is currently not generated in
 // pawn's loud line generation.
 //
-// This is a rough implementation, the following improvements should be made,
-// contingent upon changes to pawn move generation:
+// This is a rough implementation, the following improvements should be
+// made, contingent upon changes to pawn move generation:
 // TODO: sort queen promotion captures first
 // TODO: include queen promotions as last tactical move
 struct MvvLva {
-    constexpr static bool gt(const move::FatMove mv_a, const move::FatMove mv_b,
-                             const state::AugmentedState &astate) {
-        const uint8_t victim_a = victim_val(mv_a, astate);
-        const uint8_t victim_b = victim_val(mv_b, astate);
+    constexpr MvvLva(const state::AugmentedState &astate) : m_astate(astate) {};
+    constexpr bool operator()(const move::FatMove mv_a,
+                              const move::FatMove mv_b) const {
+        const uint8_t victim_a = victim_val(mv_a);
+        const uint8_t victim_b = victim_val(mv_b);
 
         return (victim_a > victim_b) ||
-               ((victim_a == victim_b) &&
+               (victim_a && (victim_a == victim_b) &&
                 (attacker_val(mv_a) < attacker_val(mv_b)));
     }
 
    private:
     // 0 if there is no victim (not a tactical move)
     // enum value + 1 if there is a victim
-    constexpr static uint8_t victim_val(const move::FatMove mv,
-                                        const state::AugmentedState &astate) {
+    constexpr uint8_t victim_val(const move::FatMove mv) const {
         return move::is_capture(mv.get_move().type())
                    ? static_cast<uint8_t>(
-                         astate.state
+                         m_astate.state
                              .piece_at(mv.get_move().to(),
-                                       !astate.state.to_move)
+                                       !m_astate.state.to_move)
                              .transform([](board::ColouredPiece cp) {
                                  return cp.piece;
                              })
@@ -159,6 +218,31 @@ struct MvvLva {
         assert(move::is_capture(mv.get_move().type()));
         return static_cast<uint8_t>(mv.get_piece());
     }
+
+    const state::AugmentedState
+        &m_astate;  // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
+};
+
+// Concrete type used currently
+struct DefaultOrdering {
+    DefaultOrdering(const state::AugmentedState &astate,
+                    const move::FatMove hash_move)
+        : m_mvv_lva(astate), m_hash_move_comparator(hash_move) {};
+
+    constexpr bool operator()(const move::FatMove mv_a,
+                              const move::FatMove mv_b) const {
+        if (m_hash_move_comparator(mv_a, mv_b)) return true;
+        if (m_hash_move_comparator(mv_b, mv_a)) return false;
+        return m_mvv_lva(mv_a, mv_b);
+    }
+
+   private:
+    // NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members)
+    const MvvLva m_mvv_lva;
+    const IdentityGt m_hash_move_comparator;
+    // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
+};
+
 //============================================================================//
 // Transposition tables
 //============================================================================//
@@ -333,6 +417,19 @@ class DLNegaMax {
                   [this](const move::FatMove a, const move::FatMove b) {
                       return MvvLva::gt(a, b, m_astate);
                   });
+            std::sort(
+                moves.begin(), moves.end(),
+                [this, hash_move](const move::FatMove a,
+                                  const move::FatMove b) {
+                    auto ret = DefaultOrdering(m_astate, hash_move)(a, b);
+                    if constexpr (DEBUG()) {
+                        assert(!(ret &&
+                                 DefaultOrdering(m_astate, hash_move)(b, a)));
+                        assert(!(DefaultOrdering(m_astate, hash_move)(a, a)));
+                        assert(!(DefaultOrdering(m_astate, hash_move)(b, b)));
+                    }
+                    return ret;
+                });
 
         // Recurse over children
         std::optional<SearchResult> best_move;
