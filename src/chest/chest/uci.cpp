@@ -13,11 +13,16 @@
 #include "libChest/move.h"
 #include "libChest/state.h"
 #include "libChest/timemanagement.h"
+#include "libChest/zobrist.h"
 
 // Helper
 void display_state(const GenericEngine &engine) {
     std::string state_str = engine.m_astate.state.pretty();
     state_str.append(engine.m_astate.state.to_fen());
+    state_str.append("\n0x");
+    state_str.append(Zobrist(engine.m_astate.state).pretty());
+    state_str.append("\nStatic eval: ");
+    state_str.append(std::to_string(eval::DefaultEval(engine.m_astate).eval()));
     std::stringstream out_stream{state_str};
     for (std::string ln; std::getline(out_stream, ln);) {
         ln.push_back('\n');

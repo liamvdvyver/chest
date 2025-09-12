@@ -6,6 +6,7 @@
 
 #include <array>
 #include <random>
+#include <sstream>
 
 #include "board.h"
 #include "incremental.h"
@@ -144,7 +145,13 @@ struct Zobrist : public Wrapper<zobrist_t, Zobrist> {
     constexpr Zobrist(const state::AugmentedState &astate)
         : Zobrist(astate.state) {};
 
-    // Incremental updates
+    constexpr std::string pretty() const {
+        std::stringstream hex_stream;
+        hex_stream << std::hex << value;
+        return hex_stream.str();
+    }
+
+    //-- Incremental updates -------------------------------------------------//
 
     constexpr void add(const board::Bitboard loc,
                        const board::ColouredPiece cp) {
