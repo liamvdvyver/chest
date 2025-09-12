@@ -23,7 +23,8 @@ using zobrist_t = uint64_t;
 class ZobristRandoms {
    public:
     ZobristRandoms() {
-        std::random_device rd;
+        constexpr uint seed = 0xDEADBEEF;
+        std::default_random_engine rd{seed};
         std::mt19937_64 eng(rd());
         std::uniform_int_distribution<zobrist_t> rand;
 
