@@ -96,11 +96,8 @@ class GenericEngine : public search::StatReporter {
     std::istream *m_input = &std::cin;
     std::ostream *m_output = &std::cout;
     state::AugmentedState m_astate{};  // TODO: encapsulate through node
-    const move::movegen::AllMoveGenerator
-        m_mover{};  // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
     search::DefaultNode<eval::DefaultEval, MAX_DEPTH> m_node =
-        search::DefaultNode<eval::DefaultEval, MAX_DEPTH>(m_mover, m_astate,
-                                                          MAX_DEPTH);
+        search::DefaultNode<eval::DefaultEval, MAX_DEPTH>(m_astate, MAX_DEPTH);
     search::TTable m_ttable;
     bool m_debug = DEBUG();
 

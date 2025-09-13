@@ -216,8 +216,7 @@ std::optional<int> Go::execute() {
 }
 
 std::optional<int> Go::perft_impl() {
-    state::PerftNode<MAX_DEPTH> sn{m_engine->m_mover, m_engine->m_astate,
-                                   m_perft_depth};
+    state::PerftNode<MAX_DEPTH> sn{m_engine->m_astate, m_perft_depth};
     const auto moves = sn.find_moves<false>();
     size_t perft = 0;
 
@@ -266,7 +265,7 @@ std::optional<int> Go::search_impl() {
 
     // TODO:consider making searcher member of engine rather than dynamically
     // allocating.
-    DlSearcherTp nega(m_engine->m_mover, eng_node, m_engine->m_ttable);
+    DlSearcherTp nega(eng_node, m_engine->m_ttable);
 
     const std::chrono::time_point<std::chrono::steady_clock> finish_time =
         std::chrono::steady_clock::now() +

@@ -35,8 +35,6 @@ struct AveragePerft {
 static AveragePerft
     avg;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-const move::movegen::AllMoveGenerator mover{};
-
 const std::string indent = "    ";
 const uint64_t million = 1000000;
 
@@ -47,7 +45,7 @@ void do_perft_test(const PerftTest &perft_case, const size_t depth_limit) {
     for (size_t i = 0; i < perft_case.results.size() && i < depth_limit; i++) {
         std::cerr << indent << indent << "perft(" << i << "): " << '\n';
 
-        TSearcher sn(mover, astate, i);
+        TSearcher sn(astate, i);
 
         // Run perft
         const auto start = std::chrono::steady_clock::now();
@@ -209,7 +207,7 @@ using THistorySearcher =
 
 TEST_CASE("Repetition detection") {
     state::AugmentedState astate{state::new_game_fen};
-    THistorySearcher sn(mover, astate, max_search_depth);
+    THistorySearcher sn(astate, max_search_depth);
     sn.make_move(
         {{board::B1, board::C3, move::MoveType::NORMAL}, board::Piece::KNIGHT});
     sn.make_move(
@@ -230,7 +228,7 @@ TEST_CASE("Example PV repetition from game") {
     // Regression test: example of missed repetition from game
 
     state::AugmentedState astate{state::new_game_fen};
-    THistorySearcher sn(mover, astate, max_search_depth);
+    THistorySearcher sn(astate, max_search_depth);
 
     std::vector<std::string> game_unique_moves{
         "d2d4", "g8f6", "c1g5", "e7e6", "e2e4", "h7h6", "g5f6", "d8f6", "b1c3",

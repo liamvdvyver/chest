@@ -102,17 +102,14 @@ TEST_CASE("Equality of equivalent search results.") {
     std::vector<search::SearchResult> results;
     static search::TTable ttable;
     state::AugmentedState state{state::new_game_fen};
-    move::movegen::AllMoveGenerator mover;
 
-    search::DefaultNode<eval::DefaultEval, max_depth> sn(mover, state,
-                                                         max_depth);
+    search::DefaultNode<eval::DefaultEval, max_depth> sn(state, max_depth);
 
     std::tuple<VanillaNegaMax, ABNegaMax, ABSorted, QSearch, QSearchSorted,
                QSearchStandPat, FullQSearch, FullQSearchWithHashMove>
 
-        searchers{{mover, sn, ttable}, {mover, sn, ttable}, {mover, sn, ttable},
-                  {mover, sn, ttable}, {mover, sn, ttable}, {mover, sn, ttable},
-                  {mover, sn, ttable}, {mover, sn, ttable}};
+        searchers{{sn, ttable}, {sn, ttable}, {sn, ttable}, {sn, ttable},
+                  {sn, ttable}, {sn, ttable}, {sn, ttable}, {sn, ttable}};
 
     for (size_t d = 1; d < search_depth; d++) {
         search::ABResult vanilla_result = do_search(

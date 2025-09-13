@@ -199,7 +199,6 @@ struct Zobrist : public Wrapper<zobrist_t, Zobrist> {
     }
 
    private:
-    // TODO: consider composing instance reference.
     inline static const ZobristRandoms s_hasher{};
 };
 static_assert(IncrementallyUpdateable<Zobrist>);

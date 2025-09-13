@@ -453,30 +453,30 @@ static_assert(StagedMoveGenerator<RookMover>);
 // Gets all the legal moves in a position, performs attack detection.
 class AllMoveGenerator {
    public:
-    constexpr AllMoveGenerator() = default;
+    constexpr AllMoveGenerator() = delete;
 
-    constexpr void get_quiet_moves(const state::AugmentedState &astate,
-                                   MoveBuffer &moves) const {
+    constexpr static void get_quiet_moves(const state::AugmentedState &astate,
+                                          MoveBuffer &moves) {
         apply_tuple([&](auto &mover) { mover.get_quiet_moves(astate, moves); },
-                    movers);
+                    s_movers);
     };
 
-    constexpr void get_loud_moves(const state::AugmentedState &astate,
-                                  MoveBuffer &moves) const {
+    constexpr static void get_loud_moves(const state::AugmentedState &astate,
+                                         MoveBuffer &moves) {
         apply_tuple([&](auto &mover) { mover.get_loud_moves(astate, moves); },
-                    movers);
+                    s_movers);
     };
 
     // Gets all moves, either in order (loud, then quiet, slower),
     // or with no guarantees about ordering (faster).
     template <bool InOrder = false>
-    constexpr void get_all_moves(const state::AugmentedState &astate,
-                                 MoveBuffer &moves) const;
+    constexpr static void get_all_moves(const state::AugmentedState &astate,
+                                        MoveBuffer &moves);
 
     // Gets all moves, loud moves guaranteed first.
     template <>
     constexpr void get_all_moves<true>(const state::AugmentedState &astate,
-                                       MoveBuffer &moves) const {
+                                       MoveBuffer &moves) {
         get_loud_moves(astate, moves);
         get_quiet_moves(astate, moves);
     };
@@ -485,49 +485,50 @@ class AllMoveGenerator {
     // move ordering is deferred to members -> better memory access pattern
     template <>
     constexpr void get_all_moves<false>(const state::AugmentedState &astate,
-                                        MoveBuffer &moves) const {
+                                        MoveBuffer &moves) {
         apply_tuple([&](auto &mover) { mover.get_all_moves(astate, moves); },
-                    movers);
+                    s_movers);
     };
 
-    constexpr bool is_attacked(const state::AugmentedState &astate,
-                               const board::Square sq,
-                               const board::Colour colour) const {
-        return (m_pawn_attacker(sq, colour) &
+    constexpr static bool is_attacked(const state::AugmentedState &astate,
+                                      const board::Square sq,
+                                      const board::Colour colour) {
+        return (s_pawn_attacker(sq, colour) &
                 astate.state.copy_bitboard({!colour, board::Piece::PAWN})) ||
-               (m_knight_attacker(sq) &
+               (s_knight_attacker(sq) &
                 astate.state.copy_bitboard({!colour, board::Piece::KNIGHT})) ||
-               (m_bishop_attacker(sq, astate.total_occupancy) &
+               (s_bishop_attacker(sq, astate.total_occupancy) &
                 (astate.state.copy_bitboard({!colour, board::Piece::BISHOP}) |
                  astate.state.copy_bitboard({!colour, board::Piece::QUEEN}))) ||
-               (m_rook_attacker(sq, astate.total_occupancy) &
+               (s_rook_attacker(sq, astate.total_occupancy) &
                 (astate.state.copy_bitboard({!colour, board::Piece::ROOK}) |
                  astate.state.copy_bitboard({!colour, board::Piece::QUEEN}))) ||
-               (m_king_attacker(sq) &
+               (s_king_attacker(sq) &
                 (astate.state.copy_bitboard({!colour, board::Piece::KING})));
     }
 
    private:
     // Hold instances of Attackers
-    attack::PawnAttacker m_pawn_attacker;
-    attack::PawnSinglePusher m_pawn_single_pusher;
-    attack::PawnDoublePusher m_pawn_double_pusher;
-    attack::KnightAttacker m_knight_attacker;
-    attack::BishopAttacker m_bishop_attacker;
-    attack::RookAttacker m_rook_attacker;
-    attack::KingAttacker m_king_attacker;
+    inline static const attack::PawnAttacker s_pawn_attacker;
+    inline static const attack::PawnSinglePusher s_pawn_single_pusher;
+    inline static const attack::PawnDoublePusher s_pawn_double_pusher;
+    inline static const attack::KnightAttacker s_knight_attacker;
+    inline static const attack::BishopAttacker s_bishop_attacker;
+    inline static const attack::RookAttacker s_rook_attacker;
+    inline static const attack::KingAttacker s_king_attacker;
 
     // Movers in tuple for iteration
-    std::tuple<PawnMover, KnightMover, BishopMover, RookMover, KingMover,
-               DiagQueenMover, HorizQueenMover>
-        movers = {
-            {{m_pawn_single_pusher, m_pawn_double_pusher, m_pawn_attacker}},
-            {m_knight_attacker},
-            {m_bishop_attacker},
-            {m_rook_attacker},
-            {m_king_attacker},
-            {m_bishop_attacker},
-            {m_rook_attacker},
+    inline static const std::tuple<PawnMover, KnightMover, BishopMover,
+                                   RookMover, KingMover, DiagQueenMover,
+                                   HorizQueenMover>
+        s_movers = {
+            {{s_pawn_single_pusher, s_pawn_double_pusher, s_pawn_attacker}},
+            {s_knight_attacker},
+            {s_bishop_attacker},
+            {s_rook_attacker},
+            {s_king_attacker},
+            {s_bishop_attacker},
+            {s_rook_attacker},
     };
 };
 

@@ -59,12 +59,10 @@ static const MadeMove nullMadeMove{};
 template <size_t MaxDepth, typename... TComponents>
 struct SearchNode {
    public:
-    constexpr SearchNode(const move::movegen::AllMoveGenerator &mover,
-                         AugmentedState &astate, const size_t max_depth)
+    constexpr SearchNode(AugmentedState &astate, const size_t max_depth)
         : m_astate(astate),
           m_max_depth(max_depth),
-          m_components(TComponents{astate}...),
-          m_mover(mover) {};
+          m_components(TComponents{astate}...) {};
 
     // Checks if an incrementally updateable component exists.
     template <IncrementallyUpdateable T>
@@ -151,7 +149,7 @@ struct SearchNode {
         }
 
         // Legality check
-        bool was_legal = !m_mover.get().is_attacked(
+        bool was_legal = !move::movegen::AllMoveGenerator::is_attacked(
             m_astate,
             m_astate.get()
                 .state.copy_bitboard({to_move, board::Piece::KING})
@@ -235,8 +233,8 @@ struct SearchNode {
     template <bool InOrder = false>
     constexpr MoveBuffer &find_moves() {
         m_found_moves[m_cur_depth].clear();
-        m_mover.get().get_all_moves<InOrder>(m_astate,
-                                             m_found_moves[m_cur_depth]);
+        move::movegen::AllMoveGenerator::get_all_moves<InOrder>(
+            m_astate, m_found_moves[m_cur_depth]);
         return m_found_moves[m_cur_depth];
     }
 
@@ -244,7 +242,8 @@ struct SearchNode {
     // Returns a reference to the vector containing the found moves.
     constexpr MoveBuffer &find_loud_moves() {
         m_found_moves[m_cur_depth].clear();
-        m_mover.get().get_loud_moves(m_astate, m_found_moves[m_cur_depth]);
+        move::movegen::AllMoveGenerator::get_loud_moves(
+            m_astate, m_found_moves[m_cur_depth]);
         return m_found_moves[m_cur_depth];
     }
 
@@ -252,7 +251,8 @@ struct SearchNode {
     // Returns a reference to the vector containing the found moves.
     constexpr MoveBuffer &find_quiet_moves() {
         m_found_moves[m_cur_depth].clear();
-        m_mover.get().get_quiet_moves(m_astate, m_found_moves[m_cur_depth]);
+        move::movegen::AllMoveGenerator::get_quiet_moves(
+            m_astate, m_found_moves[m_cur_depth]);
         return m_found_moves[m_cur_depth];
     }
 
@@ -447,8 +447,8 @@ struct SearchNode {
         // Check legality
         for (const board::Bitboard sq :
              state::CastlingInfo::get_king_mask(cp).singletons()) {
-            if (m_mover.get().is_attacked(m_astate, sq.single_bitscan_forward(),
-                                          to_move)) {
+            if (move::movegen::AllMoveGenerator::is_attacked(
+                    m_astate, sq.single_bitscan_forward(), to_move)) {
                 legal = false;
             }
         }
@@ -581,7 +581,6 @@ struct SearchNode {
     // Incrementally updateable components in a tuple
     std::tuple<TComponents...> m_components;
 
-    std::reference_wrapper<const move::movegen::AllMoveGenerator> m_mover;
     SVec<MadeMove, MaxDepth> m_made_moves;
     SVec<MoveBuffer, MaxDepth> m_found_moves;
 };

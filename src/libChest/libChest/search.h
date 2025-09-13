@@ -385,10 +385,9 @@ template <eval::IncrementallyUpdateableEvaluator TEval, size_t MaxDepth,
           NegaMaxOptions Opts = {}>
 class DLNegaMax {
    public:
-    constexpr DLNegaMax(const move::movegen::AllMoveGenerator &mover,
-                        DefaultNode<TEval, MaxDepth> &node, TTable &ttable)
+    constexpr DLNegaMax(DefaultNode<TEval, MaxDepth> &node, TTable &ttable)
 
-        : m_mover(mover), m_node(node), m_ttable(ttable) {};
+        : m_node(node), m_ttable(ttable) {};
 
     constexpr void set_depth(size_t depth) {
         assert(depth <= MaxDepth);
@@ -548,9 +547,9 @@ class DLNegaMax {
                     .copy_bitboard({.colour = m_node.get_astate().state.to_move,
                                     .piece = board::Piece::KING})
                     .single_bitscan_forward();
-            const bool checked =
-                m_mover.is_attacked(m_node.get_astate(), king_sq,
-                                    m_node.get_astate().state.to_move);
+            const bool checked = move::movegen::AllMoveGenerator::is_attacked(
+                m_node.get_astate(), king_sq,
+                m_node.get_astate().state.to_move);
             // FIXME: cache this in transposition table
             return {
                 .result = {.type = checked ? SearchResult::LeafType::CHECKMATE
@@ -647,7 +646,6 @@ class DLNegaMax {
 
     // NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members)
     // Movegen and state should outlive searcher.
-    const move::movegen::AllMoveGenerator &m_mover;
     DefaultNode<TEval, MaxDepth> &m_node;
     TTable &m_ttable;
     // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
