@@ -86,14 +86,13 @@ search::ABResult do_search(auto &searcher, const size_t d,
     std::cerr << name << "\n  DEPTH: " << d << ", eval: " << ret.result.eval
               << ", best_move: "
               << static_cast<std::string>(
-                     move::LongAlgMove(ret.result.best_move, astate))
+                     move::LongAlgMove(ret.result.best_move))
               << ", nodes: " << ret.result.n_nodes << '\n'
               << "  pv: ";
     MoveBuffer pv;
     searcher.get_pv(pv);
     for (auto mv : pv) {
-        std::cerr << static_cast<std::string>(move::LongAlgMove(mv, astate))
-                  << ", ";
+        std::cerr << static_cast<std::string>(move::LongAlgMove(mv)) << ", ";
     }
     std::cerr << '\n';
     ttable.clear();
@@ -106,15 +105,15 @@ TEST_CASE("Equality of equivalent search results.") {
     state::AugmentedState state{state::new_game_fen};
     move::movegen::AllMoveGenerator mover;
 
-    state::SearchNode<max_depth, Zobrist> sn(mover, state, max_depth);
+    search::DefaultNode<eval::DefaultEval, max_depth> sn(mover, state,
+                                                         max_depth);
 
     std::tuple<VanillaNegaMax, ABNegaMax, ABSorted, QSearch, QSearchSorted,
                QSearchStandPat, FullQSearch, FullQSearchWithHashMove>
 
-        searchers{{mover, state, ttable}, {mover, state, ttable},
-                  {mover, state, ttable}, {mover, state, ttable},
-                  {mover, state, ttable}, {mover, state, ttable},
-                  {mover, state, ttable}, {mover, state, ttable}};
+        searchers{{mover, sn, ttable}, {mover, sn, ttable}, {mover, sn, ttable},
+                  {mover, sn, ttable}, {mover, sn, ttable}, {mover, sn, ttable},
+                  {mover, sn, ttable}, {mover, sn, ttable}};
 
     for (size_t d = 0; d < search_depth; d++) {
         apply_tuple([=](auto &searcher) { searcher.set_depth(d); }, searchers);
