@@ -11,6 +11,7 @@ The engine supports:
 - Make/unmake-style traversal
 - Incrementally updated PST eval/Zobrist hashes
 - Iterative deepening alpha-beta search w/ quiescence and MVV-LVA move ordering
+- Transposition tables for move ordering
 - (Partial) UCI suport
 
 Library design:
@@ -32,7 +33,6 @@ Uses catch2 for tests.
 
 Short term goals for v1.0.0:
 
-- [ ] Transposition tables
 - [ ] Null-window/PV search
 - [ ] Aspiration windows
 - [ ] Full(er) UCI compliance
