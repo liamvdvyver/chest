@@ -25,6 +25,8 @@ void display_state(const GenericEngine &engine) {
     state_str.append(Zobrist(engine.m_astate.state).pretty());
     state_str.append("\nStatic eval: ");
     state_str.append(std::to_string(eval::DefaultEval(engine.m_astate).eval()));
+    state_str.append("\nRepetitions: ");
+    state_str.append(std::to_string(engine.m_node.n_repetitions()));
     std::stringstream out_stream{state_str};
     for (std::string ln; std::getline(out_stream, ln);) {
         ln.push_back('\n');
@@ -308,8 +310,7 @@ void UCIEngine::log(const std::string_view &msg, const LogLevel level,
 void UCIEngine::report(const size_t depth, const eval::centipawn_t eval,
                        const size_t nodes,
                        const std::chrono::duration<double> time,
-                       const MoveBuffer &pv,
-                       const state::AugmentedState &astate) const {
+                       const MoveBuffer &pv) const {
     constexpr static uint64_t ms_per_s = 1000;
     std::string info_string;
     info_string += "depth ";

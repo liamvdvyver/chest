@@ -131,8 +131,7 @@ struct StatReporter {
     virtual void report(const size_t depth, const eval::centipawn_t eval,
                         const size_t nodes,
                         const std::chrono::duration<double> time,
-                        const MoveBuffer &pv,
-                        const state::AugmentedState &astate) const = 0;
+                        const MoveBuffer &pv) const = 0;
 };
 
 //============================================================================//
@@ -303,9 +302,9 @@ struct TTable {
         buf.clear();
         Zobrist hash = sn.template get<Zobrist>();
         while (contains(hash) && !sn.bottomed_out()) {
-            move::FatMove best_move = get(hash).second.best_move;
+            const move::FatMove best_move = get(hash).second.best_move;
             sn.make_move(best_move);
-            if (sn.n_repetitions() >= 3) {
+            if (sn.is_non_stalemate_draw()) {
                 break;
             }
             buf.push_back(best_move);
@@ -389,7 +388,7 @@ class DLNegaMax {
     constexpr DLNegaMax(const move::movegen::AllMoveGenerator &mover,
                         DefaultNode<TEval, MaxDepth> &node, TTable &ttable)
 
-        : m_mover(mover), m_ttable(ttable), m_node(node) {};
+        : m_mover(mover), m_node(node), m_ttable(ttable) {};
 
     constexpr void set_depth(size_t depth) {
         assert(depth <= MaxDepth);
@@ -421,11 +420,12 @@ class DLNegaMax {
         }
 
         // Check for repetition
-        if (m_node.depth() > 0 && m_node.last_repetition()) {
-            return {.result = {.type = SearchResult::LeafType::DRAW,
-                               .eval = 0,
-                               .n_nodes = 1},
-                    .type = ABNodeType::NA};
+
+        // This will waste time researching all moves if we hit
+        // stalemate/checkmate at the fiftieth fullmove,
+        // but this is unlikely.
+        if (m_node.depth() > 0 && m_node.template is_non_stalemate_draw<1>()) {
+            return ab_draw_result;
         }
 
         // Cutoff -> return value
@@ -726,20 +726,14 @@ class IDSearcher {
 
             assert(search_result.has_value());
 
-            // TODO: ensure ttable pv is legal (i.e. don't allow repetitions),
-            // Then report pv from transposition table like this.
-            // m_searcher.get_pv(m_pv);
-
-            m_pv.clear();
-            m_pv.push_back(search_result->best_move);
+            m_searcher.get_pv(m_pv);
 
             std::chrono::duration<double> elapsed =
                 std::chrono::steady_clock::now() - start_time;
 
             // TODO: report nps for current iteration, not total?
             m_reporter.report(max_depth, search_result->eval,
-                              search_result->n_nodes, elapsed, m_pv,
-                              m_searcher.get_node().get_astate());
+                              search_result->n_nodes, elapsed, m_pv);
 
             if (search_result->type == SearchResult::LeafType::CHECKMATE) {
                 break;

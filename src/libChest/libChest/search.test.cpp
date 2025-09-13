@@ -10,7 +10,6 @@
 #include <vector>
 
 #include "libChest/eval.h"
-#include "libChest/makemove.h"
 #include "libChest/move.h"
 #include "libChest/state.h"
 #include "libChest/util.h"
@@ -79,9 +78,9 @@ using FullQSearchWithHashMove = search::DLNegaMax<eval::DefaultEval, max_depth,
                                                    .hash_first = true}>;
 
 search::ABResult do_search(auto &searcher, const size_t d,
-                           state::AugmentedState &astate,
                            const std::string_view name,
                            search::TTable &ttable) {
+    searcher.set_depth(d);
     search::ABResult ret = searcher.search();
     std::cerr << name << "\n  DEPTH: " << d << ", eval: " << ret.result.eval
               << ", best_move: "
@@ -115,32 +114,30 @@ TEST_CASE("Equality of equivalent search results.") {
                   {mover, sn, ttable}, {mover, sn, ttable}, {mover, sn, ttable},
                   {mover, sn, ttable}, {mover, sn, ttable}};
 
-    for (size_t d = 0; d < search_depth; d++) {
-        apply_tuple([=](auto &searcher) { searcher.set_depth(d); }, searchers);
-
+    for (size_t d = 1; d < search_depth; d++) {
         search::ABResult vanilla_result = do_search(
-            std::get<VanillaNegaMax>(searchers), d, state, "Minimax", ttable);
-        search::ABResult ab_result = do_search(std::get<ABNegaMax>(searchers),
-                                               d, state, "Alpha-beta", ttable);
+            std::get<VanillaNegaMax>(searchers), d, "Minimax", ttable);
+        search::ABResult ab_result =
+            do_search(std::get<ABNegaMax>(searchers), d, "Alpha-beta", ttable);
         search::ABResult ab_sorted_result =
-            do_search(std::get<ABSorted>(searchers), d, state,
+            do_search(std::get<ABSorted>(searchers), d,
                       "Alpha-beta (mvv-lva sorted)", ttable);
         search::ABResult qsearch_result =
-            do_search(std::get<QSearch>(searchers), d, state,
+            do_search(std::get<QSearch>(searchers), d,
                       "Quiescence search (unsorted)", ttable);
         search::ABResult qsearch_sorted_result =
-            do_search(std::get<QSearchSorted>(searchers), d, state,
+            do_search(std::get<QSearchSorted>(searchers), d,
                       "Quiescence search (mvv-lva sorted)", ttable);
         search::ABResult qsearch_stand_pat_result = do_search(
-            std::get<QSearchStandPat>(searchers), d, state,
+            std::get<QSearchStandPat>(searchers), d,
             "Quiescence search w/ stand-pat pruning (unsorted)", ttable);
 
         search::ABResult qsearch_sorted_stand_pat_result = do_search(
-            std::get<FullQSearch>(searchers), d, state,
+            std::get<FullQSearch>(searchers), d,
             "Full quiescence search (stand-pat pruning, mvv-lva sorted)",
             ttable);
         search::ABResult hash_move_result =
-            do_search(std::get<FullQSearchWithHashMove>(searchers), d, state,
+            do_search(std::get<FullQSearchWithHashMove>(searchers), d,
                       "Full quiescence search (stand-pat pruning, "
                       "hash-move/mvv-lva sorted)",
                       ttable);

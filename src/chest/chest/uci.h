@@ -150,6 +150,8 @@ class UCIEngine : public GenericEngine {
               {"isready", [this]() { return std::make_unique<ISReady>(this); }},
               {"debug",
                [this]() { return std::make_unique<DebugConfig>(this); }},
+              {"ucinewgame",
+               [this]() { return std::make_unique<UciNewGame>(this); }},
               {"position",
                [this]() { return std::make_unique<Position>(this); }},
               {"quit", [this]() { return std::make_unique<Quit>(this); }},
@@ -161,6 +163,5 @@ class UCIEngine : public GenericEngine {
 
     void report(const size_t depth, const eval::centipawn_t eval,
                 const size_t nodes, const std::chrono::duration<double> time,
-                const MoveBuffer &pv,
-                const state::AugmentedState &astate) const override;
+                const MoveBuffer &pv) const override;
 };

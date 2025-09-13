@@ -1,14 +1,16 @@
-//============================================================================//
-// Test all depths up to threshold per position
-//============================================================================//
-
 #include "libChest/makemove.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <chrono>
 #include <iostream>
 
+#include "libChest/board.h"
+#include "libChest/state.h"
 #include "libChest/util.h"
+
+//============================================================================//
+// Perft tests
+//============================================================================//
 
 constexpr size_t max_depth_limit = 6;
 
@@ -72,9 +74,9 @@ void do_perft_test(const PerftTest &perft_case, const size_t depth_limit) {
     }
 }
 
-//============================================================================//
+//----------------------------------------------------------------------------//
 // Define the tests
-//============================================================================//
+//----------------------------------------------------------------------------//
 
 // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers)
 
@@ -180,9 +182,9 @@ const std::vector<PerftTest> cases = {
 
 // NOLINTEND(cppcoreguidelines-avoid-magic-numbers)
 
-//============================================================================//
+//----------------------------------------------------------------------------//
 // Run tests
-//============================================================================//
+//----------------------------------------------------------------------------//
 
 TEST_CASE("Perft tests") {
     for (auto &perft_case : cases) {
@@ -194,4 +196,62 @@ TEST_CASE("Perft tests") {
               << indent << "AVERAGE RATE: "
               << static_cast<double>(avg.nodes) / avg.seconds / million
               << "Mn/s" << '\n';
+}
+
+//============================================================================//
+// Repetition detection
+//============================================================================//
+
+constexpr size_t max_search_depth = 64;
+using THistorySearcher =
+    state::SearchNodeWithHistory<max_search_depth, state::default_history_size,
+                                 Zobrist>;
+
+TEST_CASE("Repetition detection") {
+    state::AugmentedState astate{state::new_game_fen};
+    THistorySearcher sn(mover, astate, max_search_depth);
+    sn.make_move(
+        {{board::B1, board::C3, move::MoveType::NORMAL}, board::Piece::KNIGHT});
+    sn.make_move(
+        {{board::B8, board::C6, move::MoveType::NORMAL}, board::Piece::KNIGHT});
+    sn.make_move(
+        {{board::C3, board::B1, move::MoveType::NORMAL}, board::Piece::KNIGHT});
+    sn.make_move(
+        {{board::C6, board::B8, move::MoveType::NORMAL}, board::Piece::KNIGHT});
+    REQUIRE(sn.n_repetitions());  // NOLINT(cppcoreguidelines-avoid-do-while)
+    sn.unmake_move();
+    REQUIRE(!sn.n_repetitions());  // NOLINT(cppcoreguidelines-avoid-do-while)
+    sn.make_move(
+        {{board::C6, board::B8, move::MoveType::NORMAL}, board::Piece::KNIGHT});
+    REQUIRE(sn.n_repetitions());  // NOLINT(cppcoreguidelines-avoid-do-while)
+}
+
+TEST_CASE("Example PV repetition from game") {
+    // Regression test: example of missed repetition from game
+
+    state::AugmentedState astate{state::new_game_fen};
+    THistorySearcher sn(mover, astate, max_search_depth);
+
+    std::vector<std::string> game_unique_moves{
+        "d2d4", "g8f6", "c1g5", "e7e6", "e2e4", "h7h6", "g5f6", "d8f6", "b1c3",
+        "f8b4", "d1d2", "d7d6", "e1c1", "b8d7", "c1b1", "e8g8", "g1f3", "g7g5",
+        "a2a3", "b4a5", "b2b4", "a5b6", "c3a4", "e6e5", "c2c3", "g5g4", "f3e1",
+        "f6g6", "e1c2", "g6e4", "d2h6", "f8e8", "a4b6", "a7b6", "f1b5", "a8a3",
+        "h6g5", "g8f8", "g5h6", "f8g8", "h6g5", "g8f8", "g5h6"};
+
+    std::vector<std::string> pv_moves{"f8g8", "d4e5", "a3b3"};
+
+    for (auto &m : game_unique_moves) {
+        sn.make_move(move::LongAlgMove{m}.to_fmove(astate).value());
+    }
+    REQUIRE(sn.n_repetitions() ==  // NOLINT(cppcoreguidelines-avoid-do-while)
+            1);
+
+    auto &m = pv_moves.front();
+    std::cerr << m << '\n';
+    sn.make_move(move::LongAlgMove{m}.to_fmove(astate).value());
+    REQUIRE(sn.n_repetitions() !=  // NOLINT(cppcoreguidelines-avoid-do-while)
+            0);
+    REQUIRE(sn.n_repetitions() <  // NOLINT(cppcoreguidelines-avoid-do-while)
+            3);
 }

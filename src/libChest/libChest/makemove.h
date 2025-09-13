@@ -703,17 +703,48 @@ struct SearchNodeWithHistory : public SearchNode<MaxDepth, TComponents...> {
         return ParentNode::make_move(fmove);
     }
 
-    // Is there a repetition in history since the half-move clock was
-    // incremented?
-    constexpr size_t last_repetition() const {
+    // Number of repetitions in history since the half-move clock was
+    // incremented
+    constexpr size_t n_repetitions() const {
         const Zobrist cur_pos_hash = ParentNode::template get<Zobrist>();
         const size_t hm = ParentNode::get_astate().state.halfmove_clock;
         const size_t cur_ply = ply();
-        for (size_t offset = 4; offset <= hm; offset += 4) {
-            if (cur_pos_hash == m_history[cur_ply - offset % HistorySz])
-                return offset;
+
+        size_t ret = 0;
+        for (size_t offset = 4; offset <= hm; offset += 2) {
+            if (cur_pos_hash == m_history[(cur_ply - offset) % HistorySz])
+                ret++;
+        }
+        return ret;
+    }
+
+    constexpr bool is_repetition() const {
+        const Zobrist cur_pos_hash = ParentNode::template get<Zobrist>();
+        const size_t hm = ParentNode::get_astate().state.halfmove_clock;
+        const size_t cur_ply = ply();
+
+        for (size_t offset = 4; offset <= hm; offset += 2) {
+            if (cur_pos_hash == m_history[(cur_ply - offset) % HistorySz])
+                return true;
         }
         return false;
+    }
+
+    // Helper: is the game drawn by fifty-move/threefold repetition rule?
+    template <size_t RepetitionsUntilDraw = 2>
+    constexpr bool is_non_stalemate_draw() const {
+        constexpr static size_t halfmove_clock_limit = 100;
+        return ParentNode::get_astate().state.halfmove_clock >=
+                   halfmove_clock_limit ||
+               n_repetitions() >= RepetitionsUntilDraw;
+    }
+
+    template <>
+    constexpr bool is_non_stalemate_draw<1>() const {
+        constexpr static size_t halfmove_clock_limit = 100;
+        return ParentNode::get_astate().state.halfmove_clock >=
+                   halfmove_clock_limit ||
+               is_repetition();
     }
 
    private:
