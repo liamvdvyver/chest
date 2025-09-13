@@ -228,8 +228,7 @@ std::optional<int> Go::perft_impl() {
             // notation correctly
             sn.unmake_move();
 
-            std::string partial_msg =
-                static_cast<std::string>(move::LongAlgMove(m, sn.get_astate()));
+            std::string partial_msg = move::LongAlgMove(m);
             partial_msg.append(": ");
             partial_msg.append(std::to_string(mv_res));
             partial_msg.push_back('\n');
@@ -275,8 +274,7 @@ std::optional<int> Go::search_impl() {
     const move::FatMove best = idsearcher.search(finish_time).best_move;
 
     std::string msg = "bestmove ";
-    msg.append(
-        (move::long_alg_t)move::LongAlgMove(best, eng_node.get_astate()));
+    msg.append(move::LongAlgMove(best));
     msg.push_back('\n');
     m_engine->log(msg, LogLevel::RAW_MESSAGE);
     return {};
@@ -335,7 +333,7 @@ void UCIEngine::report(const size_t depth, const eval::centipawn_t eval,
 
     for (const move::FatMove fmove : pv) {
         info_string += " ";
-        info_string += (move::long_alg_t)move::LongAlgMove(fmove, astate);
+        info_string += move::LongAlgMove(fmove);
     }
 
     info_string.push_back('\n');

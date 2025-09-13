@@ -225,6 +225,8 @@ struct FatMove {
                get_piece() == other.get_piece();
     }
 
+    constexpr std::string pretty() const;
+
    private:
     // Even though this is a POD struct, allow further packing in future.
     Move m_move;
@@ -243,12 +245,14 @@ struct LongAlgMove : Wrapper<long_alg_t, LongAlgMove> {
     using Wrapper::Wrapper;
     constexpr LongAlgMove(const Wrapper &val) : Wrapper(val) {};
 
+    constexpr operator long_alg_t() const { return value; }
+
     // Construct from move/state
     // If castling is contructed differently, could be done without state
-    constexpr LongAlgMove(const FatMove fmove,
-                          const state::AugmentedState &astate) {
+    constexpr LongAlgMove(const FatMove fmove) {
         if (fmove.get_move().type() == MoveType::CASTLE) {
-            board::Colour to_move = astate.state.to_move;
+            board::Colour to_move = static_cast<board::Colour>(
+                !static_cast<bool>(fmove.get_move().from().rank()));
             value += board::io::algebraic(
                 state::CastlingInfo::get_king_start(to_move));
             value +=
@@ -375,5 +379,9 @@ struct LongAlgMove : Wrapper<long_alg_t, LongAlgMove> {
         }
     }
 };
+
+constexpr std::string FatMove::pretty() const {
+    return static_cast<std::string>(LongAlgMove{*this});
+}
 
 }  // namespace move
