@@ -258,8 +258,8 @@ struct GenPawnDoublePushes {
 static_assert(ColouredMultiAttacker<GenPawnDoublePushes>);
 
 struct GenPawnCaptures {
-    constexpr board::Bitboard operator()(const board::Bitboard starting,
-                                         const board::Colour to_move) {
+    constexpr static board::Bitboard operator()(const board::Bitboard starting,
+                                                const board::Colour to_move) {
         const board::Bitboard single_push =
             GenPawnSinglePushes()(starting, to_move);
         return single_push.shift_no_wrap(board::Direction::E) |

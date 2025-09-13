@@ -132,7 +132,7 @@ class AttackerAdaptor : public WithAttackers<Piece> {
     };
 
    private:
-    const TAttacker &m_attacker;
+    std::reference_wrapper<const TAttacker> m_attacker;
 };
 static_assert(OnePieceMoveGenerator<
               AttackerAdaptor<attack::KingAttacker, board::Piece::KING>>);
@@ -172,7 +172,7 @@ class SlidingSingletonMoverAdaptor : public WithAttackers<Piece> {
     };
 
    private:
-    const TAttacker &m_attacker;
+    std::reference_wrapper<const TAttacker> m_attacker;
 };
 static_assert(OnePieceMoveGenerator<SlidingSingletonMoverAdaptor<
                   attack::RookAttacker, board::Piece::ROOK>>);
@@ -204,7 +204,7 @@ class LoopingMultiMover : public WithAllMoves<LoopingMultiMover<TMover>> {
     }
 
    protected:
-    const TMover m_mover;
+    TMover m_mover;
 };
 
 //============================================================================//
@@ -290,9 +290,9 @@ class PawnMoveGenerator
     }
 
    private:
-    const TSinglePusher &m_single_pusher;
-    const TDoublePusher &m_double_pusher;
-    const TAttacker &m_attacker;
+    std::reference_wrapper<const TSinglePusher> m_single_pusher;
+    std::reference_wrapper<const TDoublePusher> m_double_pusher;
+    std::reference_wrapper<const TAttacker> m_attacker;
 
     constexpr void get_single_pushes(MoveBuffer &moves,
                                      board::Bitboard occ_total,

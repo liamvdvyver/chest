@@ -81,7 +81,6 @@ class NetEval {
     }
 
    protected:
-    // NOLINTNEXTLINE augmented state should always outlive its evaluator
     std::reference_wrapper<const state::AugmentedState> m_astate;
     friend T;
 
@@ -252,22 +251,24 @@ class StdEval : public MaterialEval<StdEval> {
     StdEval(const state::AugmentedState &astate) : MaterialEval(astate) {};
 
     static constexpr centipawn_t piece_val(const board::Piece piece) {
+        // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers)
         switch (piece) {
             case (board::Piece::PAWN):
-                return 100;  // NOLINT(cppcoreguidelines-avoid-magic-numbers)
+                return 100;
             case (board::Piece::KNIGHT):  // NOLINT bugprone-branch-clone
-                return 300;  // NOLINT(cppcoreguidelines-avoid-magic-numbers)
+                return 300;
             case (board::Piece::BISHOP):
-                return 300;  // NOLINT(cppcoreguidelines-avoid-magic-numbers)
+                return 300;
             case (board::Piece::ROOK):
-                return 500;  // NOLINT(cppcoreguidelines-avoid-magic-numbers)
+                return 500;
             case (board::Piece::QUEEN):
-                return 900;  // NOLINT(cppcoreguidelines-avoid-magic-numbers)
+                return 900;
             case (board::Piece::KING):
                 return 0;
             default:
                 std::unreachable();
         }
+        // NOLINTEND(cppcoreguidelines-avoid-magic-numbers)
     }
 };
 static_assert(StaticEvaluator<StdEval>);
@@ -286,23 +287,24 @@ class MichniewskiMaterialEval : public MaterialEval<MichniewskiMaterialEval> {
         : MaterialEval(astate) {};
 
     static constexpr centipawn_t piece_val(const board::Piece piece) {
+        // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers)
         switch (piece) {
             case (board::Piece::PAWN):
-                return 100;  // NOLINT(cppcoreguidelines-avoid-magic-numbers)
+                return 100;
             case (board::Piece::KNIGHT):
-                return 320;  // NOLINT(cppcoreguidelines-avoid-magic-numbers)
+                return 320;
             case (board::Piece::BISHOP):
-                return 330;  // NOLINT(cppcoreguidelines-avoid-magic-numbers)
+                return 330;
             case (board::Piece::ROOK):
-                return 500;  // NOLINT(cppcoreguidelines-avoid-magic-numbers)
+                return 500;
             case (board::Piece::QUEEN):
-                return 900;  // NOLINT(cppcoreguidelines-avoid-magic-numbers)
+                return 900;
             case (board::Piece::KING):
-                return 20000;  // NOLINT(cppcoreguidelines-avoid-magic-numbers)
-
+                return 20000;
             default:
                 std::unreachable();
         }
+        // NOLINTEND(cppcoreguidelines-avoid-magic-numbers)
     }
 };
 static_assert(StaticEvaluator<MichniewskiMaterialEval>);

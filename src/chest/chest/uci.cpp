@@ -19,14 +19,15 @@
 
 // Helper
 void display_state(const GenericEngine &engine) {
-    std::string state_str = engine.m_astate.state.pretty();
-    state_str.append(engine.m_astate.state.to_fen());
+    std::string state_str = engine.get_astate().state.pretty();
+    state_str.append(engine.get_astate().state.to_fen());
     state_str.append("\n0x");
-    state_str.append(Zobrist(engine.m_astate.state).pretty());
+    state_str.append(Zobrist(engine.get_astate().state).pretty());
     state_str.append("\nStatic eval: ");
-    state_str.append(std::to_string(eval::DefaultEval(engine.m_astate).eval()));
+    state_str.append(
+        std::to_string(eval::DefaultEval(engine.get_astate()).eval()));
     state_str.append("\nRepetitions: ");
-    state_str.append(std::to_string(engine.m_node.n_repetitions()));
+    state_str.append(std::to_string(engine.get_node().n_repetitions()));
     std::stringstream out_stream{state_str};
     for (std::string ln; std::getline(out_stream, ln);) {
         ln.push_back('\n');
@@ -72,9 +73,9 @@ bool DebugConfig::parse(const std::string_view keyword,
     std::string arg;
     args >> arg;
     if (arg == "on") {
-        m_engine->m_debug = true;
+        m_engine->set_debug(true);
     } else if (arg == "off") {
-        m_engine->m_debug = false;
+        m_engine->set_debug(false);
     } else {
         return false;
     }
@@ -85,7 +86,7 @@ std::optional<int> DebugConfig::execute() { return {}; };
 //-- Ucinewgame --------------------------------------------------------------//
 
 std::optional<int> UciNewGame::execute() {
-    m_engine->m_ttable.clear();
+    m_engine->get_ttable().clear();
     return {};
 };
 
@@ -132,29 +133,26 @@ void Position::curpos_impl(const std::string_view keyword,
                            std::stringstream &args) {
     (void)keyword;
     (void)args;
-    m_astate = m_engine->m_astate;
+    m_astate = m_engine->get_astate();
 };
 
 bool Position::sufficient_args() const { return m_astate.has_value(); };
 std::optional<int> Position::execute() {
-    m_engine->m_astate = m_astate.value();
-    m_engine->m_node.set_astate(m_engine->m_astate);
-    // m_engine->m_node = search::NodeType<eval::DefaultEval, MAX_DEPTH>(
-    //     m_engine->m_mover, m_engine->m_astate, MAX_DEPTH);
-    auto &sn = m_engine->m_node;
+    assert(m_astate.has_value());
+    m_engine->set_astate(m_astate.value());
 
     for (const std::string &move : m_moves) {
         const std::optional<move::FatMove> fmove =
-            move::LongAlgMove(move).to_fmove(sn.get_astate());
+            move::LongAlgMove(move).to_fmove(m_engine->get_astate());
         if (!fmove.has_value()) {
             return false;
         }
         // TODO: batch updates in batches of MAX_LENGTH
-        sn.prep_search(1);
-        sn.make_move(fmove.value());
+        m_engine->get_node().prep_search(1);
+        m_engine->get_node().make_move(fmove.value());
     }
 
-    if (m_engine->m_debug) {
+    if (m_engine->is_debug()) {
         display_state(*m_engine);
     }
 
@@ -207,7 +205,7 @@ void Go::perft_impl(const std::string_view keyword, std::stringstream &args) {
 }
 
 bool Go::sufficient_args() const {
-    const board::Colour to_move = m_engine->m_astate.state.to_move;
+    const board::Colour to_move = m_engine->get_astate().state.to_move;
     return m_tc.movetime || m_tc.copy_remaining(to_move) || m_perft_depth;
 }
 
@@ -216,7 +214,7 @@ std::optional<int> Go::execute() {
 }
 
 std::optional<int> Go::perft_impl() {
-    state::PerftNode<MAX_DEPTH> sn{m_engine->m_astate, m_perft_depth};
+    state::PerftNode<MAX_DEPTH> sn{m_engine->get_astate(), m_perft_depth};
     const auto moves = sn.find_moves<false>();
     size_t perft = 0;
 
@@ -259,19 +257,19 @@ std::optional<int> Go::search_impl() {
     // TODO: add buffer to account for parsing time
     // Maybe in parse(): record time message came in.
     const TimeManagerTp time_manager{};
-    auto &eng_node = m_engine->m_node;
     const search::ms_t search_time =
-        time_manager(m_tc, eng_node.get_astate().state.to_move);
+        time_manager(m_tc, m_engine->get_astate().state.to_move);
 
     // TODO:consider making searcher member of engine rather than dynamically
     // allocating.
-    DlSearcherTp nega(eng_node, m_engine->m_ttable);
+    // DlSearcherTp nega();
 
     const std::chrono::time_point<std::chrono::steady_clock> finish_time =
         std::chrono::steady_clock::now() +
         std::chrono::milliseconds(search_time);
 
-    SearcherTp idsearcher(nega, *m_engine);
+    SearcherTp idsearcher(m_engine, m_engine->get_node(),
+                          m_engine->get_ttable());
     const move::FatMove best = idsearcher.search(finish_time).best_move;
 
     std::string msg = "bestmove ";

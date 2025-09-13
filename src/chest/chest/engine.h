@@ -13,7 +13,7 @@
 #include <optional>
 #include <sstream>
 
-#include "libChest/movegen.h"
+#include "libChest/eval.h"
 #include "libChest/search.h"
 #include "libChest/util.h"
 
@@ -73,13 +73,6 @@ class GenericEngine : public search::StatReporter {
     GenericEngine(std::unordered_map<std::string, CommandFactory> &&commands)
         : m_commands(std::move(commands)) {}
 
-    // Special members
-    GenericEngine(const GenericEngine &) = default;
-    GenericEngine(GenericEngine &&) = delete;
-    GenericEngine &operator=(const GenericEngine &) = delete;
-    GenericEngine &operator=(GenericEngine &&) = delete;
-    ~GenericEngine() override = default;
-
     // Read command and execute.
     // Returns return code if engine should exit, otherwise empty.
     virtual std::optional<int> run();
@@ -91,16 +84,36 @@ class GenericEngine : public search::StatReporter {
     void bad_command(const std::string_view cmd) const;
     void bad_command_args(const std::string_view input) const;
 
-    // TODO: make these members private.
+    //-- Accessors -----------------------------------------------------------//
 
-    std::istream *m_input = &std::cin;
-    std::ostream *m_output = &std::cout;
-    state::AugmentedState m_astate{};  // TODO: encapsulate through node
-    search::DefaultNode<eval::DefaultEval, MAX_DEPTH> m_node =
-        search::DefaultNode<eval::DefaultEval, MAX_DEPTH>(m_astate, MAX_DEPTH);
-    search::TTable m_ttable;
-    bool m_debug = DEBUG();
+    auto &get_node() { return m_node; }
+    const auto &get_node() const { return m_node; }
+
+    auto &get_astate() { return m_astate; }
+    const auto &get_astate() const { return m_astate; }
+
+    auto &get_ttable() { return m_ttable; }
+    const auto &get_ttable() const { return m_ttable; }
+
+    bool is_debug() const { return m_debug; }
+
+    //-- Mutators ------------------------------------------------------------//
+
+    void set_astate(state::AugmentedState &astate) {
+        m_astate = astate;
+        m_node.set_astate(m_astate);
+    }
+
+    void set_debug(const bool debug) { m_debug = debug; }
 
    protected:
+    std::istream *m_input = &std::cin;
+    std::ostream *m_output = &std::cout;
+    state::AugmentedState m_astate{};
+    search::DefaultNode<eval::DefaultEval, MAX_DEPTH> m_node =
+        search::DefaultNode<eval::DefaultEval, MAX_DEPTH>(m_astate, MAX_DEPTH);
+
     std::unordered_map<std::string, CommandFactory> m_commands;
+    bool m_debug = DEBUG();
+    search::TTable m_ttable{};
 };

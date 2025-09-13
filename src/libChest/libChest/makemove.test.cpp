@@ -8,6 +8,8 @@
 #include "libChest/state.h"
 #include "libChest/util.h"
 
+// NOLINTBEGIN(cppcoreguidelines-avoid-do-while)
+
 //============================================================================//
 // Perft tests
 //============================================================================//
@@ -67,7 +69,6 @@ void do_perft_test(const PerftTest &perft_case, const size_t depth_limit) {
         avg.seconds += taken.count();
 
         // Run test
-        // NOLINTNEXTLINE(cppcoreguidelines-avoid-do-while)
         REQUIRE(res.perft == perft_case.results.at(i));
     }
 }
@@ -216,12 +217,12 @@ TEST_CASE("Repetition detection") {
         {{board::C3, board::B1, move::MoveType::NORMAL}, board::Piece::KNIGHT});
     sn.make_move(
         {{board::C6, board::B8, move::MoveType::NORMAL}, board::Piece::KNIGHT});
-    REQUIRE(sn.n_repetitions());  // NOLINT(cppcoreguidelines-avoid-do-while)
+    REQUIRE(sn.n_repetitions());
     sn.unmake_move();
-    REQUIRE(!sn.n_repetitions());  // NOLINT(cppcoreguidelines-avoid-do-while)
+    REQUIRE(!sn.n_repetitions());
     sn.make_move(
         {{board::C6, board::B8, move::MoveType::NORMAL}, board::Piece::KNIGHT});
-    REQUIRE(sn.n_repetitions());  // NOLINT(cppcoreguidelines-avoid-do-while)
+    REQUIRE(sn.n_repetitions());
 }
 
 TEST_CASE("Example PV repetition from game") {
@@ -242,14 +243,13 @@ TEST_CASE("Example PV repetition from game") {
     for (auto &m : game_unique_moves) {
         sn.make_move(move::LongAlgMove{m}.to_fmove(astate).value());
     }
-    REQUIRE(sn.n_repetitions() ==  // NOLINT(cppcoreguidelines-avoid-do-while)
-            1);
+    REQUIRE(sn.n_repetitions() == 1);
 
     auto &m = pv_moves.front();
     std::cerr << m << '\n';
     sn.make_move(move::LongAlgMove{m}.to_fmove(astate).value());
-    REQUIRE(sn.n_repetitions() !=  // NOLINT(cppcoreguidelines-avoid-do-while)
-            0);
-    REQUIRE(sn.n_repetitions() <  // NOLINT(cppcoreguidelines-avoid-do-while)
-            3);
+    REQUIRE(sn.n_repetitions() != 0);
+    REQUIRE(sn.n_repetitions() < 3);
 }
+
+// NOLINTEND(cppcoreguidelines-avoid-do-while)

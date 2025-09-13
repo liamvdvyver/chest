@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <functional>
 #include <mutex>
 
 #include "eval.h"
@@ -177,8 +178,7 @@ struct IdentityGt {
     }
 
    private:
-    const move::FatMove
-        m_target;  // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
+    move::FatMove m_target;
 };
 
 //----------------------------------------------------------------------------//
@@ -215,9 +215,10 @@ struct MvvLva {
     constexpr uint8_t victim_val(const move::FatMove mv) const {
         return move::is_capture(mv.get_move().type())
                    ? static_cast<uint8_t>(
-                         m_astate.state
+                         m_astate.get()
+                             .state
                              .piece_at(mv.get_move().to(),
-                                       !m_astate.state.to_move)
+                                       !m_astate.get().state.to_move)
                              .transform([](board::ColouredPiece cp) {
                                  return cp.piece;
                              })
@@ -236,8 +237,7 @@ struct MvvLva {
         return static_cast<uint8_t>(mv.get_piece());
     }
 
-    const state::AugmentedState
-        &m_astate;  // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
+    std::reference_wrapper<const state::AugmentedState> m_astate;
 };
 
 // Concrete type used currently
@@ -254,10 +254,8 @@ struct DefaultOrdering {
     }
 
    private:
-    // NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members)
-    const MvvLva m_mvv_lva;
-    const IdentityGt m_hash_move_comparator;
-    // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
+    MvvLva m_mvv_lva;
+    IdentityGt m_hash_move_comparator;
 };
 
 //============================================================================//
@@ -351,8 +349,9 @@ struct TTable {
         return m_entries[static_cast<size_t>(idx) % m_size];
     }
 
-    // NOLINTNEXTLINE(cppcoreguidelines-avoid-const-or-ref-data-members)
-    const size_t m_size = 1024UL * 1024UL / sizeof(TTEntry);
+    // TODO: make resizable
+    static constexpr size_t kb = 1024;
+    size_t m_size = kb * kb / sizeof(TTEntry);
 
     std::vector<TTEntry> m_entries = std::vector<TTEntry>(m_size, {{}, {}});
 };
@@ -391,7 +390,7 @@ class DLNegaMax {
 
     constexpr void set_depth(size_t depth) {
         assert(depth <= MaxDepth);
-        m_node.prep_search(depth);
+        m_node.get().prep_search(depth);
 
         m_stopped = false;
     }
@@ -423,12 +422,13 @@ class DLNegaMax {
         // This will waste time researching all moves if we hit
         // stalemate/checkmate at the fiftieth fullmove,
         // but this is unlikely.
-        if (m_node.depth() > 0 && m_node.template is_non_stalemate_draw<1>()) {
+        if (m_node.get().depth() > 0 &&
+            m_node.get().template is_non_stalemate_draw<1>()) {
             return ab_draw_result;
         }
 
         // Cutoff -> return value
-        if (m_node.template bottomed_out<Type>()) {
+        if (m_node.get().template bottomed_out<Type>()) {
             // Normal search -> quiesce
             if constexpr (Type == SearchType::NORMAL && Opts.quiesce) {
                 return search<SearchType::QUIESCE>(finish_time, bounds);
@@ -440,7 +440,7 @@ class DLNegaMax {
         // In quiescence only: check stand-pat score
         if constexpr (Type == SearchType::QUIESCE && Opts.quiescence_standpat) {
             const eval::centipawn_t standpat_score =
-                m_node.template get<TEval>().eval();
+                m_node.get().template get<TEval>().eval();
             bounds.alpha = std::max(bounds.alpha, standpat_score);
             if (standpat_score >= bounds.beta) {
                 return {.result = {.type = SearchResult::LeafType::STANDPAT,
@@ -452,14 +452,14 @@ class DLNegaMax {
         }
 
         // Get hash move
-        const Zobrist hash = m_node.template get<Zobrist>();
+        const Zobrist hash = m_node.get().template get<Zobrist>();
         move::FatMove hash_move;
 
         if constexpr (Opts.hash_first) {
             // TODO: check for cutoff with this move.
             // TODO: if has deeper hash move, don't research this node.
             const std::optional<TTable::TTValue> tt_value =
-                m_ttable.at_opt(hash);
+                m_ttable.get().at_opt(hash);
             hash_move =
                 tt_value.transform([](auto val) { return val.best_move; })
                     .value_or({});
@@ -468,22 +468,22 @@ class DLNegaMax {
         // Get children (in order)
         MoveBuffer &moves = search_moves<Type>();
         if constexpr (Opts.sort) {
-            std::sort(
-                moves.begin(), moves.end(),
-                [this, hash_move](const move::FatMove a,
-                                  const move::FatMove b) {
-                    const bool ret =
-                        DefaultOrdering(m_node.get_astate(), hash_move)(a, b);
-                    if constexpr (DEBUG()) {
-                        assert(!(ret && DefaultOrdering(m_node.get_astate(),
-                                                        hash_move)(b, a)));
-                        assert(!(DefaultOrdering(m_node.get_astate(),
-                                                 hash_move)(a, a)));
-                        assert(!(DefaultOrdering(m_node.get_astate(),
-                                                 hash_move)(b, b)));
-                    }
-                    return ret;
-                });
+            std::sort(moves.begin(), moves.end(),
+                      [this, hash_move](const move::FatMove a,
+                                        const move::FatMove b) {
+                          const bool ret = DefaultOrdering(
+                              m_node.get().get_astate(), hash_move)(a, b);
+                          if constexpr (DEBUG()) {
+                              assert(!(ret && DefaultOrdering(
+                                                  m_node.get().get_astate(),
+                                                  hash_move)(b, a)));
+                              assert(!(DefaultOrdering(
+                                  m_node.get().get_astate(), hash_move)(a, a)));
+                              assert(!(DefaultOrdering(
+                                  m_node.get().get_astate(), hash_move)(b, b)));
+                          }
+                          return ret;
+                      });
         }
 
         // Recurse over children
@@ -498,7 +498,7 @@ class DLNegaMax {
             }
 
             // Check child
-            if (m_node.make_move(m)) {
+            if (m_node.get().make_move(m)) {
                 SearchResult child_result =
                     search<Type>(finish_time, {-bounds.beta, -bounds.alpha});
 
@@ -524,12 +524,12 @@ class DLNegaMax {
                     }
                     if (child_eval >= bounds.beta) {
                         // Pruned -> return lower bound
-                        m_node.unmake_move();
+                        m_node.get().unmake_move();
                         break;
                     }
                 }
             }
-            m_node.unmake_move();
+            m_node.get().unmake_move();
         }
 
         if (!best_move) {
@@ -542,14 +542,16 @@ class DLNegaMax {
 
             // Stale/checkmate
             const board::Square king_sq =
-                m_node.get_astate()
+                m_node.get()
+                    .get_astate()
                     .state
-                    .copy_bitboard({.colour = m_node.get_astate().state.to_move,
-                                    .piece = board::Piece::KING})
+                    .copy_bitboard(
+                        {.colour = m_node.get().get_astate().state.to_move,
+                         .piece = board::Piece::KING})
                     .single_bitscan_forward();
             const bool checked = move::movegen::AllMoveGenerator::is_attacked(
-                m_node.get_astate(), king_sq,
-                m_node.get_astate().state.to_move);
+                m_node.get().get_astate(), king_sq,
+                m_node.get().get_astate().state.to_move);
             // FIXME: cache this in transposition table
             return {
                 .result = {.type = checked ? SearchResult::LeafType::CHECKMATE
@@ -562,14 +564,17 @@ class DLNegaMax {
         best_move->n_nodes = n_nodes;
         const ABResult ret = {.result = best_move.value(),
                               .type = ABNodeType::NA};
-        m_ttable.insert(
+        m_ttable.get().insert(
             hash, ret,
-            static_cast<uint8_t>(m_node.template depth_remaining<Type>()));
+            static_cast<uint8_t>(
+                m_node.get().template depth_remaining<Type>()));
         return ret;
     }
 
     // Extracts principal variation from the transposition table.
-    void get_pv(MoveBuffer &buf) { return m_ttable.get_pv(buf, m_node); }
+    void get_pv(MoveBuffer &buf) {
+        return m_ttable.get().get_pv(buf, m_node.get());
+    }
 
    private:
     static constexpr ABResult ab_timeout_result{
@@ -588,10 +593,11 @@ class DLNegaMax {
 
     // Return value in (soft/hard) cutoff
     constexpr ABResult cutoff_result() const {
-        SearchResult search_ret = {.type = SearchResult::LeafType::CUTOFF,
-                                   .best_move = {},
-                                   .eval = m_node.template get<TEval>().eval(),
-                                   .n_nodes = 1};
+        SearchResult search_ret = {
+            .type = SearchResult::LeafType::CUTOFF,
+            .best_move = {},
+            .eval = m_node.get().template get<TEval>().eval(),
+            .n_nodes = 1};
         return {.result = search_ret, .type = ABNodeType::NA};
     }
 
@@ -601,13 +607,13 @@ class DLNegaMax {
 
     template <>
     constexpr MoveBuffer &search_moves<SearchType::NORMAL>() {
-        return m_node.template find_moves<true>();
+        return m_node.get().template find_moves<true>();
     }
 
     // Return sorted
     template <>
     constexpr MoveBuffer &search_moves<SearchType::QUIESCE>() {
-        return m_node.find_loud_moves();
+        return m_node.get().find_loud_moves();
     }
 
     // Quiescence helper: if no loud moves were found,
@@ -615,14 +621,14 @@ class DLNegaMax {
     // or if there are legal quiet moves.
     constexpr bool quiet_moves_exist() {
         // Get children (in order)
-        const MoveBuffer &moves = m_node.find_quiet_moves();
+        const MoveBuffer &moves = m_node.get().find_quiet_moves();
 
         for (const move::FatMove &m : moves) {
-            if (m_node.make_move(m)) {
-                m_node.unmake_move();
+            if (m_node.get().make_move(m)) {
+                m_node.get().unmake_move();
                 return true;
             }
-            m_node.unmake_move();
+            m_node.get().unmake_move();
         }
 
         return false;
@@ -644,11 +650,8 @@ class DLNegaMax {
         return false;
     }
 
-    // NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members)
-    // Movegen and state should outlive searcher.
-    DefaultNode<TEval, MaxDepth> &m_node;
-    TTable &m_ttable;
-    // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
+    std::reference_wrapper<DefaultNode<TEval, MaxDepth>> m_node;
+    std::reference_wrapper<TTable> m_ttable;
 
     bool m_stopped = false;
 };
@@ -664,8 +667,9 @@ static_assert(DLSearcher<DLNegaMax<eval::StdEval, 1>>);
 template <DLSearcher TSearcher, size_t MaxDepth>
 class IDSearcher {
    public:
-    constexpr IDSearcher(TSearcher &searcher, const StatReporter &reporter)
-        : m_searcher(searcher), m_reporter(reporter) {}
+    template <typename... Ts>
+    constexpr IDSearcher(const StatReporter *reporter, Ts &&...args)
+        : m_searcher(std::forward<Ts>(args)...), m_reporter(reporter) {}
 
     // Stops the search as soon as possible, will return to the (other)
     // thread which called search().
@@ -707,7 +711,10 @@ class IDSearcher {
                 m_stoplock.unlock();
             }
 
-            SearchResult candidate_result = m_searcher.search(finish_time);
+            std::optional<std::chrono::time_point<std::chrono::steady_clock>>
+                ply_finish_time =
+                    max_depth ? std::optional(finish_time) : std::nullopt;
+            SearchResult candidate_result = m_searcher.search(ply_finish_time);
 
             // if first ply, we now have a result
             if (max_depth == 1) {
@@ -730,8 +737,10 @@ class IDSearcher {
                 std::chrono::steady_clock::now() - start_time;
 
             // TODO: report nps for current iteration, not total?
-            m_reporter.report(max_depth, search_result->eval,
-                              search_result->n_nodes, elapsed, m_pv);
+            if (m_reporter) {
+                m_reporter->report(max_depth, search_result->eval,
+                                   search_result->n_nodes, elapsed, m_pv);
+            }
 
             if (search_result->type == SearchResult::LeafType::CHECKMATE) {
                 break;
@@ -743,11 +752,9 @@ class IDSearcher {
     };
 
    private:
-    // NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members)
     // Searcher should be shorter-lived than other objects.
-    TSearcher &m_searcher;
-    const StatReporter &m_reporter;
-    // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
+    TSearcher m_searcher;
+    const StatReporter *m_reporter;
 
     bool m_stopped = false;
     std::mutex m_stoplock;
