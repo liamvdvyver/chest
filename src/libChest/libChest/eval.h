@@ -74,13 +74,15 @@ class NetEval {
    public:
     constexpr centipawn_t eval() const {
         static_assert(SideEvaluator<T>);
-        return static_cast<const T *>(this)->side_eval(m_astate.state.to_move) -
-               static_cast<const T *>(this)->side_eval(!m_astate.state.to_move);
+        return static_cast<const T *>(this)->side_eval(
+                   m_astate.get().state.to_move) -
+               static_cast<const T *>(this)->side_eval(
+                   !m_astate.get().state.to_move);
     }
 
    protected:
     // NOLINTNEXTLINE augmented state should always outlive its evaluator
-    const state::AugmentedState &m_astate;
+    std::reference_wrapper<const state::AugmentedState> m_astate;
     friend T;
 
    private:
@@ -121,10 +123,10 @@ class PSTEval : public NetEval<PSTEval<T>> {
         centipawn_t ret = 0;
 
         for (board::Piece p : board::PieceTypesIterator()) {
-            for (board::Bitboard b :
-                 static_cast<const T *>(this)
-                     ->m_astate.state.copy_bitboard({side, p})
-                     .singletons()) {
+            for (board::Bitboard b : static_cast<const T *>(this)
+                                         ->m_astate.get()
+                                         .state.copy_bitboard({side, p})
+                                         .singletons()) {
                 ret += T::pst_val({side, p}, b.single_bitscan_forward());
             }
         }

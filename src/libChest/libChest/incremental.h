@@ -28,6 +28,7 @@ concept IncrementallyUpdateable = requires(
     // State should be initialised from AugmentedState.
     // See makemove.h
     { std::constructible_from<state::AugmentedState> };
+    { std::copy_constructible<T> };
 
     // Change a piece's location on the same bitboard
     { t.move(from, to, cp) } -> std::same_as<void>;

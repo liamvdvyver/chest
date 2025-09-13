@@ -79,6 +79,13 @@ struct SearchNode {
         return std::get<T>(m_components);
     }
 
+    // Reseats the search node's state and update all components.
+    constexpr void set_astate(AugmentedState &astate) {
+        m_astate = astate;
+        apply_tuple([this](auto &component) { component = {m_astate}; },
+                    m_components);
+    }
+
     // Get state: calling code should manipulate through incremental interface.
     const AugmentedState &get_astate() const { return m_astate; }
 
@@ -99,24 +106,24 @@ struct SearchNode {
         MadeMove made{.fmove = fmove, .info = irreversible()};
 
         // Increment clocks
-        m_astate.state.fullmove_number +=
-            static_cast<uint>(!m_astate.state.to_move);
-        m_astate.state.halfmove_clock++;
+        m_astate.get().state.fullmove_number +=
+            static_cast<uint>(!m_astate.get().state.to_move);
+        m_astate.get().state.halfmove_clock++;
 
         const board::Piece moved_p = fmove.get_piece();
-        const board::Colour to_move = m_astate.state.to_move;
+        const board::Colour to_move = m_astate.get().state.to_move;
         const board::Bitboard from_bb = board::Bitboard(mv.from());
         const board::Bitboard to_bb = board::Bitboard(mv.to());
         const board::ColouredPiece moved = {to_move, moved_p};
 
         // Clear en-passant square
-        if (m_astate.state.ep_square.has_value()) {
-            remove_ep_sq(m_astate.state.ep_square.value());
+        if (m_astate.get().state.ep_square.has_value()) {
+            remove_ep_sq(m_astate.get().state.ep_square.value());
         }
 
         // Handle castles
         if (mv.type() == move::MoveType::CASTLE) {
-            set_to_move(!m_astate.state.to_move);
+            set_to_move(!m_astate.get().state.to_move);
             m_made_moves.push_back(made);
             return castle(mv.from(), to_move);
         }
@@ -144,13 +151,14 @@ struct SearchNode {
         }
 
         // Legality check
-        bool was_legal = !m_mover.is_attacked(
+        bool was_legal = !m_mover.get().is_attacked(
             m_astate,
-            m_astate.state.copy_bitboard({to_move, board::Piece::KING})
+            m_astate.get()
+                .state.copy_bitboard({to_move, board::Piece::KING})
                 .single_bitscan_forward(),
             to_move);
 
-        set_to_move(!m_astate.state.to_move);
+        set_to_move(!m_astate.get().state.to_move);
         m_made_moves.push_back(made);
         return was_legal;
     };
@@ -162,14 +170,15 @@ struct SearchNode {
         m_cur_depth--;
 
         // Reset player to move, irreversible info, clocks
-        set_to_move(!m_astate.state.to_move);
+        set_to_move(!m_astate.get().state.to_move);
         reset(unmake.info);
-        m_astate.state.fullmove_number -= (int)(!m_astate.state.to_move);
+        m_astate.get().state.fullmove_number -=
+            (int)(!m_astate.get().state.to_move);
 
         const board::Square from = unmake.fmove.get_move().from();
         const board::Square to = unmake.fmove.get_move().to();
         const move::MoveType type = unmake.fmove.get_move().type();
-        const board::Colour to_move = m_astate.state.to_move;
+        const board::Colour to_move = m_astate.get().state.to_move;
         const board::ColouredPiece moved = {to_move, unmake.fmove.get_piece()};
 
         // Undo promotions
@@ -226,7 +235,8 @@ struct SearchNode {
     template <bool InOrder = false>
     constexpr MoveBuffer &find_moves() {
         m_found_moves[m_cur_depth].clear();
-        m_mover.get_all_moves<InOrder>(m_astate, m_found_moves[m_cur_depth]);
+        m_mover.get().get_all_moves<InOrder>(m_astate,
+                                             m_found_moves[m_cur_depth]);
         return m_found_moves[m_cur_depth];
     }
 
@@ -234,7 +244,7 @@ struct SearchNode {
     // Returns a reference to the vector containing the found moves.
     constexpr MoveBuffer &find_loud_moves() {
         m_found_moves[m_cur_depth].clear();
-        m_mover.get_loud_moves(m_astate, m_found_moves[m_cur_depth]);
+        m_mover.get().get_loud_moves(m_astate, m_found_moves[m_cur_depth]);
         return m_found_moves[m_cur_depth];
     }
 
@@ -242,7 +252,7 @@ struct SearchNode {
     // Returns a reference to the vector containing the found moves.
     constexpr MoveBuffer &find_quiet_moves() {
         m_found_moves[m_cur_depth].clear();
-        m_mover.get_quiet_moves(m_astate, m_found_moves[m_cur_depth]);
+        m_mover.get().get_quiet_moves(m_astate, m_found_moves[m_cur_depth]);
         return m_found_moves[m_cur_depth];
     }
 
@@ -295,33 +305,33 @@ struct SearchNode {
 
     constexpr void add(const board::Bitboard loc,
                        const board::ColouredPiece cp) {
-        m_astate.add(loc, cp);
+        m_astate.get().add(loc, cp);
         apply_tuple([=](auto &component) { component.add(loc, cp); },
                     m_components);
     }
     constexpr void remove(const board::Bitboard loc,
                           const board::ColouredPiece cp) {
-        m_astate.remove(loc, cp);
+        m_astate.get().remove(loc, cp);
         apply_tuple([=](auto &component) { component.remove(loc, cp); },
                     m_components);
     }
     constexpr void move(const board::Bitboard from, const board::Bitboard to,
                         const board::ColouredPiece cp) {
-        m_astate.move(from, to, cp);
+        m_astate.get().move(from, to, cp);
         apply_tuple([=](auto &component) { component.move(from, to, cp); },
                     m_components);
     }
     constexpr void swap(const board::Bitboard loc,
                         const board::ColouredPiece from,
                         const board::ColouredPiece to) {
-        m_astate.swap(loc, from, to);
+        m_astate.get().swap(loc, from, to);
         apply_tuple([=](auto &component) { component.swap(loc, from, to); },
                     m_components);
     }
     constexpr void swap_oppside(const board::Bitboard loc,
                                 const board::ColouredPiece from,
                                 const board::ColouredPiece to) {
-        m_astate.swap_oppside(loc, from, to);
+        m_astate.get().swap_oppside(loc, from, to);
         apply_tuple(
             [=](auto &component) { component.swap_oppside(loc, from, to); },
             m_components);
@@ -330,7 +340,7 @@ struct SearchNode {
                                  const board::Colour side,
                                  const board::Piece from,
                                  const board::Piece to) {
-        m_astate.swap_sameside(loc, side, from, to);
+        m_astate.get().swap_sameside(loc, side, from, to);
         apply_tuple(
             [=](auto &component) {
                 component.swap_sameside(loc, side, from, to);
@@ -338,23 +348,23 @@ struct SearchNode {
             m_components);
     }
     constexpr void toggle_castling_rights(const state::CastlingRights rights) {
-        m_astate.toggle_castling_rights(rights);
+        m_astate.get().toggle_castling_rights(rights);
         apply_tuple(
             [=](auto &component) { component.toggle_castling_rights(rights); },
             m_components);
     }
     constexpr void add_ep_sq(const board::Square ep_sq) {
-        m_astate.add_ep_sq(ep_sq);
+        m_astate.get().add_ep_sq(ep_sq);
         apply_tuple([=](auto &component) { component.add_ep_sq(ep_sq); },
                     m_components);
     }
     constexpr void remove_ep_sq(const board::Square ep_sq) {
-        m_astate.remove_ep_sq(ep_sq);
+        m_astate.get().remove_ep_sq(ep_sq);
         apply_tuple([=](auto &component) { component.remove_ep_sq(ep_sq); },
                     m_components);
     }
     constexpr void set_to_move(const board::Colour colour) {
-        m_astate.set_to_move(colour);
+        m_astate.get().set_to_move(colour);
         apply_tuple([=](auto &component) { component.set_to_move(colour); },
                     m_components);
     }
@@ -382,7 +392,7 @@ struct SearchNode {
         }
 
         const board::ColouredPiece captured =
-            m_astate.state.piece_at(to_bb, !to_move).value();
+            m_astate.get().state.piece_at(to_bb, !to_move).value();
 
         // Update rights if a rook was taken
         update_rk_castling_rights(mv.to(), !to_move);
@@ -394,7 +404,7 @@ struct SearchNode {
         made.info.captured_piece = captured.piece;
 
         // Reset halfmove clock
-        m_astate.state.halfmove_clock = 0;
+        m_astate.get().state.halfmove_clock = 0;
     }
 
     // Perform pawn specific state updates:
@@ -403,7 +413,7 @@ struct SearchNode {
     // Assumes pawn has already been moved
     constexpr void post_pawn_move(const move::Move mv,
                                   const board::Colour to_move) {
-        m_astate.state.halfmove_clock = 0;
+        m_astate.get().state.halfmove_clock = 0;
 
         // Set the en-passant square
         if (mv.type() == move::MoveType::DOUBLE_PUSH) {
@@ -427,7 +437,7 @@ struct SearchNode {
     constexpr bool castle(const board::Square from,
                           const board::Colour to_move) {
         bool legal = true;
-        m_astate.state.halfmove_clock = 0;
+        m_astate.get().state.halfmove_clock = 0;
 
         // Get (queen/king)-side
         const std::optional<board::Piece> side =
@@ -437,8 +447,8 @@ struct SearchNode {
         // Check legality
         for (const board::Bitboard sq :
              state::CastlingInfo::get_king_mask(cp).singletons()) {
-            if (m_mover.is_attacked(m_astate, sq.single_bitscan_forward(),
-                                    to_move)) {
+            if (m_mover.get().is_attacked(m_astate, sq.single_bitscan_forward(),
+                                          to_move)) {
                 legal = false;
             }
         }
@@ -455,7 +465,7 @@ struct SearchNode {
 
         // Update rights
         toggle_castling_rights(
-            m_astate.state.castling_rights.get_player_rights(to_move));
+            m_astate.get().state.castling_rights.get_player_rights(to_move));
 
         return legal;
     }
@@ -469,9 +479,10 @@ struct SearchNode {
             state::CastlingInfo::get_side(loc, player);
 
         // Player has rights on this side
-        if (ret.has_value() && m_astate.state.castling_rights.get_square_rights(
-                                   {player, ret.value()})) {
-            m_astate.state.halfmove_clock = 0;
+        if (ret.has_value() &&
+            m_astate.get().state.castling_rights.get_square_rights(
+                {player, ret.value()})) {
+            m_astate.get().state.halfmove_clock = 0;
             toggle_castling_rights(board::ColouredPiece{player, ret.value()});
         }
         return ret;
@@ -487,14 +498,15 @@ struct SearchNode {
                                              const board::Colour player) {
         if constexpr (Checked) {
             if (state::CastlingInfo::get_king_start(player) == loc &&
-                m_astate.state.castling_rights.get_player_rights(player)) {
+                m_astate.get().state.castling_rights.get_player_rights(
+                    player)) {
                 return update_kg_castling_rights<false>(loc, player);
             }
             return false;
         } else {
-            m_astate.state.halfmove_clock = 0;
+            m_astate.get().state.halfmove_clock = 0;
             toggle_castling_rights(
-                m_astate.state.castling_rights.get_player_rights(player));
+                m_astate.get().state.castling_rights.get_player_rights(player));
             return true;
         }
     }
@@ -525,11 +537,12 @@ struct SearchNode {
     constexpr IrreversibleInfo irreversible(
         board::Piece captured = (board::Piece)0) const {
         return {.captured_piece = captured,
-                .halfmove_clock = m_astate.state.halfmove_clock,
-                .castling_rights = m_astate.state.castling_rights,
-                .ep_file = m_astate.state.ep_square.has_value()
-                               ? (int8_t)m_astate.state.ep_square.value().file()
-                               : (int8_t)-1};
+                .halfmove_clock = m_astate.get().state.halfmove_clock,
+                .castling_rights = m_astate.get().state.castling_rights,
+                .ep_file =
+                    m_astate.get().state.ep_square.has_value()
+                        ? (int8_t)m_astate.get().state.ep_square.value().file()
+                        : (int8_t)-1};
     };
 
     // Resets the state according to irreversible info.
@@ -537,42 +550,40 @@ struct SearchNode {
     // i.e. to_move has already been reset.
     constexpr void reset(const IrreversibleInfo info) {
         // Reset clock
-        m_astate.state.halfmove_clock = info.halfmove_clock;
+        m_astate.get().state.halfmove_clock = info.halfmove_clock;
 
         // Reset castling info
         // TODO: consider storing inverse, not calculating here.
-        const state::CastlingRights cur_rights = m_astate.state.castling_rights;
+        const state::CastlingRights cur_rights =
+            m_astate.get().state.castling_rights;
         const state::CastlingRights new_rights = info.castling_rights;
         toggle_castling_rights(cur_rights ^ new_rights);
 
         // Reset ep square
-        if (m_astate.state.ep_square.has_value()) {
-            remove_ep_sq(m_astate.state.ep_square.value());
+        if (m_astate.get().state.ep_square.has_value()) {
+            remove_ep_sq(m_astate.get().state.ep_square.value());
         }
         if (info.ep_file >= 0) {
             add_ep_sq(board::Square(
                 info.ep_file,
-                board::ranks::push_rank(!m_astate.state.to_move)));
+                board::ranks::push_rank(!m_astate.get().state.to_move)));
         }
     };
 
     //-- Data members --------------------------------------------------------//
 
-    // NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members)
     // Movegen and state should outlive search node.
 
-    AugmentedState &m_astate;
+    std::reference_wrapper<AugmentedState> m_astate;
     size_t m_max_depth;
     size_t m_cur_depth = 0;
 
     // Incrementally updateable components in a tuple
     std::tuple<TComponents...> m_components;
 
-    const move::movegen::AllMoveGenerator &m_mover;
+    std::reference_wrapper<const move::movegen::AllMoveGenerator> m_mover;
     SVec<MadeMove, MaxDepth> m_made_moves;
     SVec<MoveBuffer, MaxDepth> m_found_moves;
-
-    // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
 };
 static_assert(IncrementallyUpdateable<SearchNode<1, eval::DefaultEval>>);
 
@@ -712,8 +723,7 @@ struct SearchNodeWithHistory : public SearchNode<MaxDepth, TComponents...> {
                                    board::Colour::BLACK);
     };
 
-    SVec<Zobrist, HistorySz>
-        m_history;  // NOLINT(cppcoreguidelines-avoid-magic-numbers)
+    std::array<Zobrist, HistorySz> m_history;
 };
 }  // namespace state
 // NOLINTEND(modernize-use-designated-initializers)

@@ -9,8 +9,10 @@
 #include <string>
 
 #include "engine.h"
+#include "libChest/eval.h"
 #include "libChest/makemove.h"
 #include "libChest/move.h"
+#include "libChest/search.h"
 #include "libChest/state.h"
 #include "libChest/timemanagement.h"
 #include "libChest/zobrist.h"
@@ -78,6 +80,13 @@ bool DebugConfig::parse(const std::string_view keyword,
 };
 std::optional<int> DebugConfig::execute() { return {}; };
 
+//-- Ucinewgame --------------------------------------------------------------//
+
+std::optional<int> UciNewGame::execute() {
+    m_engine->m_ttable.clear();
+    return {};
+};
+
 //-- Position ----------------------------------------------------------------//
 
 void Position::moves_impl(const std::string_view keyword,
@@ -126,7 +135,11 @@ void Position::curpos_impl(const std::string_view keyword,
 
 bool Position::sufficient_args() const { return m_astate.has_value(); };
 std::optional<int> Position::execute() {
-    state::SearchNode<1> sn{m_engine->m_mover, m_astate.value(), 0};
+    m_engine->m_astate = m_astate.value();
+    m_engine->m_node.set_astate(m_engine->m_astate);
+    // m_engine->m_node = search::NodeType<eval::DefaultEval, MAX_DEPTH>(
+    //     m_engine->m_mover, m_engine->m_astate, MAX_DEPTH);
+    auto &sn = m_engine->m_node;
 
     for (const std::string &move : m_moves) {
         const std::optional<move::FatMove> fmove =
@@ -138,8 +151,6 @@ std::optional<int> Position::execute() {
         sn.prep_search(1);
         sn.make_move(fmove.value());
     }
-
-    m_engine->m_astate = sn.get_astate();
 
     if (m_engine->m_debug) {
         display_state(*m_engine);
@@ -248,23 +259,24 @@ std::optional<int> Go::search_impl() {
     // TODO: add buffer to account for parsing time
     // Maybe in parse(): record time message came in.
     const TimeManagerTp time_manager{};
-    state::AugmentedState &eng_astate = m_engine->m_astate;
+    auto &eng_node = m_engine->m_node;
     const search::ms_t search_time =
-        time_manager(m_tc, eng_astate.state.to_move);
+        time_manager(m_tc, eng_node.get_astate().state.to_move);
 
     // TODO:consider making searcher member of engine rather than dynamically
     // allocating.
-    DlSearcherTp nega(m_engine->m_mover, eng_astate, m_engine->m_ttable);
+    DlSearcherTp nega(m_engine->m_mover, eng_node, m_engine->m_ttable);
 
     const std::chrono::time_point<std::chrono::steady_clock> finish_time =
         std::chrono::steady_clock::now() +
         std::chrono::milliseconds(search_time);
 
-    SearcherTp idsearcher{eng_astate, nega, *m_engine};
+    SearcherTp idsearcher(nega, *m_engine);
     const move::FatMove best = idsearcher.search(finish_time).best_move;
 
     std::string msg = "bestmove ";
-    msg.append((move::long_alg_t)move::LongAlgMove(best, eng_astate));
+    msg.append(
+        (move::long_alg_t)move::LongAlgMove(best, eng_node.get_astate()));
     msg.push_back('\n');
     m_engine->log(msg, LogLevel::RAW_MESSAGE);
     return {};

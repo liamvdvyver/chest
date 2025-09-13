@@ -37,6 +37,12 @@ class DebugConfig : public EngineCommand {
     std::optional<int> execute() override;
 };
 
+class UciNewGame : public EngineCommand {
+   public:
+    UciNewGame(GenericEngine *engine) : EngineCommand(engine) {}
+    std::optional<int> execute() override;
+};
+
 class Position : public EngineCommand {
    public:
     Position(GenericEngine *engine) : EngineCommand(engine) {
