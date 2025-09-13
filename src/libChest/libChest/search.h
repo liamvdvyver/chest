@@ -80,13 +80,6 @@ struct IBValue : public Wrapper<eval::centipawn_t, IBValue> {
 // Searching
 //----------------------------------------------------------------------------//
 
-// When the search is terminated early, this should be returned
-static constexpr SearchResult timeout_result{
-    .type = SearchResult::LeafType::TIMEOUT,
-    .best_move = {},
-    .eval = 0,
-    .n_nodes = 0};
-
 // Basic searchers
 template <typename T>
 concept Searcher = requires(T t) {
@@ -103,6 +96,12 @@ concept StoppableSearcher = requires(
     { t.search(finish_time) } -> std::convertible_to<SearchResult>;
 };
 
+// Search node type that searchers expect.
+template <eval::IncrementallyUpdateableEvaluator TEval, size_t MaxDepth>
+using DefaultNode =
+    state::SearchNodeWithHistory<MaxDepth, state::default_history_size, TEval,
+                                 Zobrist>;
+
 // Depth-limited searches:
 // * can set depth (which unstops the search)
 // * can search
@@ -111,6 +110,7 @@ concept StoppableSearcher = requires(
 template <typename T>
 concept DLSearcher = requires(T t, int max_depth) {
     { t.set_depth(max_depth) };
+    { t.get_node() };  // TODO: specify properly
 } && StoppableSearcher<T>;
 
 //----------------------------------------------------------------------------//
@@ -295,16 +295,20 @@ struct TTable {
     }
 
     // Extracts the principal variation from a state until miss.
-    template <size_t MaxDepth, typename... TComponents>
+    template <size_t MaxDepth, size_t HistorySz, typename... TComponents>
     void get_pv(MoveBuffer &buf,
-                state::SearchNode<MaxDepth, TComponents...> &sn) const {
+                state::SearchNodeWithHistory<MaxDepth, HistorySz,
+                                             TComponents...> &sn) const {
         sn.prep_search(MaxDepth);
         buf.clear();
         Zobrist hash = sn.template get<Zobrist>();
         while (contains(hash) && !sn.bottomed_out()) {
             move::FatMove best_move = get(hash).second.best_move;
-            buf.push_back(best_move);
             sn.make_move(best_move);
+            if (sn.n_repetitions() >= 3) {
+                break;
+            }
+            buf.push_back(best_move);
             hash = sn.template get<Zobrist>();
         }
         sn.unmake_all();
@@ -383,17 +387,19 @@ template <eval::IncrementallyUpdateableEvaluator TEval, size_t MaxDepth,
 class DLNegaMax {
    public:
     constexpr DLNegaMax(const move::movegen::AllMoveGenerator &mover,
-                        state::AugmentedState &astate, TTable &ttable)
-        : m_mover(mover),
-          m_astate(astate),
-          m_ttable(ttable),
-          m_node(mover, astate, MaxDepth) {};
+                        DefaultNode<TEval, MaxDepth> &node, TTable &ttable)
+
+        : m_mover(mover), m_ttable(ttable), m_node(node) {};
 
     constexpr void set_depth(size_t depth) {
         assert(depth <= MaxDepth);
         m_node.prep_search(depth);
 
         m_stopped = false;
+    }
+
+    constexpr const DefaultNode<TEval, MaxDepth> &get_node() const {
+        return m_node;
     }
 
     // Not protected from races.
@@ -467,12 +473,15 @@ class DLNegaMax {
                 moves.begin(), moves.end(),
                 [this, hash_move](const move::FatMove a,
                                   const move::FatMove b) {
-                    const bool ret = DefaultOrdering(m_astate, hash_move)(a, b);
+                    const bool ret =
+                        DefaultOrdering(m_node.get_astate(), hash_move)(a, b);
                     if constexpr (DEBUG()) {
-                        assert(!(ret &&
-                                 DefaultOrdering(m_astate, hash_move)(b, a)));
-                        assert(!(DefaultOrdering(m_astate, hash_move)(a, a)));
-                        assert(!(DefaultOrdering(m_astate, hash_move)(b, b)));
+                        assert(!(ret && DefaultOrdering(m_node.get_astate(),
+                                                        hash_move)(b, a)));
+                        assert(!(DefaultOrdering(m_node.get_astate(),
+                                                 hash_move)(a, a)));
+                        assert(!(DefaultOrdering(m_node.get_astate(),
+                                                 hash_move)(b, b)));
                     }
                     return ret;
                 });
@@ -534,12 +543,15 @@ class DLNegaMax {
 
             // Stale/checkmate
             const board::Square king_sq =
-                m_astate.state
-                    .get_bitboard({.colour = m_astate.state.to_move,
-                                   .piece = board::Piece::KING})
+                m_node.get_astate()
+                    .state
+                    .copy_bitboard({.colour = m_node.get_astate().state.to_move,
+                                    .piece = board::Piece::KING})
                     .single_bitscan_forward();
             const bool checked =
-                m_mover.is_attacked(m_astate, king_sq, m_astate.state.to_move);
+                m_mover.is_attacked(m_node.get_astate(), king_sq,
+                                    m_node.get_astate().state.to_move);
+            // FIXME: cache this in transposition table
             return {
                 .result = {.type = checked ? SearchResult::LeafType::CHECKMATE
                                            : SearchResult::LeafType::STALEMATE,
@@ -561,9 +573,19 @@ class DLNegaMax {
     void get_pv(MoveBuffer &buf) { return m_ttable.get_pv(buf, m_node); }
 
    private:
-    // Time cutoff -> don't worry about result for now
-    static constexpr ABResult ab_timeout_result{.result = timeout_result,
-                                                .type = ABNodeType::NA};
+    static constexpr ABResult ab_timeout_result{
+        .result = {.type = SearchResult::LeafType::TIMEOUT,
+                   .best_move = {},
+                   .eval = 0,
+                   .n_nodes = 0},
+        .type = ABNodeType::NA};
+
+    static constexpr ABResult ab_draw_result{
+        .result = {.type = SearchResult::LeafType::DRAW,
+                   .best_move = {},
+                   .eval = 0,
+                   .n_nodes = 1},
+        .type = ABNodeType::NA};
 
     // Return value in (soft/hard) cutoff
     constexpr ABResult cutoff_result() const {
@@ -607,16 +629,29 @@ class DLNegaMax {
         return false;
     }
 
+    // Helper for fifty-move rule: check a legal move exists.
+    constexpr bool legal_moves_exist() {
+        // Get children (in order)
+        const MoveBuffer &moves = m_node.find_moves();
+
+        for (const move::FatMove &m : moves) {
+            if (m_node.make_move(m)) {
+                m_node.unmake_move();
+                return true;
+            }
+            m_node.unmake_move();
+        }
+
+        return false;
+    }
+
     // NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members)
     // Movegen and state should outlive searcher.
     const move::movegen::AllMoveGenerator &m_mover;
-    state::AugmentedState &m_astate;
+    DefaultNode<TEval, MaxDepth> &m_node;
     TTable &m_ttable;
     // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
 
-    state::SearchNodeWithHistory<MaxDepth, state::default_history_size, TEval,
-                                 Zobrist>
-        m_node;
     bool m_stopped = false;
 };
 static_assert(DLSearcher<DLNegaMax<eval::StdEval, 1>>);
@@ -631,9 +666,8 @@ static_assert(DLSearcher<DLNegaMax<eval::StdEval, 1>>);
 template <DLSearcher TSearcher, size_t MaxDepth>
 class IDSearcher {
    public:
-    constexpr IDSearcher(state::AugmentedState &astate, TSearcher &searcher,
-                         const StatReporter &reporter)
-        : m_searcher(searcher), m_astate(astate), m_reporter(reporter) {}
+    constexpr IDSearcher(TSearcher &searcher, const StatReporter &reporter)
+        : m_searcher(searcher), m_reporter(reporter) {}
 
     // Stops the search as soon as possible, will return to the (other)
     // thread which called search().
@@ -704,7 +738,8 @@ class IDSearcher {
 
             // TODO: report nps for current iteration, not total?
             m_reporter.report(max_depth, search_result->eval,
-                              search_result->n_nodes, elapsed, m_pv, m_astate);
+                              search_result->n_nodes, elapsed, m_pv,
+                              m_searcher.get_node().get_astate());
 
             if (search_result->type == SearchResult::LeafType::CHECKMATE) {
                 break;
@@ -719,7 +754,6 @@ class IDSearcher {
     // NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members)
     // Searcher should be shorter-lived than other objects.
     TSearcher &m_searcher;
-    state::AugmentedState &m_astate;
     const StatReporter &m_reporter;
     // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
 
