@@ -361,7 +361,7 @@ struct LongAlgMove : Wrapper<long_alg_t, LongAlgMove> {
         if (moved.value().piece == board::Piece::KING && from == king_start) {
             for (const board::Piece p : state::CastlingInfo::castling_sides) {
                 const board::ColouredPiece cp = {.colour = astate.state.to_move,
-                                           .piece = p};
+                                                 .piece = p};
                 if (to == state::CastlingInfo::get_king_destination(cp)) {
                     return {{{state::CastlingInfo::get_rook_start(cp),
                               state::CastlingInfo::get_king_destination(cp),

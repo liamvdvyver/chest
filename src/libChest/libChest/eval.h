@@ -14,9 +14,9 @@ namespace eval {
 
 // Always returned from the perspective of side to move,
 // i.e., a better black position, black to move, yields higher eval.
-using centipawn_t = int64_t;
+using centipawn_t = int32_t;
 
-constexpr centipawn_t max_eval = std::numeric_limits<centipawn_t>::max();
+constexpr centipawn_t max_eval = std::numeric_limits<centipawn_t>::max() / 4;
 
 //============================================================================//
 // Static evaluation

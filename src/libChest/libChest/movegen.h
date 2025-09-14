@@ -375,8 +375,9 @@ class PawnMoveGenerator
             }
         } else {
             for (const board::Bitboard target : capture_dests.singletons()) {
-                const MoveType type = (target & ep_bb).empty() ? MoveType::CAPTURE
-                                                         : MoveType::CAPTURE_EP;
+                const MoveType type = (target & ep_bb).empty()
+                                          ? MoveType::CAPTURE
+                                          : MoveType::CAPTURE_EP;
                 moves.push_back(
                     {move::Move(from, target.single_bitscan_forward(), type),
                      board::Piece::PAWN});

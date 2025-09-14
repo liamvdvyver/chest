@@ -77,16 +77,15 @@ using FullQSearchWithHashMove = search::DLNegaMax<eval::DefaultEval, max_depth,
                                                    .quiescence_standpat = true,
                                                    .hash_first = true}>;
 
-search::ABResult do_search(auto &searcher, const size_t d,
-                           const std::string_view name,
-                           search::TTable &ttable) {
+search::SearchResult do_search(auto &searcher, const size_t d,
+                               const std::string_view name,
+                               search::TTable &ttable) {
     searcher.set_depth(d);
-    search::ABResult ret = searcher.search();
-    std::cerr << name << "\n  DEPTH: " << d << ", eval: " << ret.result.eval
+    search::SearchResult ret = searcher.search();
+    std::cerr << name << "\n  DEPTH: " << d << ", eval: " << ret.value.eval()
               << ", best_move: "
-              << static_cast<std::string>(
-                     move::LongAlgMove(ret.result.best_move))
-              << ", nodes: " << ret.result.n_nodes << '\n'
+              << static_cast<std::string>(move::LongAlgMove(ret.best_move))
+              << ", nodes: " << ret.n_nodes << '\n'
               << "  pv: ";
     MoveBuffer pv;
     searcher.get_pv(pv);
@@ -112,28 +111,28 @@ TEST_CASE("Equality of equivalent search results.") {
                   {sn, ttable}, {sn, ttable}, {sn, ttable}, {sn, ttable}};
 
     for (size_t d = 1; d < search_depth; d++) {
-        search::ABResult vanilla_result = do_search(
+        search::SearchResult vanilla_result = do_search(
             std::get<VanillaNegaMax>(searchers), d, "Minimax", ttable);
-        search::ABResult ab_result =
+        search::SearchResult ab_result =
             do_search(std::get<ABNegaMax>(searchers), d, "Alpha-beta", ttable);
-        search::ABResult ab_sorted_result =
+        search::SearchResult ab_sorted_result =
             do_search(std::get<ABSorted>(searchers), d,
                       "Alpha-beta (mvv-lva sorted)", ttable);
-        search::ABResult qsearch_result =
+        search::SearchResult qsearch_result =
             do_search(std::get<QSearch>(searchers), d,
                       "Quiescence search (unsorted)", ttable);
-        search::ABResult qsearch_sorted_result =
+        search::SearchResult qsearch_sorted_result =
             do_search(std::get<QSearchSorted>(searchers), d,
                       "Quiescence search (mvv-lva sorted)", ttable);
-        search::ABResult qsearch_stand_pat_result = do_search(
+        search::SearchResult qsearch_stand_pat_result = do_search(
             std::get<QSearchStandPat>(searchers), d,
             "Quiescence search w/ stand-pat pruning (unsorted)", ttable);
 
-        search::ABResult qsearch_sorted_stand_pat_result = do_search(
+        search::SearchResult qsearch_sorted_stand_pat_result = do_search(
             std::get<FullQSearch>(searchers), d,
             "Full quiescence search (stand-pat pruning, mvv-lva sorted)",
             ttable);
-        search::ABResult hash_move_result =
+        search::SearchResult hash_move_result =
             do_search(std::get<FullQSearchWithHashMove>(searchers), d,
                       "Full quiescence search (stand-pat pruning, "
                       "hash-move/mvv-lva sorted)",
@@ -143,12 +142,12 @@ TEST_CASE("Equality of equivalent search results.") {
 
         // Run test
         // NOLINTBEGIN(cppcoreguidelines-avoid-do-while)
-        REQUIRE(vanilla_result.result.eval == ab_result.result.eval);
-        REQUIRE(ab_result.result.eval == ab_sorted_result.result.eval);
-        REQUIRE(qsearch_result.result.eval ==
-                qsearch_sorted_result.result.eval);
-        REQUIRE(qsearch_sorted_stand_pat_result.result.eval ==
-                hash_move_result.result.eval);
+        REQUIRE(vanilla_result.value.eval() == ab_result.value.eval());
+        REQUIRE(ab_result.value.eval() == ab_sorted_result.value.eval());
+        REQUIRE(qsearch_result.value.eval() ==
+                qsearch_sorted_result.value.eval());
+        REQUIRE(qsearch_sorted_stand_pat_result.value.eval() ==
+                hash_move_result.value.eval());
         (void)qsearch_stand_pat_result;
         // NOLINTEND(cppcoreguidelines-avoid-do-while)
     }
