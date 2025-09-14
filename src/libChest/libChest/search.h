@@ -499,7 +499,7 @@ class DLNegaMax {
         size_t n_nodes = 1;
 
         // Recurse
-        for (move::FatMove m : moves) {
+        for (const move::FatMove m : moves) {
             // Early return from recursion
             if (m_stopped) {
                 return ab_timeout_result;
@@ -507,7 +507,7 @@ class DLNegaMax {
 
             // Check child
             if (m_node.get().make_move(m)) {
-                SearchResult child_result =
+                const SearchResult child_result =
                     search<Type>(finish_time, {-bounds.beta, -bounds.alpha});
 
                 if constexpr (Type == SearchType::QUIESCE) {
@@ -601,7 +601,7 @@ class DLNegaMax {
 
     // Return value in (soft/hard) cutoff
     constexpr ABResult cutoff_result() const {
-        SearchResult search_ret = {
+        const SearchResult search_ret = {
             .type = SearchResult::LeafType::CUTOFF,
             .best_move = {},
             .eval = m_node.get().template get<TEval>().eval(),
@@ -719,7 +719,7 @@ class IDSearcher {
                 m_stoplock.unlock();
             }
 
-            std::optional<std::chrono::time_point<std::chrono::steady_clock>>
+            const std::optional<std::chrono::time_point<std::chrono::steady_clock>>
                 ply_finish_time =
                     max_depth ? std::optional(finish_time) : std::nullopt;
             SearchResult candidate_result = m_searcher.search(ply_finish_time);
@@ -741,7 +741,7 @@ class IDSearcher {
 
             m_searcher.get_pv(m_pv);
 
-            std::chrono::duration<double> elapsed =
+            const std::chrono::duration<double> elapsed =
                 std::chrono::steady_clock::now() - start_time;
 
             // TODO: report nps for current iteration, not total?

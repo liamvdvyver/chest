@@ -251,7 +251,7 @@ struct LongAlgMove : Wrapper<long_alg_t, LongAlgMove> {
     // If castling is contructed differently, could be done without state
     constexpr LongAlgMove(const FatMove fmove) {
         if (fmove.get_move().type() == MoveType::CASTLE) {
-            board::Colour to_move = static_cast<board::Colour>(
+            const board::Colour to_move = static_cast<board::Colour>(
                 !static_cast<bool>(fmove.get_move().from().rank()));
             value += board::io::algebraic(
                 state::CastlingInfo::get_king_start(to_move));
@@ -278,8 +278,8 @@ struct LongAlgMove : Wrapper<long_alg_t, LongAlgMove> {
         // Get some info
         if (value.size() < normal_movestr_len) return {};
 
-        board::Square from = board::io::to_square(value.substr(0, 2));
-        board::Square to = board::io::to_square(value.substr(2, 2));
+        const board::Square from = board::io::to_square(value.substr(0, 2));
+        const board::Square to = board::io::to_square(value.substr(2, 2));
 
         // Moved piece
         std::optional<board::ColouredPiece> moved =
@@ -356,11 +356,11 @@ struct LongAlgMove : Wrapper<long_alg_t, LongAlgMove> {
         }
 
         // Castles
-        board::Square king_start =
+        const board::Square king_start =
             state::CastlingInfo::get_king_start(astate.state.to_move);
         if (moved.value().piece == board::Piece::KING && from == king_start) {
-            for (board::Piece p : state::CastlingInfo::castling_sides) {
-                board::ColouredPiece cp = {.colour = astate.state.to_move,
+            for (const board::Piece p : state::CastlingInfo::castling_sides) {
+                const board::ColouredPiece cp = {.colour = astate.state.to_move,
                                            .piece = p};
                 if (to == state::CastlingInfo::get_king_destination(cp)) {
                     return {{{state::CastlingInfo::get_rook_start(cp),

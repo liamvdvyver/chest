@@ -130,10 +130,10 @@ struct GenRookAttacks {
         const auto [f, r] = sq.coords();
         board::Bitboard next;
 
-        board::coord_t d_to_left = f;
-        board::coord_t d_to_right = board::board_size - f - 1;
-        board::coord_t d_to_bottom = r;
-        board::coord_t d_to_top = board::board_size - r - 1;
+        const board::coord_t d_to_left = f;
+        const board::coord_t d_to_right = board::board_size - f - 1;
+        const board::coord_t d_to_bottom = r;
+        const board::coord_t d_to_top = board::board_size - r - 1;
 
         // Attacks to left
         next = sq;
@@ -329,7 +329,7 @@ class PrecomputedMultiAttacker {
     std::array<board::Bitboard, board::n_squares> m_attack_sets{};
     T m_attack_generator;
     constexpr void init_attack_sets() {
-        for (board::Square sq : board::Square::AllSquareIterator()) {
+        for (const board::Square sq : board::Square::AllSquareIterator()) {
             m_attack_sets[sq] = m_attack_generator(board::Bitboard(sq));
         }
     };
@@ -351,7 +351,7 @@ class PrecomputedColouredMultiAttacker {
         m_attack_sets{};
     T m_attack_generator;
     constexpr void init_attack_sets() {
-        for (board::Square sq : board::Square::AllSquareIterator()) {
+        for (const board::Square sq : board::Square::AllSquareIterator()) {
             m_attack_sets[static_cast<size_t>(board::Colour::BLACK)][sq] =
                 m_attack_generator(board::Bitboard(sq), board::Colour::BLACK);
             m_attack_sets[static_cast<size_t>(board::Colour::WHITE)][sq] =
@@ -451,8 +451,8 @@ class PlainMagicAttacker {
     // WARN: Requires fast initilialisation of m_masker!
     consteval static size_t max_mask_sz() {
         size_t max = 0;
-        for (board::Square sq : board::Square::AllSquareIterator()) {
-            size_t cur_sz = TMasker()(sq).size();
+        for (const board::Square sq : board::Square::AllSquareIterator()) {
+            const size_t cur_sz = TMasker()(sq).size();
             max = cur_sz > max ? cur_sz : max;
         }
         return max;

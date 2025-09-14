@@ -231,7 +231,7 @@ struct CastlingRights : public Wrapper<castling_rights_t, CastlingRights> {
     }
     constexpr void set_both_castling_rights(const board::Colour colour,
                                             const bool rights) {
-        for (board::Piece side : CastlingInfo::castling_sides) {
+        for (const board::Piece side : CastlingInfo::castling_sides) {
             set_castling_rights({.colour = colour, .piece = side}, rights);
         }
     }

@@ -44,14 +44,14 @@ class ZobristRandoms {
         // Init single-square castling hashes
         for (const board::ColouredPiece cp :
              state::CastlingInfo::castling_squares) {
-            state::castling_rights_t mask =
+            const state::castling_rights_t mask =
                 static_cast<state::castling_rights_t>(
                     state::CastlingRights::square_mask(cp));
             m_castling_hashes[mask] = rand(eng);
         }
 
         // TODO: can shift indices down, since 0b0000 is hashed to zero anyway.
-        state::castling_rights_t max_hash =
+        const state::castling_rights_t max_hash =
             static_cast<state::castling_rights_t>(m_castling_hashes.size());
         for (state::castling_rights_t i = 1; i < max_hash; i++) {
             // Not yet set -> not a singleton

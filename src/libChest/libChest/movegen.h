@@ -110,7 +110,7 @@ class AttackerAdaptor : public WithAttackers<Piece> {
         board::Bitboard attacked = m_attacker(from);
         attacked = attacked.setdiff(astate.total_occupancy);
 
-        for (board::Bitboard dest : attacked.singletons()) {
+        for (const board::Bitboard dest : attacked.singletons()) {
             moves.push_back({move::Move(from, dest.single_bitscan_forward(),
                                         MoveType::NORMAL),
                              Piece});
@@ -124,7 +124,7 @@ class AttackerAdaptor : public WithAttackers<Piece> {
         board::Bitboard attacked = m_attacker(from);
         attacked &= astate.opponent_occupancy();
 
-        for (board::Bitboard dest : attacked.singletons()) {
+        for (const board::Bitboard dest : attacked.singletons()) {
             moves.push_back({move::Move(from, dest.single_bitscan_forward(),
                                         MoveType::CAPTURE),
                              Piece});
@@ -150,7 +150,7 @@ class SlidingSingletonMoverAdaptor : public WithAttackers<Piece> {
         board::Bitboard attacked = m_attacker(from, astate.total_occupancy);
         attacked = attacked.setdiff(astate.total_occupancy);
 
-        for (board::Bitboard dest : attacked.singletons()) {
+        for (const board::Bitboard dest : attacked.singletons()) {
             moves.push_back({move::Move(from, dest.single_bitscan_forward(),
                                         MoveType::NORMAL),
                              Piece});
@@ -164,7 +164,7 @@ class SlidingSingletonMoverAdaptor : public WithAttackers<Piece> {
         board::Bitboard attacked = m_attacker(from, astate.total_occupancy);
         attacked &= astate.opponent_occupancy();
 
-        for (board::Bitboard dest : attacked.singletons()) {
+        for (const board::Bitboard dest : attacked.singletons()) {
             moves.push_back({move::Move(from, dest.single_bitscan_forward(),
                                         MoveType::CAPTURE),
                              Piece});
@@ -190,7 +190,7 @@ class LoopingMultiMover : public WithAllMoves<LoopingMultiMover<TMover>> {
     // Add quiet moves to the moves list
     constexpr void get_quiet_moves(const state::AugmentedState &astate,
                                    MoveBuffer &moves) const {
-        for (board::Bitboard b : m_mover.attackers(astate).singletons()) {
+        for (const board::Bitboard b : m_mover.attackers(astate).singletons()) {
             m_mover.get_quiet_moves(astate, moves, b);
         }
     }
@@ -198,7 +198,7 @@ class LoopingMultiMover : public WithAllMoves<LoopingMultiMover<TMover>> {
     // Add tactical moves to the moves list
     constexpr void get_loud_moves(const state::AugmentedState &astate,
                                   MoveBuffer &moves) const {
-        for (board::Bitboard b : m_mover.attackers(astate).singletons()) {
+        for (const board::Bitboard b : m_mover.attackers(astate).singletons()) {
             m_mover.get_loud_moves(astate, moves, b);
         }
     }
@@ -274,7 +274,7 @@ class PawnMoveGenerator
     constexpr void get_quiet_moves(const state::AugmentedState &astate,
                                    MoveBuffer &moves,
                                    board::Bitboard origin) const {
-        board::Square from = origin.single_bitscan_forward();
+        const board::Square from = origin.single_bitscan_forward();
         get_single_pushes(moves, astate.total_occupancy, from,
                           astate.state.to_move);
         get_double_pushes(moves, astate.total_occupancy, from,
@@ -284,7 +284,7 @@ class PawnMoveGenerator
     constexpr void get_loud_moves(const state::AugmentedState &astate,
                                   MoveBuffer &moves,
                                   board::Bitboard origin) const {
-        board::Square from = origin.single_bitscan_forward();
+        const board::Square from = origin.single_bitscan_forward();
         get_captures(moves, astate, astate.opponent_occupancy(), from,
                      astate.state.to_move);
     }
@@ -298,13 +298,13 @@ class PawnMoveGenerator
                                      board::Bitboard occ_total,
                                      board::Square from,
                                      board::Colour to_move) const {
-        board::Bitboard push_dest = m_single_pusher(from, to_move);
+        const board::Bitboard push_dest = m_single_pusher(from, to_move);
         if (push_dest & occ_total) {
             return;
         }
 
         // Pawns are always (single) pushable, ignoring blockers
-        board::Square to = push_dest.single_bitscan_forward();
+        const board::Square to = push_dest.single_bitscan_forward();
 
         // Promotions/normal push
         if (push_dest & back_rank_mask(to_move)) {
@@ -326,8 +326,8 @@ class PawnMoveGenerator
                                      board::Bitboard occ_total,
                                      board::Square from,
                                      board::Colour to_move) const {
-        board::Bitboard push_dest = m_double_pusher(from, to_move);
-        board::Bitboard jump_dest = m_single_pusher(from, to_move);
+        const board::Bitboard push_dest = m_double_pusher(from, to_move);
+        const board::Bitboard jump_dest = m_single_pusher(from, to_move);
         if (push_dest.empty() | ((push_dest ^ jump_dest) & occ_total)) {
             return;
         }
@@ -355,7 +355,7 @@ class PawnMoveGenerator
         }
 
         if (capture_dests & back_rank_mask(to_move)) {
-            for (board::Bitboard target : capture_dests.singletons()) {
+            for (const board::Bitboard target : capture_dests.singletons()) {
                 moves.push_back(
                     {move::Move(from, target.single_bitscan_forward(),
                                 MoveType::PROMOTE_CAPTURE_QUEEN),
@@ -374,8 +374,8 @@ class PawnMoveGenerator
                      board::Piece::PAWN});
             }
         } else {
-            for (board::Bitboard target : capture_dests.singletons()) {
-                MoveType type = (target & ep_bb).empty() ? MoveType::CAPTURE
+            for (const board::Bitboard target : capture_dests.singletons()) {
+                const MoveType type = (target & ep_bb).empty() ? MoveType::CAPTURE
                                                          : MoveType::CAPTURE_EP;
                 moves.push_back(
                     {move::Move(from, target.single_bitscan_forward(), type),
@@ -424,12 +424,12 @@ class CastlingRookMover : TRookMover {
     // i.e. doesn't check king position, rook positions.
     void get_castles(const state::AugmentedState &astate, MoveBuffer &moves,
                      board::Bitboard total_occ) const {
-        for (board::Piece side : state::CastlingInfo::castling_sides) {
-            board::ColouredPiece cp = {astate.state.to_move, side};
+        for (const board::Piece side : state::CastlingInfo::castling_sides) {
+            const board::ColouredPiece cp = {astate.state.to_move, side};
             if (astate.state.castling_rights.get_square_rights(cp)) {
-                board::Bitboard rk_mask =
+                const board::Bitboard rk_mask =
                     state::CastlingInfo::get_rook_mask(cp);
-                board::Bitboard blockers = rk_mask & total_occ;
+                const board::Bitboard blockers = rk_mask & total_occ;
                 if (blockers.empty()) {
                     moves.push_back(
                         {move::Move(state::CastlingInfo::get_rook_start(cp),

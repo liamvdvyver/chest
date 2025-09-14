@@ -318,7 +318,7 @@ class MichniewskiPSTEval : public PSTEval<MichniewskiPSTEval> {
 
     static constexpr centipawn_t pst_val(const board::ColouredPiece cp,
                                          const board::Square sq) {
-        board::Square offset =
+        const board::Square offset =
             cp.colour == board::Colour::WHITE ? sq.flip() : sq;
         switch (cp.piece) {
             case (board::Piece::PAWN):
