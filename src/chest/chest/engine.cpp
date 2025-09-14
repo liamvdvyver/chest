@@ -36,6 +36,28 @@ void EngineCommand::bad_usage(const std::string_view input) const {
     m_engine->log(msg, LogLevel::ENGINE_WARN);
 }
 
+// Print error messages and consume tokens until a token is matched.
+// Returns whether it was matched
+bool EngineCommand::match_literal(const std::string_view keyword,
+                                  const std::string_view match_tkn,
+                                  std::stringstream &args) const {
+    std::string cur_tkn;
+    while (args >> cur_tkn) {
+        if (cur_tkn == match_tkn) {
+            return true;
+        } else {
+            bad_arg(keyword, cur_tkn);
+        }
+    }
+    std::string msg;
+    msg.append(keyword);
+    msg.append(" expects argument ");
+    msg.append(match_tkn);
+    msg.push_back('\n');
+    m_engine->log(msg, LogLevel::ENGINE_WARN);
+    return false;
+};
+
 std::optional<int> GenericEngine::run() {
     // Read line from input stream
     std::string input;

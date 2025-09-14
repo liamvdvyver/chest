@@ -36,6 +36,51 @@ void display_state(const GenericEngine &engine) {
 }
 
 //============================================================================//
+// Options
+//============================================================================//
+
+//-- Spin --------------------------------------------------------------------//
+
+std::string UCISpinOption::get_type_string() const {
+    std::string ret = "type spin default ";
+    ret.append(std::to_string(m_default_val));
+    ret.append(" min ");
+    ret.append(std::to_string(m_min_val));
+    ret.append(" max ");
+    ret.append(std::to_string(m_max_val));
+    return ret;
+}
+
+bool UCISpinOption::parse(std::string_view opt_name, std::stringstream &value) {
+    match_literal(opt_name, "value", value);
+
+    std::optional<int> val{};
+    std::string arg;
+    while (value >> arg) {
+        try {
+            val = std::stoi(arg);
+        } catch (std::invalid_argument &e) {
+            bad_arg(opt_name, arg);
+        }
+    }
+    if (!val.has_value() || val.value() < m_min_val ||
+        val.value() > m_max_val) {
+        bad_arg(opt_name, arg);
+        return false;
+    }
+
+    m_set_val = val.value();
+    return true;
+}
+
+//-- Hash --------------------------------------------------------------------//
+
+std::optional<int> Hash::execute() {
+    m_engine->get_ttable().resize_mb(m_set_val);
+    return {};
+}
+
+//============================================================================//
 // Commands
 //============================================================================//
 
@@ -52,11 +97,44 @@ void UCICheck::identify() {
     m_engine->log(author_msg, LogLevel::RAW_MESSAGE);
 };
 
+void UCICheck::tell_options() {
+    for (const auto &[name, fct] : *m_options) {
+        std::string msg = "option name ";
+        msg.append(name);
+        msg.push_back(' ');
+        msg.append(fct()->get_type_string());
+        msg.push_back('\n');
+        m_engine->log(msg, LogLevel::RAW_MESSAGE);
+    }
+};
+
 std::optional<int> UCICheck::execute() {
     identify();
+    tell_options();
     m_engine->log("uciok\n", LogLevel::RAW_MESSAGE);
     return {};
 };
+
+//-- SetOption ---------------------------------------------------------------//
+
+bool SetOption::parse(const std::string_view keyword, std::stringstream &args) {
+    // Match "name"
+    if (!match_literal(keyword, "name", args)) {
+        return false;
+    }
+
+    // Get option
+    std::string opt_name;
+    if (!(args >> opt_name)) {
+        return false;
+    }
+    if (!(m_options->contains(opt_name))) return false;
+    m_opt = m_options->at(opt_name)();
+
+    return m_opt.get()->parse(opt_name, args);
+}
+
+std::optional<int> SetOption::execute() { return m_opt.get()->execute(); };
 
 //-- ISReady -----------------------------------------------------------------//
 
@@ -282,6 +360,19 @@ std::optional<int> Go::search_impl() {
 //============================================================================//
 // Main engine
 //============================================================================//
+
+UCIEngine::UCIEngine()
+    : GenericEngine({
+          {"uci", [this]() { return std::make_unique<UCICheck>(this); }},
+          {"isready", [this]() { return std::make_unique<ISReady>(this); }},
+          {"setoption", [this]() { return std::make_unique<SetOption>(this); }},
+          {"debug", [this]() { return std::make_unique<DebugConfig>(this); }},
+          {"ucinewgame",
+           [this]() { return std::make_unique<UciNewGame>(this); }},
+          {"position", [this]() { return std::make_unique<Position>(this); }},
+          {"quit", [this]() { return std::make_unique<Quit>(this); }},
+          {"go", [this]() { return std::make_unique<Go>(this); }},
+      }) {}
 
 void UCIEngine::log(const std::string_view &msg, const LogLevel level,
                     bool flush) const {

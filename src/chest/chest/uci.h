@@ -9,19 +9,50 @@
 #include "libChest/timemanagement.h"
 
 //============================================================================//
-// Commands
+// Options
 //============================================================================//
 
-class UCICheck : public EngineCommand {
+class UCIOption : public EngineCommand {
    public:
-    UCICheck(GenericEngine *engine) : EngineCommand(engine) {}
+    using EngineCommand::EngineCommand;
+
+    virtual std::string get_type_string() const = 0;
+};
+
+class UCISpinOption : public UCIOption {
+   public:
+    UCISpinOption(GenericEngine *engine, const int default_val,
+                  const int min_val, const int max_val)
+        : UCIOption(engine),
+          m_default_val(default_val),
+          m_min_val(min_val),
+          m_max_val(max_val) {}
+
+    std::string get_type_string() const override;
+
+    bool parse(std::string_view opt_name, std::stringstream &value) override;
+
+   protected:
+    int m_default_val;
+    int m_min_val;
+    int m_max_val;
+
+    int m_set_val = m_default_val;
+};
+
+class Hash : public UCISpinOption {
+   public:
+    Hash(GenericEngine *engine) : UCISpinOption(engine, 1, 1, gb) {};
+
     std::optional<int> execute() override;
 
    private:
-    void identify();
-    static constexpr std::string name = "Chest";
-    inline static const std::string author = "Liam van der Vyver";
+    static constexpr size_t gb = 1024;
 };
+
+//============================================================================//
+// Commands
+//============================================================================//
 
 class ISReady : public EngineCommand {
    public:
@@ -91,28 +122,28 @@ class Go : public EngineCommand {
             ) { return time_impl(keyword, args, board::Colour::WHITE); };
         m_fields["btime"] = [this](const std::string_view keyword,
                                    std::stringstream &args) {
-            return this->time_impl(keyword, args, board::Colour::BLACK);
+            return time_impl(keyword, args, board::Colour::BLACK);
         };
         m_fields["winc"] =
             [this](const std::string_view keyword, std::stringstream &args
 
-            ) { return this->inc_impl(keyword, args, board::Colour::WHITE); };
+            ) { return inc_impl(keyword, args, board::Colour::WHITE); };
         m_fields["binc"] =
             [this](const std::string_view keyword, std::stringstream &args
 
-            ) { return this->inc_impl(keyword, args, board::Colour::BLACK); };
-        m_fields["movestogo"] =
-            [this](const std::string_view keyword, std::stringstream &args
+            ) { return inc_impl(keyword, args, board::Colour::BLACK); };
+        m_fields["movestogo"] = [this](const std::string_view keyword,
+                                       std::stringstream &args
 
-            ) { return this->movestogo_impl(keyword, args); };
+                                ) { return movestogo_impl(keyword, args); };
         m_fields["movetime"] = [this](const std::string_view keyword,
                                       std::stringstream &args
 
-                               ) { return this->movetime_impl(keyword, args); };
+                               ) { return movetime_impl(keyword, args); };
         m_fields["perft"] = [this](const std::string_view keyword,
                                    std::stringstream &args
 
-                            ) { return this->perft_impl(keyword, args); };
+                            ) { return perft_impl(keyword, args); };
     }
     std::optional<int> execute() override;
     bool sufficient_args() const override;
@@ -144,19 +175,7 @@ class Go : public EngineCommand {
 
 class UCIEngine : public GenericEngine {
    public:
-    UCIEngine()
-        : GenericEngine({
-              {"uci", [this]() { return std::make_unique<UCICheck>(this); }},
-              {"isready", [this]() { return std::make_unique<ISReady>(this); }},
-              {"debug",
-               [this]() { return std::make_unique<DebugConfig>(this); }},
-              {"ucinewgame",
-               [this]() { return std::make_unique<UciNewGame>(this); }},
-              {"position",
-               [this]() { return std::make_unique<Position>(this); }},
-              {"quit", [this]() { return std::make_unique<Quit>(this); }},
-              {"go", [this]() { return std::make_unique<Go>(this); }},
-          }) {}
+    UCIEngine();
 
     void log(const std::string_view &msg, const LogLevel level,
              bool flush) const override;
@@ -164,4 +183,44 @@ class UCIEngine : public GenericEngine {
     void report(const size_t depth, const eval::centipawn_t eval,
                 const size_t nodes, const std::chrono::duration<double> time,
                 const MoveBuffer &pv) const override;
+
+    using OptionFactory = std::function<std::unique_ptr<UCIOption>()>;
+    std::unordered_map<std::string, OptionFactory> m_options = {
+        {"Hash", [this]() { return std::make_unique<Hash>(this); }}};
+};
+
+//============================================================================//
+// UCICheck/SetOption: need references to UCIEngine to get options.
+//============================================================================//
+
+class UCICheck : public EngineCommand {
+   public:
+    UCICheck(UCIEngine *engine)
+        : EngineCommand(engine), m_options(&engine->m_options) {}
+
+    std::optional<int> execute() override;
+
+   private:
+    void identify();
+    static constexpr std::string name = "Chest";
+    inline static const std::string author = "Liam van der Vyver";
+
+    void tell_options();
+
+    std::unordered_map<std::string, UCIEngine::OptionFactory> *m_options;
+};
+
+class SetOption : public EngineCommand {
+   public:
+    SetOption(UCIEngine *engine)
+        : EngineCommand(engine), m_options(&engine->m_options) {}
+
+    bool parse(const std::string_view keyword,
+               std::stringstream &args) override;
+
+    std::optional<int> execute() override;
+
+   private:
+    std::unordered_map<std::string, UCIEngine::OptionFactory> *m_options;
+    std::unique_ptr<UCIOption> m_opt = nullptr;
 };

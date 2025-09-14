@@ -47,6 +47,12 @@ class EngineCommand {
 
     void bad_usage(const std::string_view input) const;
 
+    // Print error messages and consume tokens until a token is matched.
+    // Returns whether it was matched
+    bool match_literal(const std::string_view keyword,
+                       const std::string_view match_tkn,
+                       std::stringstream &args) const;
+
    protected:
     std::map<std::string, FieldParser> m_fields;
     GenericEngine *m_engine;

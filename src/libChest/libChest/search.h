@@ -338,6 +338,14 @@ struct TTable {
         m_entries.resize(m_size);
     }
 
+    void resize(size_t n) {
+        m_size = n;
+        clear();
+        m_entries.shrink_to_fit();
+    }
+
+    void resize_mb(size_t n) { return resize(n * kb * kb / sizeof(TTEntry)); }
+
    private:
     // Access helper.
     TTEntry &get(const Zobrist idx) {
