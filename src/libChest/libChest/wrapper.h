@@ -31,6 +31,22 @@ struct Wrapper {
                                      const WrapperType &b) {
         return a.value != b.value;
     }
+    constexpr friend bool operator>(const WrapperType &a,
+                                    const WrapperType &b) {
+        return a.value > b.value;
+    }
+    constexpr friend bool operator<(const WrapperType &a,
+                                    const WrapperType &b) {
+        return a.value < b.value;
+    }
+    constexpr friend bool operator>=(const WrapperType &a,
+                                     const WrapperType &b) {
+        return a.value >= b.value;
+    }
+    constexpr friend bool operator<=(const WrapperType &a,
+                                     const WrapperType &b) {
+        return a.value <= b.value;
+    }
 
     // Arithmetic
     constexpr friend WrapperType operator+(const WrapperType &a,

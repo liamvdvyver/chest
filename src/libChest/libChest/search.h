@@ -37,10 +37,13 @@ enum class ABNodeType : uint8_t {
 
 // Integrated bound and value.
 struct IBValue : public Wrapper<eval::centipawn_t, IBValue> {
-   public:
+   private:
     using Wrapper::Wrapper;
-    IBValue(const eval::centipawn_t score,
-            const ABNodeType type = ABNodeType::PV) {
+
+   public:
+    IBValue() = default;
+    // using Wrapper::Wrapper;
+    IBValue(const eval::centipawn_t score, const ABNodeType type) {
         value = score * 4;
         value += static_cast<eval::centipawn_t>(type);
         value -= static_cast<eval::centipawn_t>(type == ABNodeType::ALL) * 4;
@@ -68,6 +71,7 @@ struct SearchResult {
         CHECKMATE,
         TIMEOUT,
         STANDPAT,
+        HASH_CUTOFF,
     };
     IBValue value{};
     LeafType type;
@@ -381,7 +385,8 @@ struct NegaMaxOptions {
     bool sort = true;
     bool quiesce = true;
     bool quiescence_standpat = true;
-    bool hash_first = true;
+    bool use_hash = false;
+    bool hash_pruning = false;
 };
 
 template <eval::IncrementallyUpdateableEvaluator TEval, size_t MaxDepth,
@@ -443,16 +448,18 @@ class DLNegaMax {
 
         // In quiescence only: check stand-pat score
         if constexpr (Type == SearchType::QUIESCE && Opts.quiescence_standpat) {
-            const eval::centipawn_t standpat_score =
-                m_node.get().template get<TEval>().eval();
-            bounds.alpha = std::max(bounds.alpha, standpat_score);
-            if (standpat_score >= bounds.beta) {
-                return {
-                    .value = IBValue(standpat_score, ABNodeType::CUT),
-                    .type = SearchResult::LeafType::DEPTH_CUTOFF,
-                    .best_move = {},
-                    .n_nodes = 1,
-                };
+            if (!m_node.get().is_checked()) {
+                const eval::centipawn_t standpat_score =
+                    m_node.get().template get<TEval>().eval();
+                bounds.alpha = std::max(bounds.alpha, standpat_score);
+                if (standpat_score >= bounds.beta) {
+                    return {
+                        .value = IBValue(standpat_score, ABNodeType::CUT),
+                        .type = SearchResult::LeafType::DEPTH_CUTOFF,
+                        .best_move = {},
+                        .n_nodes = 1,
+                    };
+                }
             }
         }
 
@@ -460,14 +467,34 @@ class DLNegaMax {
         const Zobrist hash = m_node.get().template get<Zobrist>();
         move::FatMove hash_move;
 
-        if constexpr (Opts.hash_first) {
-            // TODO: check for cutoff with this move.
-            // TODO: if has deeper hash move, don't research this node.
+        if constexpr (Opts.use_hash) {
             const std::optional<TTable::TTValue> tt_value =
                 m_ttable.get().at_opt(hash);
             hash_move =
                 tt_value.transform([](auto val) { return val.best_move; })
                     .value_or({});
+
+            if constexpr (Opts.hash_pruning) {
+                // Has deeper value
+                if (tt_value &&
+                    tt_value->depth_remaining >=
+                        m_node.get().template depth_remaining<Type>() + 1) {
+                    // TODO: check for repettions first
+                    // TODO: handle null moves from mates
+                    if (tt_value->value.exact() ||
+                        (tt_value->value.node_type() == ABNodeType::CUT &&
+                         tt_value->value.eval() >= bounds.beta) ||
+                        (tt_value->value.node_type() == ABNodeType::ALL &&
+                         tt_value->value.eval() < bounds.alpha)) {
+                        return {
+                            .value = tt_value->value,
+                            .type = SearchResult::LeafType::HASH_CUTOFF,
+                            .best_move = tt_value->best_move,
+                            .n_nodes = 1,
+                        };
+                    }
+                }
+            }
         }
 
         // Get children (in order)
@@ -513,27 +540,25 @@ class DLNegaMax {
 
                 // Count nodes
                 n_nodes += child_result.n_nodes;
-                const eval::centipawn_t child_value =
-                    -child_result.value.eval();
+                const IBValue child_value = -child_result.value;
 
                 // Update best move if eval improves
                 if (!(best_move.has_value()) ||
-                    child_value > best_move->value.eval()) {
+                    child_value > best_move->value) {
                     best_move = {.value = child_value,
                                  .type = child_result.type,
                                  .best_move = m};  // count nodes later
                 }
 
                 if constexpr (Opts.prune) {
-                    if (child_value > bounds.alpha) {
-                        bounds.alpha = child_value;
+                    if (child_value > IBValue(bounds.alpha, ABNodeType::PV)) {
+                        bounds.alpha = child_value.eval();
                     }
-                    if (child_value >= bounds.beta) {
+                    if (child_value >= IBValue(bounds.beta, ABNodeType::PV)) {
                         // Pruned -> return lower bound
                         m_node.get().unmake_move();
                         best_move->value =
-                            IBValue(best_move->value.eval(),
-                            ABNodeType::CUT);
+                            IBValue(best_move->value.eval(), ABNodeType::CUT);
                         break;
                     }
                 }
@@ -564,23 +589,20 @@ class DLNegaMax {
                 m_node.get().get_astate().state.to_move);
 
             const SearchResult endgame_result = {
-                .value = IBValue(checked ? -eval::max_eval : 0),
+                .value = IBValue(checked ? -eval::max_eval : 0, ABNodeType::PV),
                 .type = checked ? SearchResult::LeafType::CHECKMATE
                                 : SearchResult::LeafType::STALEMATE,
                 .n_nodes = n_nodes,
             };
             // TODO: insert these
-            // m_ttable.get().insert(
+            // But, handle the fact that we have null moves in the cache
+            // now. m_ttable.get().insert(
             //     hash, endgame_result,
             //     m_node.get().template depth_remaining<Type>());
             return endgame_result;
         }
 
         best_move->n_nodes = n_nodes;
-        if (best_move->value.eval() <= bounds.alpha) {
-            best_move->value =
-                IBValue(best_move->value.eval(), ABNodeType::ALL);
-        }
 
         m_ttable.get().insert(
             hash, best_move.value(),
@@ -597,7 +619,8 @@ class DLNegaMax {
    private:
     // Return value in (soft/hard) cutoff
     constexpr SearchResult cutoff_result() const {
-        return {.value = IBValue(m_node.get().template get<TEval>().eval()),
+        return {.value = IBValue(m_node.get().template get<TEval>().eval(),
+                                 ABNodeType::PV),
                 .type = SearchResult::LeafType::DEPTH_CUTOFF,
                 .n_nodes = 1};
     }
@@ -712,7 +735,8 @@ class IDSearcher {
                 m_stoplock.unlock();
             }
 
-            const std::optional<std::chrono::time_point<std::chrono::steady_clock>>
+            const std::optional<
+                std::chrono::time_point<std::chrono::steady_clock>>
                 ply_finish_time =
                     max_depth ? std::optional(finish_time) : std::nullopt;
             SearchResult candidate_result = m_searcher.search(ply_finish_time);
@@ -739,7 +763,7 @@ class IDSearcher {
 
             // TODO: report nps for current iteration, not total?
             if (m_reporter) {
-                m_reporter->report(max_depth, search_result->eval,
+                m_reporter->report(max_depth, search_result->value.eval(),
                                    search_result->n_nodes, elapsed, m_pv);
             }
 

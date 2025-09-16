@@ -18,7 +18,7 @@ constexpr size_t max_depth = 64;
 #if DEBUG()
 constexpr size_t search_depth = 6;
 #else
-constexpr size_t search_depth = 7;
+constexpr size_t search_depth = 8;
 #endif
 
 using VanillaNegaMax = search::DLNegaMax<eval::DefaultEval, max_depth,
@@ -26,56 +26,56 @@ using VanillaNegaMax = search::DLNegaMax<eval::DefaultEval, max_depth,
                                           .sort = false,
                                           .quiesce = false,
                                           .quiescence_standpat = false,
-                                          .hash_first = false}>;
+                                          .use_hash = false}>;
 
 using ABNegaMax = search::DLNegaMax<eval::DefaultEval, max_depth,
                                     {.prune = true,
                                      .sort = false,
                                      .quiesce = false,
                                      .quiescence_standpat = false,
-                                     .hash_first = false}>;
+                                     .use_hash = false}>;
 
 using ABSorted = search::DLNegaMax<eval::DefaultEval, max_depth,
                                    {.prune = true,
                                     .sort = true,
                                     .quiesce = false,
                                     .quiescence_standpat = false,
-                                    .hash_first = false}>;
+                                    .use_hash = false}>;
 
 using QSearch = search::DLNegaMax<eval::DefaultEval, max_depth,
                                   {.prune = true,
                                    .sort = false,
                                    .quiesce = true,
                                    .quiescence_standpat = false,
-                                   .hash_first = false}>;
+                                   .use_hash = false}>;
 
 using QSearchSorted = search::DLNegaMax<eval::DefaultEval, max_depth,
                                         {.prune = true,
                                          .sort = true,
                                          .quiesce = true,
                                          .quiescence_standpat = false,
-                                         .hash_first = false}>;
+                                         .use_hash = false}>;
 
 using QSearchStandPat = search::DLNegaMax<eval::DefaultEval, max_depth,
                                           {.prune = true,
                                            .sort = false,
                                            .quiesce = true,
                                            .quiescence_standpat = true,
-                                           .hash_first = false}>;
+                                           .use_hash = false}>;
 
 using FullQSearch = search::DLNegaMax<eval::DefaultEval, max_depth,
                                       {.prune = true,
                                        .sort = true,
                                        .quiesce = true,
                                        .quiescence_standpat = true,
-                                       .hash_first = false}>;
+                                       .use_hash = false}>;
 
 using FullQSearchWithHashMove = search::DLNegaMax<eval::DefaultEval, max_depth,
                                                   {.prune = true,
                                                    .sort = true,
                                                    .quiesce = true,
                                                    .quiescence_standpat = true,
-                                                   .hash_first = true}>;
+                                                   .use_hash = true}>;
 
 search::SearchResult do_search(auto &searcher, const size_t d,
                                const std::string_view name,
@@ -146,6 +146,8 @@ TEST_CASE("Equality of equivalent search results.") {
         REQUIRE(ab_result.value.eval() == ab_sorted_result.value.eval());
         REQUIRE(qsearch_result.value.eval() ==
                 qsearch_sorted_result.value.eval());
+        REQUIRE(qsearch_stand_pat_result.value.eval() ==
+                qsearch_sorted_stand_pat_result.value.eval());
         REQUIRE(qsearch_sorted_stand_pat_result.value.eval() ==
                 hash_move_result.value.eval());
         (void)qsearch_stand_pat_result;

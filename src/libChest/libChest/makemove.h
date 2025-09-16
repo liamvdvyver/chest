@@ -149,17 +149,25 @@ struct SearchNode {
         }
 
         // Legality check
-        bool was_legal = !move::movegen::AllMoveGenerator::is_attacked(
-            m_astate,
-            m_astate.get()
-                .state.copy_bitboard({to_move, board::Piece::KING})
-                .single_bitscan_forward(),
-            to_move);
+        bool was_legal = !is_checked(to_move);
 
         set_to_move(!m_astate.get().state.to_move);
         m_made_moves.push_back(made);
         return was_legal;
     };
+
+    constexpr bool is_checked(board::Colour side) const {
+        return move::movegen::AllMoveGenerator::is_attacked(
+            m_astate,
+            m_astate.get()
+                .state.copy_bitboard({side, board::Piece::KING})
+                .single_bitscan_forward(),
+            side);
+    }
+
+    constexpr bool is_checked() const {
+        return is_checked(m_astate.get().state.to_move);
+    }
 
     // Unmakes the last move pushed.
     constexpr void unmake_move() {
