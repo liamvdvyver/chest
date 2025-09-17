@@ -87,6 +87,8 @@ class GenericEngine : public search::StatReporter {
                      const LogLevel level = LogLevel::ENGINE_INFO,
                      bool flush = false) const;
 
+    void debug_log(const std::string_view &msg) const override;
+
     void bad_command(const std::string_view cmd) const;
     void bad_command_args(const std::string_view input) const;
 

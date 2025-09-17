@@ -132,6 +132,10 @@ class Go : public EngineCommand {
             [this](const std::string_view keyword, std::stringstream &args
 
             ) { return inc_impl(keyword, args, board::Colour::BLACK); };
+        m_fields["depth"] = [this](const std::string_view keyword,
+                                   std::stringstream &args) {
+            return parse_field(keyword, args, m_depth);
+        };
         m_fields["movestogo"] = [this](const std::string_view keyword,
                                        std::stringstream &args
 
@@ -144,13 +148,19 @@ class Go : public EngineCommand {
                                    std::stringstream &args
 
                             ) { return perft_impl(keyword, args); };
+        m_fields["ab"] = [this](const std::string_view keyword,
+                                std::stringstream &args
+
+                         ) { return ab_impl(keyword, args); };
     }
     std::optional<int> execute() override;
     bool sufficient_args() const override;
 
    private:
-    // std::optional<size_t> m_perft_depth{};
-    size_t m_perft_depth = 0;
+    enum class SearchType : uint8_t { ID, AB, PERFT };
+
+    size_t m_depth = 0;
+    SearchType m_type = SearchType::ID;
 
     void parse_field(const std::string_view keyword, std::stringstream &args,
                      auto &field);
@@ -162,8 +172,11 @@ class Go : public EngineCommand {
                         std::stringstream &args);
     void movetime_impl(const std::string_view keyword, std::stringstream &args);
     void perft_impl(const std::string_view keyword, std::stringstream &args);
+    void ab_impl(const std::string_view keyword, std::stringstream &args);
 
+    template <search::DLSearcher TSearcher>
     std::optional<int> search_impl();
+
     std::optional<int> perft_impl();
 
     search::TimeControl m_tc{};

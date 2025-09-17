@@ -117,6 +117,10 @@ void GenericEngine::log(const std::string_view &msg, const LogLevel level,
     }
 }
 
+void GenericEngine::debug_log(const std::string_view &msg) const {
+    return GenericEngine::log(msg, LogLevel::ENGINE_INFO, false);
+};
+
 void GenericEngine::bad_command(const std::string_view cmd) const {
     std::string msg = "unrecognised command: ";
     msg.append(cmd);

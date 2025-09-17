@@ -49,6 +49,10 @@ struct TimeControl {
         return m_increment[static_cast<size_t>(colour)];
     };
 
+    constexpr bool is_null() const {
+        return !(m_remaining[0] || m_remaining[1] || movetime);
+    }
+
    private:
     std::array<ms_t, board::n_colours> m_remaining{0, 0};
     std::array<ms_t, board::n_colours> m_increment{0, 0};

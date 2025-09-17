@@ -113,7 +113,6 @@ using DefaultNode =
 template <typename T>
 concept DLSearcher = requires(T t, int max_depth) {
     { t.set_depth(max_depth) };
-    { t.get_node() };  // TODO: specify properly
 } && StoppableSearcher<T>;
 
 //----------------------------------------------------------------------------//
@@ -135,6 +134,8 @@ struct StatReporter {
                         const size_t nodes,
                         const std::chrono::duration<double> time,
                         const MoveBuffer &pv) const = 0;
+
+    virtual void debug_log(const std::string_view &msg) const = 0;
 };
 
 //============================================================================//
@@ -387,6 +388,7 @@ struct NegaMaxOptions {
     bool quiescence_standpat = true;
     bool use_hash = false;
     bool hash_pruning = false;
+    bool verbose = false;
 };
 
 template <eval::IncrementallyUpdateableEvaluator TEval, size_t MaxDepth,
@@ -415,7 +417,7 @@ class DLNegaMax {
     constexpr SearchResult search(
         const std::optional<std::chrono::time_point<std::chrono::steady_clock>>
             finish_time = std::nullopt,
-        Bounds bounds = {}) {
+        Bounds bounds = {}, const StatReporter *reporter = nullptr) {
         // Auto-stop
         if (finish_time && std::chrono::steady_clock::now() > finish_time) {
             stop();
@@ -433,6 +435,12 @@ class DLNegaMax {
         // but this is unlikely.
         if (m_node.get().depth() > 0 &&
             m_node.get().template is_non_stalemate_draw<1>()) {
+            if constexpr (Opts.verbose) {
+                if (reporter) {
+                    // reporter->debug_log("bruh");
+                }
+            }
+
             return {.type = SearchResult::LeafType::DRAW, .n_nodes = 1};
         }
 
@@ -692,8 +700,8 @@ template <DLSearcher TSearcher, size_t MaxDepth>
 class IDSearcher {
    public:
     template <typename... Ts>
-    constexpr IDSearcher(const StatReporter *reporter, Ts &&...args)
-        : m_searcher(std::forward<Ts>(args)...), m_reporter(reporter) {}
+    constexpr IDSearcher(Ts &&...args)
+        : m_searcher(std::forward<Ts>(args)...) {}
 
     // Stops the search as soon as possible, will return to the (other)
     // thread which called search().
@@ -707,7 +715,9 @@ class IDSearcher {
     // Infer return type from searcher,
     // Always searches at least to depth 1 so a legal move is returned.
     constexpr auto search(
-        const std::chrono::time_point<std::chrono::steady_clock> finish_time) {
+        const std::optional<std::chrono::time_point<std::chrono::steady_clock>>
+            finish_time,
+        Bounds bounds = {}, const StatReporter *reporter = nullptr) {
         m_stoplock.lock();
         m_stopped = false;
         m_stoplock.unlock();
@@ -715,7 +725,7 @@ class IDSearcher {
         std::optional<SearchResult> search_result = {};
 
         // Loop over all possible levels
-        for (size_t max_depth = 1; max_depth <= MaxDepth && !m_stopped;
+        for (size_t max_depth = 1; max_depth <= m_depth && !m_stopped;
              max_depth++) {
             // Time/node count for reporting
             auto start_time = std::chrono::steady_clock::now();
@@ -738,8 +748,9 @@ class IDSearcher {
             const std::optional<
                 std::chrono::time_point<std::chrono::steady_clock>>
                 ply_finish_time =
-                    max_depth ? std::optional(finish_time) : std::nullopt;
-            SearchResult candidate_result = m_searcher.search(ply_finish_time);
+                    (max_depth > 1) ? std::optional(finish_time) : std::nullopt;
+            SearchResult candidate_result =
+                m_searcher.search(ply_finish_time, bounds, reporter);
 
             // if first ply, we now have a result
             if (max_depth == 1) {
@@ -762,9 +773,9 @@ class IDSearcher {
                 std::chrono::steady_clock::now() - start_time;
 
             // TODO: report nps for current iteration, not total?
-            if (m_reporter) {
-                m_reporter->report(max_depth, search_result->value.eval(),
-                                   search_result->n_nodes, elapsed, m_pv);
+            if (reporter) {
+                reporter->report(max_depth, search_result->value.eval(),
+                                 search_result->n_nodes, elapsed, m_pv);
             }
 
             if (search_result->type == SearchResult::LeafType::CHECKMATE) {
@@ -776,10 +787,15 @@ class IDSearcher {
         return search_result.value();
     };
 
+    void set_depth(size_t depth) {
+        assert(depth <= MaxDepth);
+        m_depth = depth;
+    };
+
    private:
     // Searcher should be shorter-lived than other objects.
     TSearcher m_searcher;
-    const StatReporter *m_reporter;
+    size_t m_depth = MaxDepth;
 
     bool m_stopped = false;
     std::mutex m_stoplock;
@@ -788,7 +804,9 @@ class IDSearcher {
     // TODO: triangular table
     MoveBuffer m_pv;
 };
+
 static_assert(
     StoppableSearcher<IDSearcher<DLNegaMax<eval::DefaultEval, 1>, 1>>);
+static_assert(DLSearcher<IDSearcher<DLNegaMax<eval::DefaultEval, 1>, 1>>);
 
 }  // namespace search

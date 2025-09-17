@@ -279,20 +279,38 @@ void Go::movetime_impl(const std::string_view keyword,
 }
 
 void Go::perft_impl(const std::string_view keyword, std::stringstream &args) {
-    return parse_field(keyword, args, m_perft_depth);
+    m_type = SearchType::PERFT;
+    return parse_field(keyword, args, m_depth);
+}
+
+void Go::ab_impl(const std::string_view keyword, std::stringstream &args) {
+    (void)keyword;
+    (void)args;
+    m_type = SearchType::AB;
 }
 
 bool Go::sufficient_args() const {
     const board::Colour to_move = m_engine->get_astate().state.to_move;
-    return m_tc.movetime || m_tc.copy_remaining(to_move) || m_perft_depth;
+    return m_tc.movetime || m_tc.copy_remaining(to_move) || m_depth;
 }
 
 std::optional<int> Go::execute() {
-    return m_perft_depth ? perft_impl() : search_impl();
+    using EvalTp = eval::DefaultEval;
+    using DlSearcherTp = search::DLNegaMax<EvalTp, MAX_DEPTH>;
+    using IDSearcherTp = search::IDSearcher<DlSearcherTp, MAX_DEPTH>;
+
+    switch (m_type) {
+        case SearchType::ID:
+            return search_impl<IDSearcherTp>();
+        case SearchType::AB:
+            return search_impl<DlSearcherTp>();
+        case SearchType::PERFT:
+            return perft_impl();
+    }
 }
 
 std::optional<int> Go::perft_impl() {
-    state::PerftNode<MAX_DEPTH> sn{m_engine->get_astate(), m_perft_depth};
+    state::PerftNode<MAX_DEPTH> sn{m_engine->get_astate(), m_depth};
     const auto moves = sn.find_moves<false>();
     size_t perft = 0;
 
@@ -323,12 +341,11 @@ std::optional<int> Go::perft_impl() {
     return {};
 };
 
+template <search::DLSearcher TSearcher>
 std::optional<int> Go::search_impl() {
     // Types used for searching.
     // Could template at engine level.
-    using EvalTp = eval::DefaultEval;
-    using DlSearcherTp = search::DLNegaMax<EvalTp, MAX_DEPTH>;
-    using SearcherTp = search::IDSearcher<DlSearcherTp, MAX_DEPTH>;
+
     using TimeManagerTp = search::DefaultTimeManager;
 
     // Calculate stop time
@@ -338,17 +355,19 @@ std::optional<int> Go::search_impl() {
     const search::ms_t search_time =
         time_manager(m_tc, m_engine->get_astate().state.to_move);
 
-    // TODO:consider making searcher member of engine rather than dynamically
-    // allocating.
-    // DlSearcherTp nega();
+    const std::optional<std::chrono::time_point<std::chrono::steady_clock>>
+        finish_time =
+            m_tc.is_null()
+                ? std::nullopt
+                : std::optional(std::chrono::steady_clock::now() +
+                                std::chrono::milliseconds(search_time));
 
-    const std::chrono::time_point<std::chrono::steady_clock> finish_time =
-        std::chrono::steady_clock::now() +
-        std::chrono::milliseconds(search_time);
+    TSearcher searcher(m_engine->get_node(), m_engine->get_ttable());
+    if (m_depth) {
+        searcher.set_depth(m_depth);
+    }
 
-    SearcherTp idsearcher(m_engine, m_engine->get_node(),
-                          m_engine->get_ttable());
-    const move::FatMove best = idsearcher.search(finish_time).best_move;
+    move::FatMove best = searcher.search(finish_time, {}, m_engine).best_move;
 
     std::string msg = "bestmove ";
     msg.append(move::LongAlgMove(best));
