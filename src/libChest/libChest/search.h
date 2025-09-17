@@ -136,6 +136,23 @@ struct StatReporter {
                         const MoveBuffer &pv) const = 0;
 
     virtual void debug_log(const std::string_view &msg) const = 0;
+
+    static std::string prefix(size_t depth) {
+        std::string ret;
+        for (size_t i = 0; i <= depth; i++) {
+            ret.append("  ");
+        }
+        return ret;
+    }
+
+    static std::string join() { return ""; }
+
+    template <typename T, typename... Us>
+    static std::string join(T arg, Us... args) {
+        std::string ret = arg;
+        ret.append(join(args...));
+        return ret;
+    }
 };
 
 //============================================================================//
@@ -386,8 +403,8 @@ struct NegaMaxOptions {
     bool sort = true;
     bool quiesce = true;
     bool quiescence_standpat = true;
-    bool use_hash = false;
-    bool hash_pruning = false;
+    bool use_hash = true;
+    bool hash_pruning = true;
     bool verbose = false;
 };
 
@@ -423,6 +440,16 @@ class DLNegaMax {
             stop();
         }
 
+        if constexpr (Opts.verbose) {
+            if (reporter) {
+                reporter->debug_log(StatReporter::join(
+                    StatReporter::prefix(m_node.get().depth()),
+                    Type == SearchType::QUIESCE ? "(quiescence) " : "",
+                    "alpha: ", std::to_string(bounds.alpha),
+                    ", beta: ", std::to_string(bounds.beta), "\n"));
+            }
+        }
+
         // Early return
         if (m_stopped) {
             return {.type = SearchResult::LeafType::TIMEOUT};
@@ -437,7 +464,9 @@ class DLNegaMax {
             m_node.get().template is_non_stalemate_draw<1>()) {
             if constexpr (Opts.verbose) {
                 if (reporter) {
-                    // reporter->debug_log("bruh");
+                    reporter->debug_log(StatReporter::join(
+                        StatReporter::prefix(m_node.get().depth()),
+                        "non stalemate-draw }\n"));
                 }
             }
 
@@ -448,9 +477,20 @@ class DLNegaMax {
         if (m_node.get().template bottomed_out<Type>()) {
             // Normal search -> quiesce
             if constexpr (Type == SearchType::NORMAL && Opts.quiesce) {
-                return search<SearchType::QUIESCE>(finish_time, bounds);
+                SearchResult ret =
+                    search<SearchType::QUIESCE>(finish_time, bounds, reporter);
+                return ret;
             } else {
-                return cutoff_result();
+                SearchResult ret = cutoff_result();
+                if constexpr (Opts.verbose) {
+                    if (reporter) {
+                        reporter->debug_log(StatReporter::join(
+                            StatReporter::prefix(m_node.get().depth()),
+                            "depth cutoff, score: ",
+                            std::to_string(ret.value.eval()), " }\n"));
+                    }
+                }
+                return ret;
             }
         }
 
@@ -461,12 +501,21 @@ class DLNegaMax {
                     m_node.get().template get<TEval>().eval();
                 bounds.alpha = std::max(bounds.alpha, standpat_score);
                 if (standpat_score >= bounds.beta) {
-                    return {
+                    SearchResult ret = {
                         .value = IBValue(standpat_score, ABNodeType::CUT),
                         .type = SearchResult::LeafType::DEPTH_CUTOFF,
                         .best_move = {},
                         .n_nodes = 1,
                     };
+                    if constexpr (Opts.verbose) {
+                        if (reporter) {
+                            reporter->debug_log(StatReporter::join(
+                                StatReporter::prefix(m_node.get().depth()),
+                                "standing pat, score: ",
+                                std::to_string(ret.value.eval()), " }\n"));
+                        }
+                    }
+                    return ret;
                 }
             }
         }
@@ -494,12 +543,21 @@ class DLNegaMax {
                          tt_value->value.eval() >= bounds.beta) ||
                         (tt_value->value.node_type() == ABNodeType::ALL &&
                          tt_value->value.eval() < bounds.alpha)) {
-                        return {
+                        SearchResult ret = {
                             .value = tt_value->value,
                             .type = SearchResult::LeafType::HASH_CUTOFF,
                             .best_move = tt_value->best_move,
                             .n_nodes = 1,
                         };
+                        if constexpr (Opts.verbose) {
+                            if (reporter) {
+                                reporter->debug_log(StatReporter::join(
+                                    StatReporter::prefix(m_node.get().depth()),
+                                    "hash move cutoff, score: ",
+                                    std::to_string(ret.value.eval()), " }\n"));
+                            }
+                        }
+                        return ret;
                     }
                 }
             }
@@ -539,8 +597,15 @@ class DLNegaMax {
 
             // Check child
             if (m_node.get().make_move(m)) {
-                const SearchResult child_result =
-                    search<Type>(finish_time, {-bounds.beta, -bounds.alpha});
+                if constexpr (Opts.verbose) {
+                    if (reporter) {
+                        reporter->debug_log(StatReporter::join(
+                            StatReporter::prefix(m_node.get().depth() - 1),
+                            "searching move: ", m.pretty(), " {\n"));
+                    }
+                }
+                const SearchResult child_result = search<Type>(
+                    finish_time, {-bounds.beta, -bounds.alpha}, reporter);
 
                 if constexpr (Type == SearchType::QUIESCE) {
                     assert(move::is_capture(m.get_move().type()));
@@ -567,6 +632,13 @@ class DLNegaMax {
                         m_node.get().unmake_move();
                         best_move->value =
                             IBValue(best_move->value.eval(), ABNodeType::CUT);
+                        if constexpr (Opts.verbose) {
+                            if (reporter) {
+                                reporter->debug_log(StatReporter::join(
+                                    StatReporter::prefix(m_node.get().depth()),
+                                    "child failed high\n"));
+                            }
+                        }
                         break;
                     }
                 }
@@ -578,7 +650,16 @@ class DLNegaMax {
             // If no result in quiescence search: search quiet moves.
             if constexpr (Type == SearchType::QUIESCE) {
                 if (quiet_moves_exist()) {
-                    return cutoff_result();
+                    SearchResult ret = cutoff_result();
+                    if constexpr (Opts.verbose) {
+                        if (reporter) {
+                            reporter->debug_log(StatReporter::join(
+                                StatReporter::prefix(m_node.get().depth()),
+                                "(quiescence) depth cutoff, score: ",
+                                std::to_string(ret.value.eval()), " }\n"));
+                        }
+                    }
+                    return ret;
                 }
             }
 
@@ -607,6 +688,15 @@ class DLNegaMax {
             // now. m_ttable.get().insert(
             //     hash, endgame_result,
             //     m_node.get().template depth_remaining<Type>());
+
+            if constexpr (Opts.verbose) {
+                if (reporter) {
+                    reporter->debug_log(StatReporter::join(
+                        StatReporter::prefix(m_node.get().depth()),
+                        "leaf score: ",
+                        std::to_string(endgame_result.value.eval()), " }\n"));
+                }
+            }
             return endgame_result;
         }
 
@@ -616,6 +706,14 @@ class DLNegaMax {
             hash, best_move.value(),
             static_cast<uint8_t>(
                 m_node.get().template depth_remaining<Type>()));
+        if constexpr (Opts.verbose) {
+            if (reporter) {
+                reporter->debug_log(StatReporter::join(
+                    StatReporter::prefix(m_node.get().depth()),
+                    "best move: ", best_move->best_move.pretty(), ", score: ",
+                    std::to_string(best_move->value.eval()), " }\n"));
+            }
+        }
         return best_move.value();
     }
 

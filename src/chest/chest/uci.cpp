@@ -295,8 +295,19 @@ bool Go::sufficient_args() const {
 }
 
 std::optional<int> Go::execute() {
+    if (m_trace && !m_engine->is_debug()) {
+        m_engine->log("trace output requires debug on\n",
+                      LogLevel::ENGINE_WARN);
+    }
+    return m_engine->is_debug() && m_trace ? execute_impl<true>()
+                                           : execute_impl<false>();
+}
+
+template <bool Debug>
+std::optional<int> Go::execute_impl() {
     using EvalTp = eval::DefaultEval;
-    using DlSearcherTp = search::DLNegaMax<EvalTp, MAX_DEPTH>;
+    using DlSearcherTp =
+        search::DLNegaMax<EvalTp, MAX_DEPTH, {.verbose = Debug}>;
     using IDSearcherTp = search::IDSearcher<DlSearcherTp, MAX_DEPTH>;
 
     switch (m_type) {

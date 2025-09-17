@@ -5,6 +5,7 @@
 #pragma once
 
 #include "engine.h"
+#include "libChest/search.h"
 #include "libChest/state.h"
 #include "libChest/timemanagement.h"
 
@@ -152,6 +153,23 @@ class Go : public EngineCommand {
                                 std::stringstream &args
 
                          ) { return ab_impl(keyword, args); };
+        m_fields["alpha"] =
+            [this](const std::string_view keyword, std::stringstream &args
+
+            ) { return parse_field(keyword, args, m_bounds.alpha); };
+
+        m_fields["beta"] =
+            [this](const std::string_view keyword, std::stringstream &args
+
+            ) { return parse_field(keyword, args, m_bounds.beta); };
+        m_fields["trace"] = [this](const std::string_view keyword,
+                                   std::stringstream &args
+
+                            ) {
+            (void)keyword;
+            (void)args;
+            m_trace = true;
+        };
     }
     std::optional<int> execute() override;
     bool sufficient_args() const override;
@@ -161,6 +179,8 @@ class Go : public EngineCommand {
 
     size_t m_depth = 0;
     SearchType m_type = SearchType::ID;
+    bool m_trace = false;
+    search::Bounds m_bounds{};
 
     void parse_field(const std::string_view keyword, std::stringstream &args,
                      auto &field);
@@ -173,6 +193,9 @@ class Go : public EngineCommand {
     void movetime_impl(const std::string_view keyword, std::stringstream &args);
     void perft_impl(const std::string_view keyword, std::stringstream &args);
     void ab_impl(const std::string_view keyword, std::stringstream &args);
+
+    template <bool Debug>
+    std::optional<int> execute_impl();
 
     template <search::DLSearcher TSearcher>
     std::optional<int> search_impl();
