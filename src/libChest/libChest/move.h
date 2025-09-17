@@ -225,6 +225,10 @@ struct FatMove {
                get_piece() == other.get_piece();
     }
 
+    constexpr bool is_null() const {
+        return !m_move && !static_cast<uint8_t>(m_piece);
+    }
+
     constexpr std::string pretty() const;
 
    private:

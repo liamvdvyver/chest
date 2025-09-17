@@ -243,13 +243,14 @@ std::optional<int> Quit::execute() { return {EXIT_SUCCESS}; };
 
 //-- Go ----------------------------------------------------------------------//
 
+template <typename T = uint64_t>
 void Go::parse_field(const std::string_view keyword, std::stringstream &args,
-                     auto &field) {
+                     T &field) {
     std::string arg;
     if (!(args >> arg)) {
         bad_arg(keyword, "");
     }
-    uint64_t val{};
+    T val{};
     try {
         val = std::stoi(arg);
     } catch (std::invalid_argument &e) {
@@ -378,7 +379,8 @@ std::optional<int> Go::search_impl() {
         searcher.set_depth(m_depth);
     }
 
-    move::FatMove best = searcher.search(finish_time, {}, m_engine).best_move;
+    move::FatMove best =
+        searcher.search(finish_time, m_bounds, m_engine).best_move;
 
     std::string msg = "bestmove ";
     msg.append(move::LongAlgMove(best));

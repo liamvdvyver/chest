@@ -321,7 +321,7 @@ struct TTable {
         while (contains(hash) && !sn.bottomed_out()) {
             const move::FatMove best_move = get(hash).second.best_move;
             sn.make_move(best_move);
-            if (sn.is_non_stalemate_draw()) {
+            if (best_move.is_null() || sn.is_non_stalemate_draw()) {
                 break;
             }
             buf.push_back(best_move);
@@ -494,28 +494,34 @@ class DLNegaMax {
             }
         }
 
+        // Values for search result
+        std::optional<SearchResult> best_move;
+        size_t n_nodes = 1;
+
         // In quiescence only: check stand-pat score
         if constexpr (Type == SearchType::QUIESCE && Opts.quiescence_standpat) {
             if (!m_node.get().is_checked()) {
                 const eval::centipawn_t standpat_score =
                     m_node.get().template get<TEval>().eval();
+                SearchResult standpat_result = {
+                    .value = IBValue(standpat_score, ABNodeType::CUT),
+                    .type = SearchResult::LeafType::DEPTH_CUTOFF,
+                    .best_move = {},
+                    .n_nodes = 1,
+                };
+                best_move = standpat_result;
                 bounds.alpha = std::max(bounds.alpha, standpat_score);
                 if (standpat_score >= bounds.beta) {
-                    SearchResult ret = {
-                        .value = IBValue(standpat_score, ABNodeType::CUT),
-                        .type = SearchResult::LeafType::DEPTH_CUTOFF,
-                        .best_move = {},
-                        .n_nodes = 1,
-                    };
                     if constexpr (Opts.verbose) {
                         if (reporter) {
                             reporter->debug_log(StatReporter::join(
                                 StatReporter::prefix(m_node.get().depth()),
                                 "standing pat, score: ",
-                                std::to_string(ret.value.eval()), " }\n"));
+                                std::to_string(standpat_result.value.eval()),
+                                " }\n"));
                         }
                     }
-                    return ret;
+                    return standpat_result;
                 }
             }
         }
@@ -583,10 +589,6 @@ class DLNegaMax {
                           return ret;
                       });
         }
-
-        // Recurse over children
-        std::optional<SearchResult> best_move;
-        size_t n_nodes = 1;
 
         // Recurse
         for (const move::FatMove m : moves) {

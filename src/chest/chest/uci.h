@@ -153,15 +153,19 @@ class Go : public EngineCommand {
                                 std::stringstream &args
 
                          ) { return ab_impl(keyword, args); };
-        m_fields["alpha"] =
-            [this](const std::string_view keyword, std::stringstream &args
+        m_fields["alpha"] = [this](const std::string_view keyword,
+                                   std::stringstream &args
 
-            ) { return parse_field(keyword, args, m_bounds.alpha); };
+                            ) {
+            return parse_field<eval::centipawn_t>(keyword, args,
+                                                  m_bounds.alpha);
+        };
+        m_fields["beta"] = [this](const std::string_view keyword,
+                                  std::stringstream &args
 
-        m_fields["beta"] =
-            [this](const std::string_view keyword, std::stringstream &args
-
-            ) { return parse_field(keyword, args, m_bounds.beta); };
+                           ) {
+            return parse_field<eval::centipawn_t>(keyword, args, m_bounds.beta);
+        };
         m_fields["trace"] = [this](const std::string_view keyword,
                                    std::stringstream &args
 
