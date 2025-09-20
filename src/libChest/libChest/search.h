@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <functional>
 #include <mutex>
 
@@ -405,11 +406,14 @@ struct NegaMaxOptions {
     bool quiescence_standpat = true;
     bool use_hash = true;
     bool hash_pruning = true;
-    bool verbose = false;
 };
 
-template <eval::IncrementallyUpdateableEvaluator TEval, size_t MaxDepth,
-          NegaMaxOptions Opts = {}>
+enum class VerbosityLevel : bool {
+    QUIET = false,
+    VERBOSE = true,
+};
+
+template <eval::IncrementallyUpdateableEvaluator TEval, size_t MaxDepth>
 class DLNegaMax {
    public:
     constexpr DLNegaMax(DefaultNode<TEval, MaxDepth> &node, TTable &ttable)
@@ -430,7 +434,10 @@ class DLNegaMax {
     // Not protected from races.
     // Calling code should ensure set_depth/stop do not race.
     constexpr void stop() { m_stopped = true; }
-    template <SearchType Type = SearchType::NORMAL>
+
+    template <SearchType Type = SearchType::NORMAL,
+              VerbosityLevel Verbosity = VerbosityLevel::QUIET,
+              NegaMaxOptions Opts = {}>
     constexpr SearchResult search(
         const std::optional<std::chrono::time_point<std::chrono::steady_clock>>
             finish_time = std::nullopt,
@@ -440,7 +447,7 @@ class DLNegaMax {
             stop();
         }
 
-        if constexpr (Opts.verbose) {
+        if constexpr (Verbosity == VerbosityLevel::VERBOSE) {
             if (reporter) {
                 reporter->debug_log(StatReporter::join(
                     StatReporter::prefix(m_node.get().depth()),
@@ -462,7 +469,7 @@ class DLNegaMax {
         // but this is unlikely.
         if (m_node.get().depth() > 0 &&
             m_node.get().template is_non_stalemate_draw<1>()) {
-            if constexpr (Opts.verbose) {
+            if constexpr (Verbosity == VerbosityLevel::VERBOSE) {
                 if (reporter) {
                     reporter->debug_log(StatReporter::join(
                         StatReporter::prefix(m_node.get().depth()),
@@ -477,12 +484,12 @@ class DLNegaMax {
         if (m_node.get().template bottomed_out<Type>()) {
             // Normal search -> quiesce
             if constexpr (Type == SearchType::NORMAL && Opts.quiesce) {
-                SearchResult ret =
-                    search<SearchType::QUIESCE>(finish_time, bounds, reporter);
+                SearchResult ret = search<SearchType::QUIESCE, Verbosity, Opts>(
+                    finish_time, bounds, reporter);
                 return ret;
             } else {
                 SearchResult ret = cutoff_result();
-                if constexpr (Opts.verbose) {
+                if constexpr (Verbosity == VerbosityLevel::VERBOSE) {
                     if (reporter) {
                         reporter->debug_log(StatReporter::join(
                             StatReporter::prefix(m_node.get().depth()),
@@ -512,7 +519,7 @@ class DLNegaMax {
                 best_move = standpat_result;
                 bounds.alpha = std::max(bounds.alpha, standpat_score);
                 if (standpat_score >= bounds.beta) {
-                    if constexpr (Opts.verbose) {
+                    if constexpr (Verbosity == VerbosityLevel::VERBOSE) {
                         if (reporter) {
                             reporter->debug_log(StatReporter::join(
                                 StatReporter::prefix(m_node.get().depth()),
@@ -555,7 +562,7 @@ class DLNegaMax {
                             .best_move = tt_value->best_move,
                             .n_nodes = 1,
                         };
-                        if constexpr (Opts.verbose) {
+                        if constexpr (Verbosity == VerbosityLevel::VERBOSE) {
                             if (reporter) {
                                 reporter->debug_log(StatReporter::join(
                                     StatReporter::prefix(m_node.get().depth()),
@@ -599,14 +606,14 @@ class DLNegaMax {
 
             // Check child
             if (m_node.get().make_move(m)) {
-                if constexpr (Opts.verbose) {
+                if constexpr (Verbosity == VerbosityLevel::VERBOSE) {
                     if (reporter) {
                         reporter->debug_log(StatReporter::join(
                             StatReporter::prefix(m_node.get().depth() - 1),
                             "searching move: ", m.pretty(), " {\n"));
                     }
                 }
-                const SearchResult child_result = search<Type>(
+                const SearchResult child_result = search<Type, Verbosity, Opts>(
                     finish_time, {-bounds.beta, -bounds.alpha}, reporter);
 
                 if constexpr (Type == SearchType::QUIESCE) {
@@ -634,7 +641,7 @@ class DLNegaMax {
                         m_node.get().unmake_move();
                         best_move->value =
                             IBValue(best_move->value.eval(), ABNodeType::CUT);
-                        if constexpr (Opts.verbose) {
+                        if constexpr (Verbosity == VerbosityLevel::VERBOSE) {
                             if (reporter) {
                                 reporter->debug_log(StatReporter::join(
                                     StatReporter::prefix(m_node.get().depth()),
@@ -653,7 +660,7 @@ class DLNegaMax {
             if constexpr (Type == SearchType::QUIESCE) {
                 if (quiet_moves_exist()) {
                     SearchResult ret = cutoff_result();
-                    if constexpr (Opts.verbose) {
+                    if constexpr (Verbosity == VerbosityLevel::VERBOSE) {
                         if (reporter) {
                             reporter->debug_log(StatReporter::join(
                                 StatReporter::prefix(m_node.get().depth()),
@@ -691,7 +698,7 @@ class DLNegaMax {
             //     hash, endgame_result,
             //     m_node.get().template depth_remaining<Type>());
 
-            if constexpr (Opts.verbose) {
+            if constexpr (Verbosity == VerbosityLevel::VERBOSE) {
                 if (reporter) {
                     reporter->debug_log(StatReporter::join(
                         StatReporter::prefix(m_node.get().depth()),
@@ -708,7 +715,7 @@ class DLNegaMax {
             hash, best_move.value(),
             static_cast<uint8_t>(
                 m_node.get().template depth_remaining<Type>()));
-        if constexpr (Opts.verbose) {
+        if constexpr (Verbosity == VerbosityLevel::VERBOSE) {
             if (reporter) {
                 reporter->debug_log(StatReporter::join(
                     StatReporter::prefix(m_node.get().depth()),
@@ -717,6 +724,24 @@ class DLNegaMax {
             }
         }
         return best_move.value();
+    }
+
+    template <VerbosityLevel Verbosity, NegaMaxOptions Opts = {}>
+    constexpr SearchResult search(
+        const std::optional<std::chrono::time_point<std::chrono::steady_clock>>
+            finish_time = std::nullopt,
+        Bounds bounds = {}, const StatReporter *reporter = nullptr) {
+        return search<SearchType::NORMAL, Verbosity, Opts>(finish_time, bounds,
+                                                           reporter);
+    }
+
+    template <NegaMaxOptions Opts>
+    constexpr SearchResult search(
+        const std::optional<std::chrono::time_point<std::chrono::steady_clock>>
+            finish_time = std::nullopt,
+        Bounds bounds = {}, const StatReporter *reporter = nullptr) {
+        return search<SearchType::NORMAL, VerbosityLevel::QUIET, Opts>(
+            finish_time, bounds, reporter);
     }
 
     // Extracts principal variation from the transposition table.
@@ -785,7 +810,7 @@ class DLNegaMax {
     std::reference_wrapper<DefaultNode<TEval, MaxDepth>> m_node;
     std::reference_wrapper<TTable> m_ttable;
 
-    bool m_stopped = false;
+    std::atomic<bool> m_stopped = false;
 };
 static_assert(DLSearcher<DLNegaMax<eval::StdEval, 1>>);
 
@@ -806,26 +831,31 @@ class IDSearcher {
     // Stops the search as soon as possible, will return to the (other)
     // thread which called search().
     constexpr void stop() {
-        m_stoplock.lock();
         m_stopped = true;
         m_searcher.stop();
-        m_stoplock.unlock();
     };
 
     // Infer return type from searcher,
     // Always searches at least to depth 1 so a legal move is returned.
+    template <VerbosityLevel Verbosity = VerbosityLevel::QUIET>
     constexpr auto search(
         const std::optional<std::chrono::time_point<std::chrono::steady_clock>>
             finish_time,
-        Bounds bounds = {}, const StatReporter *reporter = nullptr) {
+        Bounds bounds = {}, const StatReporter *reporter = nullptr,
+        size_t start_depth = 1) {
         m_stoplock.lock();
         m_stopped = false;
         m_stoplock.unlock();
 
         std::optional<SearchResult> search_result = {};
 
+        // TODO: print warning
+        if (start_depth > m_depth) {
+            start_depth = m_depth;
+        }
+
         // Loop over all possible levels
-        for (size_t max_depth = 1; max_depth <= m_depth && !m_stopped;
+        for (size_t max_depth = start_depth; max_depth <= m_depth && !m_stopped;
              max_depth++) {
             // Time/node count for reporting
             auto start_time = std::chrono::steady_clock::now();
@@ -850,7 +880,8 @@ class IDSearcher {
                 ply_finish_time =
                     (max_depth > 1) ? std::optional(finish_time) : std::nullopt;
             SearchResult candidate_result =
-                m_searcher.search(ply_finish_time, bounds, reporter);
+                m_searcher.template search<SearchType::NORMAL, Verbosity>(
+                    ply_finish_time, bounds, reporter);
 
             // if first ply, we now have a result
             if (max_depth == 1) {
@@ -897,7 +928,7 @@ class IDSearcher {
     TSearcher m_searcher;
     size_t m_depth = MaxDepth;
 
-    bool m_stopped = false;
+    std::atomic<bool> m_stopped = false;
     std::mutex m_stoplock;
 
     // For now, just report one move from pv
@@ -905,8 +936,12 @@ class IDSearcher {
     MoveBuffer m_pv;
 };
 
-static_assert(
-    StoppableSearcher<IDSearcher<DLNegaMax<eval::DefaultEval, 1>, 1>>);
-static_assert(DLSearcher<IDSearcher<DLNegaMax<eval::DefaultEval, 1>, 1>>);
+constexpr static size_t default_max_depth = 64;
+using DefaultSearcher =
+    IDSearcher<DLNegaMax<eval::DefaultEval, default_max_depth>,
+               default_max_depth>;
+
+static_assert(StoppableSearcher<DefaultSearcher>);
+static_assert(DLSearcher<DefaultSearcher>);
 
 }  // namespace search

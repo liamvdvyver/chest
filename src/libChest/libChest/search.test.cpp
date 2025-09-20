@@ -7,7 +7,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cstdio>
 #include <iostream>
-#include <vector>
 
 #include "libChest/eval.h"
 #include "libChest/move.h"
@@ -18,70 +17,70 @@ constexpr size_t max_depth = 64;
 #if DEBUG()
 constexpr size_t search_depth = 6;
 #else
-constexpr size_t search_depth = 8;
+constexpr size_t search_depth = 7;
 #endif
 
-using VanillaNegaMax = search::DLNegaMax<eval::DefaultEval, max_depth,
-                                         {.prune = false,
-                                          .sort = false,
-                                          .quiesce = false,
-                                          .quiescence_standpat = false,
-                                          .use_hash = false}>;
+constexpr static search::NegaMaxOptions VanillaNegaMax = {
+    .prune = false,
+    .sort = false,
+    .quiesce = false,
+    .quiescence_standpat = false,
+    .use_hash = false};
 
-using ABNegaMax = search::DLNegaMax<eval::DefaultEval, max_depth,
-                                    {.prune = true,
-                                     .sort = false,
-                                     .quiesce = false,
-                                     .quiescence_standpat = false,
-                                     .use_hash = false}>;
+constexpr static search::NegaMaxOptions ABNegaMax = {
+    .prune = true,
+    .sort = false,
+    .quiesce = false,
+    .quiescence_standpat = false,
+    .use_hash = false};
 
-using ABSorted = search::DLNegaMax<eval::DefaultEval, max_depth,
-                                   {.prune = true,
-                                    .sort = true,
-                                    .quiesce = false,
-                                    .quiescence_standpat = false,
-                                    .use_hash = false}>;
+constexpr static search::NegaMaxOptions ABSorted = {
+    .prune = true,
+    .sort = true,
+    .quiesce = false,
+    .quiescence_standpat = false,
+    .use_hash = false};
 
-using QSearch = search::DLNegaMax<eval::DefaultEval, max_depth,
-                                  {.prune = true,
-                                   .sort = false,
-                                   .quiesce = true,
-                                   .quiescence_standpat = false,
-                                   .use_hash = false}>;
-
-using QSearchSorted = search::DLNegaMax<eval::DefaultEval, max_depth,
-                                        {.prune = true,
-                                         .sort = true,
-                                         .quiesce = true,
-                                         .quiescence_standpat = false,
-                                         .use_hash = false}>;
-
-using QSearchStandPat = search::DLNegaMax<eval::DefaultEval, max_depth,
-                                          {.prune = true,
-                                           .sort = false,
-                                           .quiesce = true,
-                                           .quiescence_standpat = true,
-                                           .use_hash = false}>;
-
-using FullQSearch = search::DLNegaMax<eval::DefaultEval, max_depth,
-                                      {.prune = true,
-                                       .sort = true,
-                                       .quiesce = true,
-                                       .quiescence_standpat = true,
-                                       .use_hash = false}>;
-
-using FullQSearchWithHashMove = search::DLNegaMax<eval::DefaultEval, max_depth,
-                                                  {.prune = true,
-                                                   .sort = true,
+constexpr static search::NegaMaxOptions QSearch = {.prune = true,
+                                                   .sort = false,
                                                    .quiesce = true,
-                                                   .quiescence_standpat = true,
-                                                   .use_hash = true}>;
+                                                   .quiescence_standpat = false,
+                                                   .use_hash = false};
 
+constexpr static search::NegaMaxOptions QSearchSorted = {
+    .prune = true,
+    .sort = true,
+    .quiesce = true,
+    .quiescence_standpat = false,
+    .use_hash = false};
+
+constexpr static search::NegaMaxOptions QSearchStandPat = {
+    .prune = true,
+    .sort = false,
+    .quiesce = true,
+    .quiescence_standpat = true,
+    .use_hash = false};
+
+constexpr static search::NegaMaxOptions FullQSearch = {
+    .prune = true,
+    .sort = true,
+    .quiesce = true,
+    .quiescence_standpat = true,
+    .use_hash = false};
+
+constexpr static search::NegaMaxOptions FullQSearchWithHashMove = {
+    .prune = true,
+    .sort = true,
+    .quiesce = true,
+    .quiescence_standpat = true,
+    .use_hash = true};
+
+template <search::NegaMaxOptions Opts>
 search::SearchResult do_search(auto &searcher, const size_t d,
                                const std::string_view name,
                                search::TTable &ttable) {
     searcher.set_depth(d);
-    search::SearchResult ret = searcher.search();
+    search::SearchResult ret = searcher.template search<Opts>();
     std::cerr << name << "\n  DEPTH: " << d << ", eval: " << ret.value.eval()
               << ", best_move: "
               << static_cast<std::string>(move::LongAlgMove(ret.best_move))
@@ -98,45 +97,40 @@ search::SearchResult do_search(auto &searcher, const size_t d,
 };
 
 TEST_CASE("Equality of equivalent search results.") {
-    std::vector<search::SearchResult> results;
     static search::TTable ttable;
-    state::AugmentedState state{state::new_game_fen};
-
+    state::AugmentedState state(state::new_game_fen);
     search::DefaultNode<eval::DefaultEval, max_depth> sn(state, max_depth);
-
-    std::tuple<VanillaNegaMax, ABNegaMax, ABSorted, QSearch, QSearchSorted,
-               QSearchStandPat, FullQSearch, FullQSearchWithHashMove>
-
-        searchers{{sn, ttable}, {sn, ttable}, {sn, ttable}, {sn, ttable},
-                  {sn, ttable}, {sn, ttable}, {sn, ttable}, {sn, ttable}};
+    search::DLNegaMax<eval::DefaultEval, max_depth> searcher(sn, ttable);
 
     for (size_t d = 1; d < search_depth; d++) {
-        search::SearchResult vanilla_result = do_search(
-            std::get<VanillaNegaMax>(searchers), d, "Minimax", ttable);
+        search::SearchResult vanilla_result =
+            do_search<VanillaNegaMax>(searcher, d, "Minimax", ttable);
         search::SearchResult ab_result =
-            do_search(std::get<ABNegaMax>(searchers), d, "Alpha-beta", ttable);
-        search::SearchResult ab_sorted_result =
-            do_search(std::get<ABSorted>(searchers), d,
-                      "Alpha-beta (mvv-lva sorted)", ttable);
-        search::SearchResult qsearch_result =
-            do_search(std::get<QSearch>(searchers), d,
-                      "Quiescence search (unsorted)", ttable);
-        search::SearchResult qsearch_sorted_result =
-            do_search(std::get<QSearchSorted>(searchers), d,
-                      "Quiescence search (mvv-lva sorted)", ttable);
-        search::SearchResult qsearch_stand_pat_result = do_search(
-            std::get<QSearchStandPat>(searchers), d,
-            "Quiescence search w/ stand-pat pruning (unsorted)", ttable);
+            do_search<ABNegaMax>(searcher, d, "Alpha-beta", ttable);
+        search::SearchResult ab_sorted_result = do_search<ABSorted>(
+            searcher, d, "Alpha-beta (mvv-lva sorted)", ttable);
+        search::SearchResult qsearch_result = do_search<QSearch>(
+            searcher, d, "Quiescence search (unsorted)", ttable);
+        search::SearchResult qsearch_sorted_result = do_search<QSearchSorted>(
+            searcher, d, "Quiescence search (mvv-lva sorted)", ttable);
 
-        search::SearchResult qsearch_sorted_stand_pat_result = do_search(
-            std::get<FullQSearch>(searchers), d,
-            "Full quiescence search (stand-pat pruning, mvv-lva sorted)",
-            ttable);
+        search::SearchResult qsearch_stand_pat_result =
+            do_search<QSearchStandPat>(
+                searcher, d,
+                "Quiescence search w/ stand-pat pruning (unsorted)", ttable);
+
+        search::SearchResult qsearch_sorted_stand_pat_result =
+            do_search<FullQSearch>(
+                searcher, d,
+                "Full quiescence search (stand-pat pruning, mvv-lva sorted)",
+                ttable);
+
         search::SearchResult hash_move_result =
-            do_search(std::get<FullQSearchWithHashMove>(searchers), d,
-                      "Full quiescence search (stand-pat pruning, "
-                      "hash-move/mvv-lva sorted)",
-                      ttable);
+            do_search<FullQSearchWithHashMove>(
+                searcher, d,
+                "Full quiescence search (stand-pat pruning, "
+                "hash-move/mvv-lva sorted)",
+                ttable);
 
         std::cerr << '\n';
 

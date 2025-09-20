@@ -103,6 +103,9 @@ class GenericEngine : public search::StatReporter {
     auto &get_ttable() { return m_ttable; }
     const auto &get_ttable() const { return m_ttable; }
 
+    auto &get_searcher() { return m_searcher; }
+    const auto &get_searcher() const { return m_searcher; }
+
     bool is_debug() const { return m_debug; }
 
     //-- Mutators ------------------------------------------------------------//
@@ -124,4 +127,10 @@ class GenericEngine : public search::StatReporter {
     std::unordered_map<std::string, CommandFactory> m_commands;
     bool m_debug = DEBUG();
     search::TTable m_ttable{};
+
+    using EvalTp = eval::DefaultEval;
+    using DlSearcherTp = search::DLNegaMax<EvalTp, MAX_DEPTH>;
+    using IDSearcherTp = search::IDSearcher<DlSearcherTp, MAX_DEPTH>;
+
+    IDSearcherTp m_searcher{m_node, m_ttable};
 };

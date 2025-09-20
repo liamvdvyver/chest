@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <sstream>
 #include <string>
+#include <utility>
 
 #include "engine.h"
 #include "libChest/eval.h"
@@ -300,22 +301,22 @@ std::optional<int> Go::execute() {
         m_engine->log("trace output requires debug on\n",
                       LogLevel::ENGINE_WARN);
     }
-    return m_engine->is_debug() && m_trace ? execute_impl<true>()
-                                           : execute_impl<false>();
+    return m_engine->is_debug() && m_trace
+               ? execute_impl<search::VerbosityLevel::VERBOSE>()
+               : execute_impl<search::VerbosityLevel::QUIET>();
 }
 
-template <bool Debug>
+template <search::VerbosityLevel Verbosity>
 std::optional<int> Go::execute_impl() {
     using EvalTp = eval::DefaultEval;
-    using DlSearcherTp =
-        search::DLNegaMax<EvalTp, MAX_DEPTH, {.verbose = Debug}>;
+    using DlSearcherTp = search::DLNegaMax<EvalTp, MAX_DEPTH>;
     using IDSearcherTp = search::IDSearcher<DlSearcherTp, MAX_DEPTH>;
 
     switch (m_type) {
         case SearchType::ID:
-            return search_impl<IDSearcherTp>();
+            return search_impl<IDSearcherTp, Verbosity, SearchType::ID>();
         case SearchType::AB:
-            return search_impl<DlSearcherTp>();
+            return search_impl<DlSearcherTp, Verbosity, SearchType::AB>();
         case SearchType::PERFT:
             return perft_impl();
     }
@@ -353,7 +354,8 @@ std::optional<int> Go::perft_impl() {
     return {};
 };
 
-template <search::DLSearcher TSearcher>
+template <search::DLSearcher TSearcher, search::VerbosityLevel Verbosity,
+          Go::SearchType SearchType>
 std::optional<int> Go::search_impl() {
     // Types used for searching.
     // Could template at engine level.
@@ -374,13 +376,26 @@ std::optional<int> Go::search_impl() {
                 : std::optional(std::chrono::steady_clock::now() +
                                 std::chrono::milliseconds(search_time));
 
-    TSearcher searcher(m_engine->get_node(), m_engine->get_ttable());
     if (m_depth) {
-        searcher.set_depth(m_depth);
+        m_engine->get_searcher().set_depth(m_depth);
     }
 
-    move::FatMove best =
-        searcher.search(finish_time, m_bounds, m_engine).best_move;
+    move::FatMove best;
+    switch (SearchType) {
+        case Go::SearchType::ID:
+            best = m_engine->get_searcher()
+                       .search<Verbosity>(finish_time, m_bounds, m_engine)
+                       .best_move;
+            break;
+        case Go::SearchType::AB:
+            best =
+                m_engine->get_searcher()
+                    .search<Verbosity>(finish_time, m_bounds, m_engine, m_depth)
+                    .best_move;
+            break;
+        case Go::SearchType::PERFT:
+            std::unreachable();
+    }
 
     std::string msg = "bestmove ";
     msg.append(move::LongAlgMove(best));

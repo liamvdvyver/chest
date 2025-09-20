@@ -198,10 +198,11 @@ class Go : public EngineCommand {
     void perft_impl(const std::string_view keyword, std::stringstream &args);
     void ab_impl(const std::string_view keyword, std::stringstream &args);
 
-    template <bool Debug>
+    template <search::VerbosityLevel Verbosity>
     std::optional<int> execute_impl();
 
-    template <search::DLSearcher TSearcher>
+    template <search::DLSearcher TSearcher, search::VerbosityLevel Verbosity,
+              Go::SearchType SearchType = Go::SearchType::ID>
     std::optional<int> search_impl();
 
     std::optional<int> perft_impl();
