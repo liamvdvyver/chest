@@ -134,3 +134,11 @@ void GenericEngine::bad_command_args(const std::string_view input) const {
     msg.push_back('\n');
     log(msg, LogLevel::ENGINE_WARN);
 }
+
+bool GenericEngine::check_not_busy() const {
+    if (is_busy()) {
+        log("search in progress\n", LogLevel::ENGINE_WARN);
+        return false;
+    };
+    return true;
+};

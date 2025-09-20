@@ -12,6 +12,7 @@
 #include <memory>
 #include <optional>
 #include <sstream>
+#include <thread>
 
 #include "libChest/eval.h"
 #include "libChest/search.h"
@@ -117,6 +118,16 @@ class GenericEngine : public search::StatReporter {
 
     void set_debug(const bool debug) { m_debug = debug; }
 
+    //-- Worker thread -------------------------------------------------------//
+
+    bool is_busy() const { return m_busy; }
+    void set_busy(const bool busy = true) { m_busy = busy; }
+
+    // Returns false and warns if busy
+    bool check_not_busy() const;
+
+    std::shared_ptr<std::thread> &get_worker() { return m_worker; };
+
    protected:
     std::istream *m_input = &std::cin;
     std::ostream *m_output = &std::cout;
@@ -133,4 +144,7 @@ class GenericEngine : public search::StatReporter {
     using IDSearcherTp = search::IDSearcher<DlSearcherTp, MAX_DEPTH>;
 
     IDSearcherTp m_searcher{m_node, m_ttable};
+
+    std::shared_ptr<std::thread> m_worker = nullptr;
+    std::atomic<bool> m_busy = false;
 };

@@ -5,11 +5,14 @@
 #include "uci.h"
 
 #include <cstdlib>
+#include <memory>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <utility>
 
 #include "engine.h"
+#include "libChest/board.h"
 #include "libChest/eval.h"
 #include "libChest/makemove.h"
 #include "libChest/move.h"
@@ -77,7 +80,9 @@ bool UCISpinOption::parse(std::string_view opt_name, std::stringstream &value) {
 //-- Hash --------------------------------------------------------------------//
 
 std::optional<int> Hash::execute() {
-    m_engine->get_ttable().resize_mb(m_set_val);
+    if (m_engine->check_not_busy()) {
+        m_engine->get_ttable().resize_mb(m_set_val);
+    }
     return {};
 }
 
@@ -165,7 +170,9 @@ std::optional<int> DebugConfig::execute() { return {}; };
 //-- Ucinewgame --------------------------------------------------------------//
 
 std::optional<int> UciNewGame::execute() {
-    m_engine->get_ttable().clear();
+    if (m_engine->check_not_busy()) {
+        m_engine->get_ttable().clear();
+    }
     return {};
 };
 
@@ -215,7 +222,9 @@ void Position::curpos_impl(const std::string_view keyword,
     m_astate = m_engine->get_astate();
 };
 
-bool Position::sufficient_args() const { return m_astate.has_value(); };
+bool Position::sufficient_args() const {
+    return m_astate.has_value() && m_engine->check_not_busy();
+};
 std::optional<int> Position::execute() {
     assert(m_astate.has_value());
     m_engine->set_astate(m_astate.value());
@@ -240,10 +249,81 @@ std::optional<int> Position::execute() {
 
 //-- Quit --------------------------------------------------------------------//
 
-std::optional<int> Quit::execute() { return {EXIT_SUCCESS}; };
+std::optional<int> Quit::execute() {
+    if (m_engine->is_busy()) {
+        m_engine->get_searcher().stop();
+        if (std::shared_ptr<std::thread> worker = m_engine->get_worker();
+            worker && worker->joinable()) {
+            worker->join();
+        }
+    }
+    return {EXIT_SUCCESS};
+};
 
 //-- Go ----------------------------------------------------------------------//
 
+void Go::register_fields() {
+    m_fields["wtime"] = [this](const std::string_view keyword,
+                               std::stringstream &args) {
+        return parse_field(keyword, args, m_tc.remaining(board::Colour::WHITE));
+    };
+    m_fields["btime"] = [this](const std::string_view keyword,
+                               std::stringstream &args) {
+        return parse_field(keyword, args, m_tc.remaining(board::Colour::BLACK));
+    };
+    m_fields["winc"] = [this](const std::string_view keyword,
+                              std::stringstream &args) {
+        return parse_field(keyword, args, m_tc.increment(board::Colour::WHITE));
+    };
+    m_fields["binc"] = [this](const std::string_view keyword,
+                              std::stringstream &args) {
+        return parse_field(keyword, args, m_tc.increment(board::Colour::BLACK));
+    };
+    m_fields["depth"] = [this](const std::string_view keyword,
+                               std::stringstream &args) {
+        return parse_field(keyword, args, m_depth);
+    };
+    m_fields["infinite"] = [this](const std::string_view keyword,
+                                  std::stringstream &args) {
+        // TODO: block until "stop" if bottomed out
+        (void)keyword;
+        (void)args;
+        m_depth = MAX_DEPTH;
+    };
+    m_fields["movestogo"] =
+        [this](const std::string_view keyword, std::stringstream &args
+
+        ) { return parse_field(keyword, args, m_tc.to_go); };
+    m_fields["movetime"] =
+        [this](const std::string_view keyword, std::stringstream &args
+
+        ) { return parse_field(keyword, args, m_tc.movetime); };
+    m_fields["perft"] = [this](const std::string_view keyword,
+                               std::stringstream &args) {
+        m_type = SearchType::PERFT;
+        return parse_field(keyword, args, m_depth);
+    };
+    m_fields["ab"] = [this](const std::string_view keyword,
+                            std::stringstream &args) {
+        (void)keyword;
+        (void)args;
+        m_type = SearchType::AB;
+    };
+    m_fields["alpha"] = [this](const std::string_view keyword,
+                               std::stringstream &args) {
+        return parse_field<eval::centipawn_t>(keyword, args, m_bounds.alpha);
+    };
+    m_fields["beta"] = [this](const std::string_view keyword,
+                              std::stringstream &args) {
+        return parse_field<eval::centipawn_t>(keyword, args, m_bounds.beta);
+    };
+    m_fields["trace"] = [this](const std::string_view keyword,
+                               std::stringstream &args) {
+        (void)keyword;
+        (void)args;
+        m_trace = true;
+    };
+}
 template <typename T = uint64_t>
 void Go::parse_field(const std::string_view keyword, std::stringstream &args,
                      T &field) {
@@ -260,38 +340,10 @@ void Go::parse_field(const std::string_view keyword, std::stringstream &args,
     field = val;
 }
 
-void Go::inc_impl(const std::string_view keyword, std::stringstream &args,
-                  board::Colour to_move) {
-    return parse_field(keyword, args, m_tc.increment(to_move));
-}
-
-void Go::time_impl(const std::string_view keyword, std::stringstream &args,
-                   board::Colour to_move) {
-    return parse_field(keyword, args, m_tc.remaining(to_move));
-}
-
-void Go::movestogo_impl(const std::string_view keyword,
-                        std::stringstream &args) {
-    return parse_field(keyword, args, m_tc.to_go);
-}
-
-void Go::movetime_impl(const std::string_view keyword,
-                       std::stringstream &args) {
-    return parse_field(keyword, args, m_tc.movetime);
-}
-
-void Go::perft_impl(const std::string_view keyword, std::stringstream &args) {
-    m_type = SearchType::PERFT;
-    return parse_field(keyword, args, m_depth);
-}
-
-void Go::ab_impl(const std::string_view keyword, std::stringstream &args) {
-    (void)keyword;
-    (void)args;
-    m_type = SearchType::AB;
-}
-
 bool Go::sufficient_args() const {
+    if (!m_engine->check_not_busy()) {
+        return false;
+    };
     const board::Colour to_move = m_engine->get_astate().state.to_move;
     return m_tc.movetime || m_tc.copy_remaining(to_move) || m_depth;
 }
@@ -308,15 +360,26 @@ std::optional<int> Go::execute() {
 
 template <search::VerbosityLevel Verbosity>
 std::optional<int> Go::execute_impl() {
-    using EvalTp = eval::DefaultEval;
-    using DlSearcherTp = search::DLNegaMax<EvalTp, MAX_DEPTH>;
-    using IDSearcherTp = search::IDSearcher<DlSearcherTp, MAX_DEPTH>;
+    assert(!m_engine->is_busy());
+
+    if (std::shared_ptr<std::thread> worker = m_engine->get_worker();
+        worker && worker->joinable()) {
+        worker->join();
+    }
+
+    const SearchArgs args = {
+        .eng = m_engine, .depth = m_depth, .bounds = m_bounds, .tc = m_tc};
 
     switch (m_type) {
         case SearchType::ID:
-            return search_impl<IDSearcherTp, Verbosity, SearchType::ID>();
+            m_engine->get_worker() = std::make_shared<std::thread>(
+                search_impl<Verbosity, SearchType::ID>, args);
+            return {};
         case SearchType::AB:
-            return search_impl<DlSearcherTp, Verbosity, SearchType::AB>();
+            m_engine->get_worker() = std::make_shared<std::thread>(
+                search_impl<Verbosity, SearchType::AB>, args);
+            return {};
+            // TODO: async perft
         case SearchType::PERFT:
             return perft_impl();
     }
@@ -341,7 +404,7 @@ std::optional<int> Go::perft_impl() {
             partial_msg.append(std::to_string(mv_res));
             partial_msg.push_back('\n');
 
-            m_engine->log(partial_msg, LogLevel::ENGINE_INFO);
+            m_engine->log(partial_msg, LogLevel::ENGINE_INFO, true);
         } else {
             sn.unmake_move();
         }
@@ -354,44 +417,42 @@ std::optional<int> Go::perft_impl() {
     return {};
 };
 
-template <search::DLSearcher TSearcher, search::VerbosityLevel Verbosity,
-          Go::SearchType SearchType>
-std::optional<int> Go::search_impl() {
-    // Types used for searching.
-    // Could template at engine level.
-
-    using TimeManagerTp = search::DefaultTimeManager;
-
+template <search::VerbosityLevel Verbosity, Go::SearchType SearchType>
+void Go::search_impl(SearchArgs args) {
     // Calculate stop time
     // TODO: add buffer to account for parsing time
     // Maybe in parse(): record time message came in.
-    const TimeManagerTp time_manager{};
+
+    args.eng->set_busy();
+
+    const search::DefaultTimeManager time_manager{};
     const search::ms_t search_time =
-        time_manager(m_tc, m_engine->get_astate().state.to_move);
+        time_manager(args.tc, args.eng->get_astate().state.to_move);
 
     const std::optional<std::chrono::time_point<std::chrono::steady_clock>>
         finish_time =
-            m_tc.is_null()
+            args.tc.is_null()
                 ? std::nullopt
                 : std::optional(std::chrono::steady_clock::now() +
                                 std::chrono::milliseconds(search_time));
 
-    if (m_depth) {
-        m_engine->get_searcher().set_depth(m_depth);
+    if (args.depth) {
+        args.eng->get_searcher().set_depth(args.depth);
     }
 
     move::FatMove best;
     switch (SearchType) {
         case Go::SearchType::ID:
-            best = m_engine->get_searcher()
-                       .search<Verbosity>(finish_time, m_bounds, m_engine)
+            best = args.eng->get_searcher()
+                       .template search<Verbosity>(finish_time, args.bounds,
+                                                   args.eng)
                        .best_move;
             break;
         case Go::SearchType::AB:
-            best =
-                m_engine->get_searcher()
-                    .search<Verbosity>(finish_time, m_bounds, m_engine, m_depth)
-                    .best_move;
+            best = args.eng->get_searcher()
+                       .template search<Verbosity>(finish_time, args.bounds,
+                                                   args.eng, args.depth)
+                       .best_move;
             break;
         case Go::SearchType::PERFT:
             std::unreachable();
@@ -400,7 +461,18 @@ std::optional<int> Go::search_impl() {
     std::string msg = "bestmove ";
     msg.append(move::LongAlgMove(best));
     msg.push_back('\n');
-    m_engine->log(msg, LogLevel::RAW_MESSAGE);
+    args.eng->log(msg, LogLevel::RAW_MESSAGE, true);
+
+    args.eng->set_busy(false);
+    return;
+};
+
+//-- Stop --------------------------------------------------------------------//
+
+bool Stop::sufficient_args() const { return m_engine->is_busy(); };
+
+std::optional<int> Stop::execute() {
+    m_engine->get_searcher().stop();
     return {};
 };
 
@@ -419,6 +491,7 @@ UCIEngine::UCIEngine()
           {"position", [this]() { return std::make_unique<Position>(this); }},
           {"quit", [this]() { return std::make_unique<Quit>(this); }},
           {"go", [this]() { return std::make_unique<Go>(this); }},
+          {"stop", [this]() { return std::make_unique<Stop>(this); }},
       }) {}
 
 void UCIEngine::log(const std::string_view &msg, const LogLevel level,

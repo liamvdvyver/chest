@@ -116,69 +116,21 @@ class Quit : public EngineCommand {
 
 class Go : public EngineCommand {
    public:
-    Go(GenericEngine *engine) : EngineCommand(engine) {
-        m_fields["wtime"] =
-            [this](const std::string_view keyword, std::stringstream &args
+    Go(GenericEngine *engine) : EngineCommand(engine) { register_fields(); }
 
-            ) { return time_impl(keyword, args, board::Colour::WHITE); };
-        m_fields["btime"] = [this](const std::string_view keyword,
-                                   std::stringstream &args) {
-            return time_impl(keyword, args, board::Colour::BLACK);
-        };
-        m_fields["winc"] =
-            [this](const std::string_view keyword, std::stringstream &args
-
-            ) { return inc_impl(keyword, args, board::Colour::WHITE); };
-        m_fields["binc"] =
-            [this](const std::string_view keyword, std::stringstream &args
-
-            ) { return inc_impl(keyword, args, board::Colour::BLACK); };
-        m_fields["depth"] = [this](const std::string_view keyword,
-                                   std::stringstream &args) {
-            return parse_field(keyword, args, m_depth);
-        };
-        m_fields["movestogo"] = [this](const std::string_view keyword,
-                                       std::stringstream &args
-
-                                ) { return movestogo_impl(keyword, args); };
-        m_fields["movetime"] = [this](const std::string_view keyword,
-                                      std::stringstream &args
-
-                               ) { return movetime_impl(keyword, args); };
-        m_fields["perft"] = [this](const std::string_view keyword,
-                                   std::stringstream &args
-
-                            ) { return perft_impl(keyword, args); };
-        m_fields["ab"] = [this](const std::string_view keyword,
-                                std::stringstream &args
-
-                         ) { return ab_impl(keyword, args); };
-        m_fields["alpha"] = [this](const std::string_view keyword,
-                                   std::stringstream &args
-
-                            ) {
-            return parse_field<eval::centipawn_t>(keyword, args,
-                                                  m_bounds.alpha);
-        };
-        m_fields["beta"] = [this](const std::string_view keyword,
-                                  std::stringstream &args
-
-                           ) {
-            return parse_field<eval::centipawn_t>(keyword, args, m_bounds.beta);
-        };
-        m_fields["trace"] = [this](const std::string_view keyword,
-                                   std::stringstream &args
-
-                            ) {
-            (void)keyword;
-            (void)args;
-            m_trace = true;
-        };
-    }
     std::optional<int> execute() override;
     bool sufficient_args() const override;
 
    private:
+    void register_fields();
+
+    struct SearchArgs {
+        GenericEngine *eng{};
+        size_t depth{};
+        search::Bounds bounds{};
+        search::TimeControl tc{};
+    };
+
     enum class SearchType : uint8_t { ID, AB, PERFT };
 
     size_t m_depth = 0;
@@ -188,26 +140,26 @@ class Go : public EngineCommand {
 
     void parse_field(const std::string_view keyword, std::stringstream &args,
                      auto &field);
-    void inc_impl(const std::string_view keyword, std::stringstream &args,
-                  board::Colour to_move);
-    void time_impl(const std::string_view keyword, std::stringstream &args,
-                   board::Colour to_move);
-    void movestogo_impl(const std::string_view keyword,
-                        std::stringstream &args);
-    void movetime_impl(const std::string_view keyword, std::stringstream &args);
-    void perft_impl(const std::string_view keyword, std::stringstream &args);
-    void ab_impl(const std::string_view keyword, std::stringstream &args);
 
     template <search::VerbosityLevel Verbosity>
     std::optional<int> execute_impl();
 
-    template <search::DLSearcher TSearcher, search::VerbosityLevel Verbosity,
+    template <search::VerbosityLevel Verbosity,
               Go::SearchType SearchType = Go::SearchType::ID>
-    std::optional<int> search_impl();
+    static void search_impl(SearchArgs args);
 
     std::optional<int> perft_impl();
 
     search::TimeControl m_tc{};
+};
+
+class Stop : public EngineCommand {
+   public:
+    Stop(GenericEngine *engine) : EngineCommand(engine) {}
+
+    bool sufficient_args() const override;
+
+    std::optional<int> execute() override;
 };
 
 //============================================================================//
