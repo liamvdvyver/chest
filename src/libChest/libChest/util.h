@@ -67,7 +67,7 @@ struct SVec {
     constexpr auto begin() const { return m_data.begin(); }
     constexpr auto end() { return &m_data.at(m_sp); }
     constexpr auto end() const { return &m_data.at(m_sp); }
-    constexpr size_t size() { return m_sp; }
+    constexpr size_t size() const { return m_sp; }
     constexpr void resize(const size_t sz) {
         m_sp = sz;
         check_sz();

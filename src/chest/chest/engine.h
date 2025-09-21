@@ -128,6 +128,8 @@ class GenericEngine : public search::StatReporter {
 
     std::shared_ptr<std::thread> &get_worker() { return m_worker; };
 
+    std::mutex &get_result_lock() { return m_result_lock; };
+
    protected:
     std::istream *m_input = &std::cin;
     std::ostream *m_output = &std::cout;
@@ -146,5 +148,11 @@ class GenericEngine : public search::StatReporter {
     IDSearcherTp m_searcher{m_node, m_ttable};
 
     std::shared_ptr<std::thread> m_worker = nullptr;
+
+    // Set to true when engine is searching
+    // TODO: use a mutex
     std::atomic<bool> m_busy = false;
+
+    // Unlock when engine is ready to receive result
+    std::mutex m_result_lock;
 };

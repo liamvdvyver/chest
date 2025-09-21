@@ -41,6 +41,20 @@ class UCISpinOption : public UCIOption {
     int m_set_val = m_default_val;
 };
 
+class UCICheckOption : public UCIOption {
+   public:
+    UCICheckOption(GenericEngine *engine, const bool default_val)
+        : UCIOption(engine), m_default_val(default_val) {}
+
+    std::string get_type_string() const override;
+
+    bool parse(std::string_view opt_name, std::stringstream &value) override;
+
+   protected:
+    bool m_default_val;
+    bool m_set_val = m_default_val;
+};
+
 class Hash : public UCISpinOption {
    public:
     Hash(GenericEngine *engine) : UCISpinOption(engine, 1, 1, gb) {};
@@ -49,6 +63,13 @@ class Hash : public UCISpinOption {
 
    private:
     static constexpr size_t gb = 1024;
+};
+
+class Ponder : public UCICheckOption {
+   public:
+    Ponder(GenericEngine *engine) : UCICheckOption(engine, true) {};
+
+    std::optional<int> execute() override { return {}; };
 };
 
 //============================================================================//
@@ -114,45 +135,6 @@ class Quit : public EngineCommand {
     std::optional<int> execute() override;
 };
 
-class Go : public EngineCommand {
-   public:
-    Go(GenericEngine *engine) : EngineCommand(engine) { register_fields(); }
-
-    std::optional<int> execute() override;
-    bool sufficient_args() const override;
-
-   private:
-    void register_fields();
-
-    struct SearchArgs {
-        GenericEngine *eng{};
-        size_t depth{};
-        search::Bounds bounds{};
-        search::TimeControl tc{};
-    };
-
-    enum class SearchType : uint8_t { ID, AB, PERFT };
-
-    size_t m_depth = 0;
-    SearchType m_type = SearchType::ID;
-    bool m_trace = false;
-    search::Bounds m_bounds{};
-
-    void parse_field(const std::string_view keyword, std::stringstream &args,
-                     auto &field);
-
-    template <search::VerbosityLevel Verbosity>
-    std::optional<int> execute_impl();
-
-    template <search::VerbosityLevel Verbosity,
-              Go::SearchType SearchType = Go::SearchType::ID>
-    static void search_impl(SearchArgs args);
-
-    std::optional<int> perft_impl();
-
-    search::TimeControl m_tc{};
-};
-
 class Stop : public EngineCommand {
    public:
     Stop(GenericEngine *engine) : EngineCommand(engine) {}
@@ -179,7 +161,13 @@ class UCIEngine : public GenericEngine {
 
     using OptionFactory = std::function<std::unique_ptr<UCIOption>()>;
     std::unordered_map<std::string, OptionFactory> m_options = {
-        {"Hash", [this]() { return std::make_unique<Hash>(this); }}};
+        {"Hash", [this]() { return std::make_unique<Hash>(this); }},
+        {"Ponder", [this]() { return std::make_unique<Ponder>(this); }}};
+
+    // In ponder, eventual finish time is stored here
+    // and set in searcher on ponderhit.
+    std::optional<std::chrono::time_point<std::chrono::steady_clock>>
+        ponderhit_finish_time;
 };
 
 //============================================================================//
@@ -216,4 +204,67 @@ class SetOption : public EngineCommand {
    private:
     std::unordered_map<std::string, UCIEngine::OptionFactory> *m_options;
     std::unique_ptr<UCIOption> m_opt = nullptr;
+};
+
+class Go : public EngineCommand {
+   public:
+    Go(UCIEngine *engine)
+        : EngineCommand(engine),
+          p_ponderhit_finish_time(&engine->ponderhit_finish_time) {
+        register_fields();
+    }
+
+    std::optional<int> execute() override;
+    bool sufficient_args() const override;
+
+   private:
+    void register_fields();
+
+    struct SearchArgs {
+        GenericEngine *eng{};
+        size_t depth{};
+        search::Bounds bounds{};
+        search::TimeControl tc{};
+        std::optional<std::chrono::time_point<std::chrono::steady_clock>>
+            *p_ponderhit_finish_time{};
+    };
+
+    enum class SearchType : uint8_t { ID, AB, PERFT };
+
+    size_t m_depth = 0;
+    SearchType m_type = SearchType::ID;
+    bool m_trace = false;
+    bool m_ponder = false;
+    search::Bounds m_bounds{};
+
+    void parse_field(const std::string_view keyword, std::stringstream &args,
+                     auto &field);
+
+    template <search::VerbosityLevel Verbosity>
+    std::optional<int> execute_impl();
+
+    template <search::VerbosityLevel Verbosity,
+              Go::SearchType SearchType = Go::SearchType::ID>
+    static void search_impl(SearchArgs args);
+
+    std::optional<int> perft_impl();
+
+    search::TimeControl m_tc{};
+
+   private:
+    std::optional<std::chrono::time_point<std::chrono::steady_clock>>
+        *p_ponderhit_finish_time;
+};
+
+class Ponderhit : public EngineCommand {
+   public:
+    Ponderhit(UCIEngine *engine)
+        : EngineCommand(engine),
+          ponderhit_finish_time(engine->ponderhit_finish_time) {}
+    std::optional<int> execute() override;
+
+    // In ponder, eventual finish time is stored here
+    // and set in searcher on ponderhit.
+    std::optional<std::chrono::time_point<std::chrono::steady_clock>>
+        ponderhit_finish_time;
 };

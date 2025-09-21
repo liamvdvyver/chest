@@ -97,7 +97,12 @@ template <typename T>
 concept StoppableSearcher = requires(
     T t, std::chrono::time_point<std::chrono::steady_clock> finish_time) {
     { t.stop() } -> std::same_as<void>;
-    { t.search(finish_time) } -> std::convertible_to<SearchResult>;
+    { t.set_finish_time(finish_time) } -> std::same_as<void>;
+    {
+        t.get_finish_time()
+    } -> std::same_as<
+        std::optional<std::chrono::time_point<std::chrono::steady_clock>>>;
+    { t.search() } -> std::convertible_to<SearchResult>;
 };
 
 // Search node type that searchers expect.
@@ -425,27 +430,41 @@ class DLNegaMax {
         m_node.get().prep_search(depth);
 
         m_stopped = false;
+        m_nodes_since_time_check = 0;
     }
 
     constexpr const DefaultNode<TEval, MaxDepth> &get_node() const {
         return m_node;
     }
 
-    // Not protected from races.
-    // Calling code should ensure set_depth/stop do not race.
     constexpr void stop() { m_stopped = true; }
+
+    constexpr void set_finish_time(
+        const std::optional<std::chrono::time_point<std::chrono::steady_clock>>
+            finish_time = std::nullopt) {
+        m_finish_time = finish_time;
+    }
+
+    constexpr std::optional<std::chrono::time_point<std::chrono::steady_clock>>
+    get_finish_time() const {
+        return m_finish_time.load();
+    }
 
     template <SearchType Type = SearchType::NORMAL,
               VerbosityLevel Verbosity = VerbosityLevel::QUIET,
               NegaMaxOptions Opts = {}>
-    constexpr SearchResult search(
-        const std::optional<std::chrono::time_point<std::chrono::steady_clock>>
-            finish_time = std::nullopt,
-        Bounds bounds = {}, const StatReporter *reporter = nullptr) {
+    constexpr SearchResult search(Bounds bounds = {},
+                                  const StatReporter *reporter = nullptr) {
         // Auto-stop
-        if (finish_time && std::chrono::steady_clock::now() > finish_time) {
-            stop();
+        if (m_nodes_since_time_check > time_check_node_frequency) {
+            if (m_finish_time.load() &&
+                std::chrono::steady_clock::now() > m_finish_time.load()) {
+                stop();
+            }
+            m_nodes_since_time_check = 0;
         }
+
+        m_nodes_since_time_check++;
 
         if constexpr (Verbosity == VerbosityLevel::VERBOSE) {
             if (reporter) {
@@ -485,7 +504,7 @@ class DLNegaMax {
             // Normal search -> quiesce
             if constexpr (Type == SearchType::NORMAL && Opts.quiesce) {
                 SearchResult ret = search<SearchType::QUIESCE, Verbosity, Opts>(
-                    finish_time, bounds, reporter);
+                    bounds, reporter);
                 return ret;
             } else {
                 SearchResult ret = cutoff_result();
@@ -614,7 +633,7 @@ class DLNegaMax {
                     }
                 }
                 const SearchResult child_result = search<Type, Verbosity, Opts>(
-                    finish_time, {-bounds.beta, -bounds.alpha}, reporter);
+                    {-bounds.beta, -bounds.alpha}, reporter);
 
                 if constexpr (Type == SearchType::QUIESCE) {
                     assert(move::is_capture(m.get_move().type()));
@@ -727,21 +746,16 @@ class DLNegaMax {
     }
 
     template <VerbosityLevel Verbosity, NegaMaxOptions Opts = {}>
-    constexpr SearchResult search(
-        const std::optional<std::chrono::time_point<std::chrono::steady_clock>>
-            finish_time = std::nullopt,
-        Bounds bounds = {}, const StatReporter *reporter = nullptr) {
-        return search<SearchType::NORMAL, Verbosity, Opts>(finish_time, bounds,
-                                                           reporter);
+    constexpr SearchResult search(Bounds bounds = {},
+                                  const StatReporter *reporter = nullptr) {
+        return search<SearchType::NORMAL, Verbosity, Opts>(bounds, reporter);
     }
 
     template <NegaMaxOptions Opts>
-    constexpr SearchResult search(
-        const std::optional<std::chrono::time_point<std::chrono::steady_clock>>
-            finish_time = std::nullopt,
-        Bounds bounds = {}, const StatReporter *reporter = nullptr) {
+    constexpr SearchResult search(Bounds bounds = {},
+                                  const StatReporter *reporter = nullptr) {
         return search<SearchType::NORMAL, VerbosityLevel::QUIET, Opts>(
-            finish_time, bounds, reporter);
+            bounds, reporter);
     }
 
     // Extracts principal variation from the transposition table.
@@ -811,6 +825,14 @@ class DLNegaMax {
     std::reference_wrapper<TTable> m_ttable;
 
     std::atomic<bool> m_stopped = false;
+    std::atomic<
+        std::optional<std::chrono::time_point<std::chrono::steady_clock>>>
+        m_finish_time;
+
+    size_t m_nodes_since_time_check = 0;
+
+    // At 1Mn/s, check for timeout every 1000 nodes, i.e. every ms
+    static constexpr size_t time_check_node_frequency = 1000;
 };
 static_assert(DLSearcher<DLNegaMax<eval::StdEval, 1>>);
 
@@ -835,14 +857,25 @@ class IDSearcher {
         m_searcher.stop();
     };
 
+    constexpr void set_finish_time(
+        const std::optional<std::chrono::time_point<std::chrono::steady_clock>>
+            finish_time) {
+        m_searcher.set_finish_time(finish_time);
+    }
+
+    constexpr std::optional<std::chrono::time_point<std::chrono::steady_clock>>
+    get_finish_time() const {
+        return m_searcher.get_finsh_time();
+    }
+
+    constexpr const MoveBuffer &get_pv() const { return m_pv; }
+
     // Infer return type from searcher,
     // Always searches at least to depth 1 so a legal move is returned.
     template <VerbosityLevel Verbosity = VerbosityLevel::QUIET>
-    constexpr auto search(
-        const std::optional<std::chrono::time_point<std::chrono::steady_clock>>
-            finish_time,
-        Bounds bounds = {}, const StatReporter *reporter = nullptr,
-        size_t start_depth = 1) {
+    constexpr auto search(Bounds bounds = {},
+                          const StatReporter *reporter = nullptr,
+                          size_t start_depth = 1) {
         m_stoplock.lock();
         m_stopped = false;
         m_stoplock.unlock();
@@ -853,6 +886,9 @@ class IDSearcher {
         if (start_depth > m_depth) {
             start_depth = m_depth;
         }
+
+        std::optional<std::chrono::time_point<std::chrono::steady_clock>>
+            searcher_finish_time = m_searcher.get_finish_time();
 
         // Loop over all possible levels
         for (size_t max_depth = start_depth; max_depth <= m_depth && !m_stopped;
@@ -875,13 +911,9 @@ class IDSearcher {
                 m_stoplock.unlock();
             }
 
-            const std::optional<
-                std::chrono::time_point<std::chrono::steady_clock>>
-                ply_finish_time =
-                    (max_depth > 1) ? std::optional(finish_time) : std::nullopt;
             SearchResult candidate_result =
                 m_searcher.template search<SearchType::NORMAL, Verbosity>(
-                    ply_finish_time, bounds, reporter);
+                    bounds, reporter);
 
             // if first ply, we now have a result
             if (max_depth == 1) {
