@@ -111,10 +111,12 @@ void GenericEngine::log(const std::string_view &msg, const LogLevel level,
         default:
             break;
     }
+    m_output_lock.lock();
     *m_output << msg;
     if (flush) {
         *m_output << std::flush;
     }
+    m_output_lock.unlock();
 }
 
 void GenericEngine::debug_log(const std::string_view &msg) const {

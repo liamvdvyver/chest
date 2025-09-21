@@ -429,7 +429,7 @@ class DLNegaMax {
         assert(depth <= MaxDepth);
         m_node.get().prep_search(depth);
 
-        m_stopped = false;
+        m_stopped.store(false, std::memory_order::relaxed);
         m_nodes_since_time_check = 0;
     }
 
@@ -437,17 +437,20 @@ class DLNegaMax {
         return m_node;
     }
 
-    constexpr void stop() { m_stopped = true; }
+    constexpr void stop() { m_stopped.store(true, std::memory_order::relaxed); }
+    constexpr bool is_stopped() const {
+        m_stopped.load(std::memory_order::relaxed);
+    }
 
     constexpr void set_finish_time(
         const std::optional<std::chrono::time_point<std::chrono::steady_clock>>
             finish_time = std::nullopt) {
-        m_finish_time = finish_time;
+        m_finish_time.store(finish_time, std::memory_order::relaxed);
     }
 
     constexpr std::optional<std::chrono::time_point<std::chrono::steady_clock>>
     get_finish_time() const {
-        return m_finish_time.load();
+        return m_finish_time.load(std::memory_order::relaxed);
     }
 
     template <SearchType Type = SearchType::NORMAL,
@@ -456,9 +459,9 @@ class DLNegaMax {
     constexpr SearchResult search(Bounds bounds = {},
                                   const StatReporter *reporter = nullptr) {
         // Auto-stop
-        if (m_nodes_since_time_check > time_check_node_frequency) {
-            if (m_finish_time.load() &&
-                std::chrono::steady_clock::now() > m_finish_time.load()) {
+        if (m_nodes_since_time_check > time_check_freq) {
+            if (get_finish_time().has_value() &&
+                std::chrono::steady_clock::now() > get_finish_time()) {
                 stop();
             }
             m_nodes_since_time_check = 0;
@@ -825,14 +828,15 @@ class DLNegaMax {
     std::reference_wrapper<TTable> m_ttable;
 
     std::atomic<bool> m_stopped = false;
+
+    // Accessible to other threads
     std::atomic<
         std::optional<std::chrono::time_point<std::chrono::steady_clock>>>
         m_finish_time;
 
     size_t m_nodes_since_time_check = 0;
 
-    // At 1Mn/s, check for timeout every 1000 nodes, i.e. every ms
-    static constexpr size_t time_check_node_frequency = 1000;
+    static constexpr size_t time_check_freq = 100;
 };
 static_assert(DLSearcher<DLNegaMax<eval::StdEval, 1>>);
 
@@ -865,7 +869,7 @@ class IDSearcher {
 
     constexpr std::optional<std::chrono::time_point<std::chrono::steady_clock>>
     get_finish_time() const {
-        return m_searcher.get_finsh_time();
+        return m_searcher.get_finish_time();
     }
 
     constexpr const MoveBuffer &get_pv() const { return m_pv; }
@@ -888,7 +892,7 @@ class IDSearcher {
         }
 
         std::optional<std::chrono::time_point<std::chrono::steady_clock>>
-            searcher_finish_time = m_searcher.get_finish_time();
+            searcher_finish_time = get_finish_time();
 
         // Loop over all possible levels
         for (size_t max_depth = start_depth; max_depth <= m_depth && !m_stopped;
@@ -909,6 +913,13 @@ class IDSearcher {
             // keep locked if first ply
             if (max_depth > 1) {
                 m_stoplock.unlock();
+            }
+
+            // don't exit on time in the first ply
+            if (max_depth == 1) {
+                m_searcher.set_finish_time({});
+            } else if (max_depth == 2) {
+                m_searcher.set_finish_time(searcher_finish_time);
             }
 
             SearchResult candidate_result =

@@ -155,4 +155,6 @@ class GenericEngine : public search::StatReporter {
 
     // Unlock when engine is ready to receive result
     std::mutex m_result_lock;
+
+    mutable std::mutex m_output_lock;
 };
