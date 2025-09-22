@@ -77,7 +77,6 @@ struct SearchResult {
     IBValue value{};
     LeafType type;
     move::FatMove best_move{};
-    size_t n_nodes{};  // Count of legal nodes
 };
 
 //----------------------------------------------------------------------------//
@@ -431,7 +430,10 @@ class DLNegaMax {
 
         m_stopped.store(false, std::memory_order::relaxed);
         m_nodes_since_time_check = 0;
+        m_node_count = 0;
     }
+
+    constexpr size_t get_node_count() const { return m_node_count; }
 
     constexpr const DefaultNode<TEval, MaxDepth> &get_node() const {
         return m_node;
@@ -467,6 +469,7 @@ class DLNegaMax {
             m_nodes_since_time_check = 0;
         }
 
+        m_node_count++;
         m_nodes_since_time_check++;
 
         if constexpr (Verbosity == VerbosityLevel::VERBOSE) {
@@ -499,13 +502,14 @@ class DLNegaMax {
                 }
             }
 
-            return {.type = SearchResult::LeafType::DRAW, .n_nodes = 1};
+            return {.type = SearchResult::LeafType::DRAW};
         }
 
         // Cutoff -> return value
         if (m_node.get().template bottomed_out<Type>()) {
             // Normal search -> quiesce
             if constexpr (Type == SearchType::NORMAL && Opts.quiesce) {
+                m_node_count--;  // avod double counting root node of quiescence
                 SearchResult ret = search<SearchType::QUIESCE, Verbosity, Opts>(
                     bounds, reporter);
                 return ret;
@@ -525,7 +529,6 @@ class DLNegaMax {
 
         // Values for search result
         std::optional<SearchResult> best_move;
-        size_t n_nodes = 1;
 
         // In quiescence only: check stand-pat score
         if constexpr (Type == SearchType::QUIESCE && Opts.quiescence_standpat) {
@@ -535,9 +538,7 @@ class DLNegaMax {
                 SearchResult standpat_result = {
                     .value = IBValue(standpat_score, ABNodeType::CUT),
                     .type = SearchResult::LeafType::DEPTH_CUTOFF,
-                    .best_move = {},
-                    .n_nodes = 1,
-                };
+                    .best_move = {}};
                 best_move = standpat_result;
                 bounds.alpha = std::max(bounds.alpha, standpat_score);
                 if (standpat_score >= bounds.beta) {
@@ -581,9 +582,7 @@ class DLNegaMax {
                         SearchResult ret = {
                             .value = tt_value->value,
                             .type = SearchResult::LeafType::HASH_CUTOFF,
-                            .best_move = tt_value->best_move,
-                            .n_nodes = 1,
-                        };
+                            .best_move = tt_value->best_move};
                         if constexpr (Verbosity == VerbosityLevel::VERBOSE) {
                             if (reporter) {
                                 reporter->debug_log(StatReporter::join(
@@ -643,7 +642,6 @@ class DLNegaMax {
                 }
 
                 // Count nodes
-                n_nodes += child_result.n_nodes;
                 const IBValue child_value = -child_result.value;
 
                 // Update best move if eval improves
@@ -711,9 +709,7 @@ class DLNegaMax {
             const SearchResult endgame_result = {
                 .value = IBValue(checked ? -eval::max_eval : 0, ABNodeType::PV),
                 .type = checked ? SearchResult::LeafType::CHECKMATE
-                                : SearchResult::LeafType::STALEMATE,
-                .n_nodes = n_nodes,
-            };
+                                : SearchResult::LeafType::STALEMATE};
             // TODO: insert these
             // But, handle the fact that we have null moves in the cache
             // now. m_ttable.get().insert(
@@ -730,8 +726,6 @@ class DLNegaMax {
             }
             return endgame_result;
         }
-
-        best_move->n_nodes = n_nodes;
 
         m_ttable.get().insert(
             hash, best_move.value(),
@@ -771,8 +765,7 @@ class DLNegaMax {
     constexpr SearchResult cutoff_result() const {
         return {.value = IBValue(m_node.get().template get<TEval>().eval(),
                                  ABNodeType::PV),
-                .type = SearchResult::LeafType::DEPTH_CUTOFF,
-                .n_nodes = 1};
+                .type = SearchResult::LeafType::DEPTH_CUTOFF};
     }
 
     // Gets moves to be searched based on search type.
@@ -828,6 +821,8 @@ class DLNegaMax {
     std::reference_wrapper<TTable> m_ttable;
 
     std::atomic<bool> m_stopped = false;
+
+    size_t m_node_count = 0;
 
     // Accessible to other threads
     std::atomic<
@@ -949,7 +944,7 @@ class IDSearcher {
             // TODO: report nps for current iteration, not total?
             if (reporter) {
                 reporter->report(max_depth, search_result->value.eval(),
-                                 search_result->n_nodes, elapsed, m_pv);
+                                 m_searcher.get_node_count(), elapsed, m_pv);
             }
 
             if (search_result->type == SearchResult::LeafType::CHECKMATE) {

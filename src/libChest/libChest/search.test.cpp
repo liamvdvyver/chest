@@ -84,7 +84,7 @@ search::SearchResult do_search(auto &searcher, const size_t d,
     std::cerr << name << "\n  DEPTH: " << d << ", eval: " << ret.value.eval()
               << ", best_move: "
               << static_cast<std::string>(move::LongAlgMove(ret.best_move))
-              << ", nodes: " << ret.n_nodes << '\n'
+              << ", nodes: " << searcher.get_node_count() << '\n'
               << "  pv: ";
     MoveBuffer pv;
     searcher.get_pv(pv);
