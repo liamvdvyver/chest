@@ -34,7 +34,8 @@ class ZobristRandoms {
                 for (const board::Square sq :
                      board::Square::AllSquareIterator()) {
                     assert(m_piece_hashes[piece_hash_idx({c, p}, sq)] == 0);
-                    m_piece_hashes[piece_hash_idx({c, p}, sq)] = rand(eng);
+                    m_piece_hashes[piece_hash_idx({.colour = c, .piece = p},
+                                                  sq)] = rand(eng);
                 }
             }
         }
@@ -51,7 +52,7 @@ class ZobristRandoms {
         }
 
         // TODO: can shift indices down, since 0b0000 is hashed to zero anyway.
-        const state::castling_rights_t max_hash =
+        const auto max_hash =
             static_cast<state::castling_rights_t>(m_castling_hashes.size());
         for (state::castling_rights_t i = 1; i < max_hash; i++) {
             // Not yet set -> not a singleton
@@ -124,9 +125,11 @@ struct Zobrist : public Wrapper<zobrist_t, Zobrist> {
         for (const board::Colour c : board::colours) {
             for (const board::Piece p : board::PieceTypesIterator()) {
                 for (const board::Bitboard loc :
-                     state.copy_bitboard({c, p}).singletons()) {
-                    value ^= s_hasher.get_piece_hash(
-                        {c, p}, loc.single_bitscan_forward());
+                     state.copy_bitboard({.colour = c, .piece = p})
+                         .singletons()) {
+                    value ^=
+                        s_hasher.get_piece_hash({.colour = c, .piece = p},
+                                                loc.single_bitscan_forward());
                 }
             }
         }
@@ -181,7 +184,8 @@ struct Zobrist : public Wrapper<zobrist_t, Zobrist> {
                                  const board::Colour side,
                                  const board::Piece from,
                                  const board::Piece to) {
-        swap(loc, {side, from}, {side, to});
+        swap(loc, {.colour = side, .piece = from},
+             {.colour = side, .piece = to});
     }
     constexpr void toggle_castling_rights(state::CastlingRights rights) {
         value ^= s_hasher.get_castling_rights_hash(rights);

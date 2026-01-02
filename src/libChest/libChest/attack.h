@@ -9,8 +9,7 @@
 
 // If x86 pext instruction is present,
 // it is used for generating precomputed attack keys.
-#if defined(__BMI2__)
-#define USE_PEXT
+#if PEXT()
 #include <immintrin.h>
 #endif
 
@@ -484,7 +483,7 @@ class PlainMagicAttacker {
     std::array<magic_t, board::n_squares> m_magics;
 };
 
-#ifdef USE_PEXT
+#if PEXT()
 // PEXT (variable shift) attacker.
 template <SlidingAttacker TAttacker, Attacker TMasker>
 class PextAttacker {
@@ -559,7 +558,7 @@ using PawnDoublePusher =
 using PawnAttacker = PrecomputedColouredMultiAttacker<detail::GenPawnCaptures>;
 
 // PEXT is faster if available.
-#ifdef USE_PEXT
+#if PEXT()
 using BishopAttacker =
     PextAttacker<detail::GenBishopAttacks, detail::GenBishopMask>;
 using RookAttacker = PextAttacker<detail::GenRookAttacks, detail::GenRookMask>;

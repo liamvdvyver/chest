@@ -441,7 +441,7 @@ class DLNegaMax {
 
     constexpr void stop() { m_stopped.store(true, std::memory_order::relaxed); }
     constexpr bool is_stopped() const {
-        m_stopped.load(std::memory_order::relaxed);
+        return m_stopped.load(std::memory_order::relaxed);
     }
 
     constexpr void set_finish_time(
@@ -565,7 +565,7 @@ class DLNegaMax {
                 m_ttable.get().at_opt(hash);
             hash_move =
                 tt_value.transform([](auto val) { return val.best_move; })
-                    .value_or({});
+                    .value_or(move::FatMove{});
 
             if constexpr (Opts.hash_pruning) {
                 // Has deeper value

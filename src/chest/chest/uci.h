@@ -183,7 +183,23 @@ class UCICheck : public EngineCommand {
 
    private:
     void identify();
-    static constexpr std::string name = "Chest";
+
+    inline static const std::string name =
+        "Chest"
+#if DEBUG()
+        " [DEBUG]"
+#endif
+#if !BITSCAN()
+        " [no bitscan]"
+#endif
+#if !POPCOUNT()
+        " [no popcount]"
+#endif
+#if !PEXT()
+        " [magic bitboards]"
+#endif
+        ;
+
     inline static const std::string author = "Liam van der Vyver";
 
     void tell_options();

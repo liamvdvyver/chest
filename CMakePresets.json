@@ -17,7 +17,7 @@
       "binaryDir": "${sourceDir}/build/debug-native",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_CXX_FLAGS": "-march=native"
+        "CMAKE_CXX_FLAGS": "-march=haswell"
       }
     },
     {
@@ -35,8 +35,26 @@
       "binaryDir": "${sourceDir}/build/release-native",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_CXX_FLAGS": "-march=native"
+        "CMAKE_CXX_FLAGS": "-march=haswell"
       }
     }
-  ]
+  ],
+    "buildPresets": [
+        {
+        "name": "release-native",
+        "configurePreset": "release-native"
+      },
+        {
+        "name": "debug-native",
+        "configurePreset": "debug-native"
+      },
+        {
+        "name": "release-base",
+        "configurePreset": "release-base"
+      },
+        {
+        "name": "debug-base",
+        "configurePreset": "debug-base"
+      }
+    ]
 }

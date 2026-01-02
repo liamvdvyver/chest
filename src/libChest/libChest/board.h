@@ -13,6 +13,7 @@
 #include <string>
 #include <utility>
 
+#include "build.h"
 #include "wrapper.h"
 
 namespace board::io {};
@@ -193,7 +194,7 @@ struct Bitboard : public Wrapper<bitboard_t, Bitboard> {
 
     // Compute cardinality with Kerighan's method, or hardware if available.
     constexpr uint8_t size() const {
-#if __has_builtin(__builtin_popcountll)
+#if POPCOUNT()
         return __builtin_popcountll(value);
 #else
         uint8_t ret = 0;
@@ -260,7 +261,7 @@ struct Bitboard : public Wrapper<bitboard_t, Bitboard> {
 
     // Assumes b is a power of two (i.e. a singly occupied bitboard)
     constexpr Square single_bitscan_forward() const {
-#if __has_builtin(__builtin_ctzll)
+#if BITSCAN()
         return __builtin_ctzll(value);
 #else
         return de_brujin_map[((value ^ (value - 1)) * debruijn64) >> 58];

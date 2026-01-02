@@ -24,7 +24,8 @@ Library design:
 
 # Build
 
-If on x64: Run `cmake --build build/release-native` to build the release version.
+If on x64: Run `cmake --preset release && cmake --build build/release` to build the release version (use the `base` preset to build without pext bitboards if bmi2 isn't available).
+
 On other platforms: remove or modify `CmakePresets.json` and build.
 
 Uses catch2 for tests.

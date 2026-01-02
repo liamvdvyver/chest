@@ -11,3 +11,5 @@ _deps/*
 config.json
 compile_commands.json
 build/*
+.direnv/*
+result

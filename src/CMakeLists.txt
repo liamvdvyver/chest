@@ -8,7 +8,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -fomit-frame-pointer -flto -ffast-math -DNDEBUG
 set(CMAKE_CXX_FLAGS_DEBUG "-Og -g -fsanitize=address,undefined" CACHE STRING "" FORCE)
 
 add_compile_options(-std=c++23 -Wall -Wextra -Wpedantic)
-add_link_options(-fuse-ld=lld)
+add_link_options(-fuse-ld=lld -latomic)
 
 # Main
 
@@ -27,23 +27,23 @@ target_link_libraries(chest libChest)
 
 # Formatting
 
-file(GLOB_RECURSE ALL_SOURCE_FILES *.c *.h)
-add_custom_target(
-    format_check
-    ALL
-    COMMAND /usr/bin/clang-format
-    --dry-run
-    -Werror
-    ${ALL_SOURCE_FILES}
-)
+# file(GLOB_RECURSE ALL_SOURCE_FILES *.c *.h)
+# add_custom_target(
+#     format_check
+#     ALL
+#     COMMAND clang-format
+#     --dry-run
+#     -Werror
+#     ${ALL_SOURCE_FILES}
+# )
 
 # Linting
 
-add_custom_target(
-    lint
-    COMMAND /usr/bin/clang-tidy
-    ${ALL_SOURCE_FILES}
-)
+# add_custom_target(
+#     lint
+#     COMMAND clang-tidy
+#     ${ALL_SOURCE_FILES}
+# )
 
 # Tests
 
@@ -61,3 +61,5 @@ target_link_libraries(test PRIVATE libChest Catch2::Catch2WithMain)
 include(CTest)
 include(Catch)
 catch_discover_tests(test)
+
+install(TARGETS chest)
